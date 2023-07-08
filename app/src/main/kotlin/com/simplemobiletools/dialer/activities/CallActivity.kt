@@ -189,24 +189,7 @@ class CallActivity : SimpleActivity() {
         dialpad_8_holder.setOnClickListener { dialpadPressed('8') }
         dialpad_9_holder.setOnClickListener { dialpadPressed('9') }
 
-        arrayOf(
-            dialpad_0_holder,
-            dialpad_1_holder,
-            dialpad_2_holder,
-            dialpad_3_holder,
-            dialpad_4_holder,
-            dialpad_5_holder,
-            dialpad_6_holder,
-            dialpad_7_holder,
-            dialpad_8_holder,
-            dialpad_9_holder,
-            dialpad_plus_holder,
-            dialpad_asterisk_holder,
-            dialpad_hashtag_holder
-        ).forEach {
-            it.background = ResourcesCompat.getDrawable(resources, R.drawable.pill_background, theme)
-            it.background?.alpha = LOWER_ALPHA_INT
-        }
+
 
         dialpad_0_holder.setOnLongClickListener { dialpadPressed('+'); true }
         dialpad_asterisk_holder.setOnClickListener { dialpadPressed('*') }
