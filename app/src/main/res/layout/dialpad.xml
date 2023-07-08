@@ -18,6 +18,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00000000"
         android:contentDescription="@string/one"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_2_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_2_holder"
@@ -30,6 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:fontFamily="@font/poppins_bold"
             android:text="1" />
 
     </RelativeLayout>
@@ -40,6 +42,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="@dimen/medium_margin"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/two"
         app:layout_constraintBottom_toTopOf="@+id/dialpad_5_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_3_holder"
@@ -50,6 +53,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="2" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -67,6 +71,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/three"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_2_holder"
         app:layout_constraintEnd_toEndOf="parent"
@@ -78,6 +83,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="3" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -94,6 +100,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/four"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_5_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_5_holder"
@@ -105,6 +112,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="4" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -122,6 +130,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="@dimen/medium_margin"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/five"
         app:layout_constraintBottom_toTopOf="@+id/dialpad_8_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_6_holder"
@@ -132,6 +141,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="5" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -149,6 +159,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/six"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_5_holder"
         app:layout_constraintEnd_toEndOf="parent"
@@ -160,6 +171,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="6" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -176,6 +188,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/seven"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_8_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_8_holder"
@@ -187,6 +200,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="7" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -204,6 +218,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="@dimen/medium_margin"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/eight"
         app:layout_constraintBottom_toTopOf="@+id/dialpad_0_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_9_holder"
@@ -214,6 +229,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="8" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -231,6 +247,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/nine"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_8_holder"
         app:layout_constraintEnd_toEndOf="parent"
@@ -242,6 +259,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="9" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -258,6 +276,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/asterisk"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_0_holder"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_0_holder"
@@ -279,6 +298,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="@dimen/medium_margin"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/zero"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/dialpad_hashtag_holder"
@@ -289,6 +309,7 @@
             style="@style/DialpadNumberStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/poppins_bold"
             android:text="0" />
 
         <com.simplemobiletools.commons.views.MyTextView
@@ -329,6 +350,7 @@
         style="@style/DialpadButtonStyle"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:background="#00FFFFFF"
         android:contentDescription="@string/hashtag"
         app:layout_constraintBottom_toBottomOf="@+id/dialpad_0_holder"
         app:layout_constraintEnd_toEndOf="parent"

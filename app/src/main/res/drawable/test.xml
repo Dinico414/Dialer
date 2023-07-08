@@ -1,0 +1,14 @@
+<drawable
+    class=""
+    android:import java.io.FileOutputStream;
+    import android.graphics.Bitmap;
+    import android.app.WallpaperManager;
+
+    WallpaperManager wmInstance = WallpaperManager.getInstance(context);
+
+    wmInstance
+    .getDrawable()
+    .getBitmap()
+    .compress(Bitmap.CompressFormat.PNG, 100,
+    new FileOutputStream("/storage/emulated/0/output.png"))
+/>

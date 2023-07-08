@@ -584,7 +584,7 @@ class CallActivity : SimpleActivity() {
 
                         val rippleBg = resources.getDrawable(R.drawable.ic_call_accept, theme) as RippleDrawable
                         val layerDrawable = rippleBg.findDrawableByLayerId(R.id.accept_call_background_holder) as LayerDrawable
-                        layerDrawable.setDrawableByLayerId(R.id.accept_call_icon, getDrawable(acceptDrawableId))
+                        layerDrawable.setDrawableByLayerId(R.id.accept_call_background, getDrawable(acceptDrawableId))
                         call_accept.setImageDrawable(rippleBg)
                     }
                 }
