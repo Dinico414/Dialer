@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/shortcut_dialpad_background">
-        <shape android:shape="oval">
+        <shape android:shape="rectangle">
+            <corners android:radius="23dp"/>
             <solid android:color="@color/color_primary" />
         </shape>
     </item>
