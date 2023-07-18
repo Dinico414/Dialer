@@ -55,7 +55,9 @@
             android:layout_weight="1"
             android:background="@drawable/ripple_background"
             android:padding="@dimen/small_margin"
-            android:src="@drawable/ic_phone_green_vector" />
+            android:src="@drawable/ic_phone_green_vector"
+            android:scaleX="0.9"
+            android:scaleY="0.9"/>
 
     </LinearLayout>
 </RelativeLayout>

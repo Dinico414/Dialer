@@ -132,7 +132,7 @@ class MainActivity : SimpleActivity() {
         updateTextColors(main_holder)
 //        setupTabColors()
 
-        val backgroundColor = mixColors(getProperBackgroundColor(), 0x888888, 0.9)
+        val backgroundColor = mixColors(getProperBackgroundColor(), 0x888888, 0.8)
 
         view_pager.background.applyColorFilter(backgroundColor)
         main_tabs_holder.background.applyColorFilter(backgroundColor)

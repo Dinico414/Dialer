@@ -36,14 +36,14 @@
     <ImageButton
         android:id="@+id/item_conference_call_end"
         android:layout_width="@dimen/normal_icon_size"
-        android:layout_height="@dimen/normal_icon_size"
-        android:layout_margin="@dimen/medium_margin"
+        android:layout_height="@dimen/file_picker_icon_size"
         android:background="?actionBarItemBackground"
         android:contentDescription="@string/end_call"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/ic_phone_down_vector" />
+        app:srcCompat="@drawable/ic_phone_down_vector_small"/>
+
 
     <ImageButton
         android:id="@+id/item_conference_call_split"
