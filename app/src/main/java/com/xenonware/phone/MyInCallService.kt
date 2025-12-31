@@ -1,9 +1,10 @@
-package com.xenonware.dialer
+package com.xenonware.phone
 
 import android.content.Intent
 import android.telecom.Call
 import android.telecom.InCallService
 import android.util.Log
+import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity
 
 class MyInCallService : InCallService() {
 

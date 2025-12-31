@@ -1,6 +1,5 @@
-package com.xenonware.dialer
+package com.xenonware.phone.ui.layouts.callscreen
 
-import android.os.Build
 import android.os.Bundle
 import android.telecom.Call
 import android.view.WindowManager
@@ -11,9 +10,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xenonware.dialer.ui.theme.DialerTheme
+import com.xenonware.phone.ui.theme.XenonTheme
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
@@ -36,8 +36,19 @@ class CallScreenActivity : ComponentActivity() {
         )
 
         setContent {
-            DialerTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            // Use the new XenonTheme instead of the old DialerTheme
+            // We force a blacked-out dark theme for the call screen (pure black background, typical for in-call UI)
+            XenonTheme(
+                darkTheme = true,
+                useBlackedOutDarkTheme = true,
+                isCoverMode = false,
+                dynamicColor = true // You can set to false if you prefer static colors
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    // Override background to ensure pure black (in case blacked-out mode doesn't fully cover it)
+                    color = Color.Black
+                ) {
                     CallScreen(call = currentCall)
                 }
             }
@@ -65,7 +76,7 @@ class CallScreenActivity : ComponentActivity() {
 fun CallScreen(call: Call?) {
     if (call == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No active call", fontSize = 32.sp)
+            Text("No active call", fontSize = 32.sp, color = Color.White)
         }
         return
     }
@@ -102,7 +113,7 @@ fun CallScreen(call: Call?) {
 
         // Top section: caller number + status / timer
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = handle, fontSize = 48.sp)
+            Text(text = handle, fontSize = 48.sp, color = Color.White)
             Spacer(Modifier.height(32.dp))
 
             val statusText = when (state) {
@@ -117,7 +128,7 @@ fun CallScreen(call: Call?) {
                 else -> "Call ended"
             }
 
-            Text(text = statusText, fontSize = 32.sp)
+            Text(text = statusText, fontSize = 32.sp, color = Color.White)
         }
 
         // Bottom section: ALWAYS show the big Hang Up button (or Cancel for very early states)
@@ -126,7 +137,7 @@ fun CallScreen(call: Call?) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) {
-                Text("Call ended", fontSize = 32.sp)
+                Text("Call ended", fontSize = 32.sp, color = Color.White)
             } else {
                 // Always show a red button – Hang Up or Cancel depending on state
                 Button(
@@ -136,7 +147,8 @@ fun CallScreen(call: Call?) {
                 ) {
                     Text(
                         text = "Hang Up",
-                        fontSize = 32.sp
+                        fontSize = 32.sp,
+                        color = MaterialTheme.colorScheme.onError
                     )
                 }
             }

@@ -1,4 +1,4 @@
-package com.xenonware.dialer
+package com.xenonware.phone
 
 import org.junit.Test
 

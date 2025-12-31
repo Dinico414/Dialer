@@ -1,4 +1,4 @@
-package com.xenonware.dialer
+package com.xenonware.phone.ui.layouts.main.calllog
 
 import android.Manifest
 import android.provider.CallLog

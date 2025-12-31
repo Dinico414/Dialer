@@ -1,0 +1,167 @@
+//package com.xenonware.phone
+//
+//import android.content.Intent
+//import android.os.Bundle
+//import androidx.activity.ComponentActivity
+//import androidx.activity.compose.setContent
+//import androidx.activity.viewModels
+//import androidx.appcompat.app.AppCompatDelegate
+//import androidx.compose.foundation.layout.Column
+//import androidx.compose.foundation.layout.fillMaxSize
+//import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+//import androidx.compose.runtime.Composable
+//import androidx.compose.runtime.LaunchedEffect
+//import androidx.compose.ui.Modifier
+//import androidx.compose.ui.platform.LocalContext
+//import androidx.compose.ui.platform.LocalWindowInfo
+//import androidx.compose.ui.unit.IntSize
+//import androidx.core.view.WindowCompat
+//import androidx.lifecycle.lifecycleScope
+//import com.google.android.gms.auth.api.identity.Identity
+//import com.xenonware.phone.data.SharedPreferenceManager
+//import com.xenonware.phone.sign_in.GoogleAuthUiClient
+//import com.xenonware.phone.sign_in.SignInEvent
+//import com.xenonware.phone.sign_in.SignInViewModel
+//import com.xenonware.phone.ui.layouts.MainLayout
+//import com.xenonware.phone.ui.theme.ScreenEnvironment
+//import com.xenonware.phone.viewmodel.LayoutType
+//import kotlinx.coroutines.launch
+//
+//class MainActivity : ComponentActivity() {
+//
+//    private val viewModel: PhoneViewModel by viewModels()
+//    private val signInViewModel: SignInViewModel by viewModels {
+//        SignInViewModel.SignInViewModelFactory(application)
+//    }
+//
+//    private lateinit var sharedPreferenceManager: SharedPreferenceManager
+//
+//    private val googleAuthUiClient by lazy {
+//        GoogleAuthUiClient(
+//            context = applicationContext,
+//            oneTapClient = Identity.getSignInClient(applicationContext)
+//        )
+//    }
+//
+//    private var lastAppliedTheme: Int = -1
+//    private var lastAppliedCoverThemeEnabled: Boolean = false
+//    private var lastAppliedBlackedOutMode: Boolean = false
+//
+//    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//        WindowCompat.setDecorFitsSystemWindows(window, false)
+//        sharedPreferenceManager = SharedPreferenceManager(applicationContext)
+//
+//        val initialThemePref = sharedPreferenceManager.theme
+//        val initialCoverThemeEnabledSetting = sharedPreferenceManager.coverThemeEnabled
+//        val initialBlackedOutMode = sharedPreferenceManager.blackedOutModeEnabled
+//
+//        updateAppCompatDelegateTheme(initialThemePref)
+//
+//        lastAppliedTheme = initialThemePref
+//        lastAppliedCoverThemeEnabled = initialCoverThemeEnabledSetting
+//        lastAppliedBlackedOutMode = initialBlackedOutMode
+//
+//        setContent {
+//            val currentContext = LocalContext.current
+//            val currentContainerSize = LocalWindowInfo.current.containerSize
+//            val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(currentContainerSize)
+//
+//            // REAL-TIME SYNC ON SIGN-IN
+//            LaunchedEffect(Unit) {
+//                signInViewModel.signInEvent.collect { event ->
+//                    if (event is SignInEvent.SignedInSuccessfully) {
+//                        viewModel.onSignedIn()
+//                    }
+//                }
+//            }
+//
+//            ScreenEnvironment(
+//                themePreference = lastAppliedTheme,
+//                coverTheme = applyCoverTheme,
+//                blackedOutModeEnabled = lastAppliedBlackedOutMode
+//            ) { layoutType, isLandscape ->
+//                XenonApp(
+//                    viewModel = viewModel,
+//                    signInViewModel = signInViewModel,
+//                    layoutType = layoutType,
+//                    isLandscape = isLandscape,
+//                    appSize = currentContainerSize,
+//                    onOpenSettings = {
+//                        val intent = Intent(currentContext, SettingsActivity::class.java)
+//                        currentContext.startActivity(intent)
+//                    },
+//                )
+//            }
+//        }
+//    }
+//
+//    override fun onResume() {
+//        super.onResume()
+//
+//        lifecycleScope.launch {
+//            val user = googleAuthUiClient.getSignedInUser()
+//            val isSignedIn = user != null
+//
+//            // Sync login state
+//            sharedPreferenceManager.isUserLoggedIn = isSignedIn
+//            signInViewModel.updateSignInState(isSignedIn)
+//
+//            // Start real-time sync when app resumes (if already signed in)
+//            // DELETE THIS LINE — IT WIPES LOCAL DATA!
+//            if (isSignedIn) {
+//                viewModel.onSignedIn() // ← This is correct
+//            }
+//        }
+//
+//        // Theme handling
+//        val currentThemePref = sharedPreferenceManager.theme
+//        val currentCoverThemeEnabledSetting = sharedPreferenceManager.coverThemeEnabled
+//        val currentBlackedOutMode = sharedPreferenceManager.blackedOutModeEnabled
+//
+//        if (currentThemePref != lastAppliedTheme ||
+//            currentCoverThemeEnabledSetting != lastAppliedCoverThemeEnabled ||
+//            currentBlackedOutMode != lastAppliedBlackedOutMode
+//        ) {
+//            if (currentThemePref != lastAppliedTheme) {
+//                updateAppCompatDelegateTheme(currentThemePref)
+//            }
+//
+//            lastAppliedTheme = currentThemePref
+//            lastAppliedCoverThemeEnabled = currentCoverThemeEnabledSetting
+//            lastAppliedBlackedOutMode = currentBlackedOutMode
+//
+//            recreate()
+//        }
+//    }
+//
+//    private fun updateAppCompatDelegateTheme(themePref: Int) {
+//        if (themePref >= 0 && themePref < sharedPreferenceManager.themeFlag.size) {
+//            AppCompatDelegate.setDefaultNightMode(sharedPreferenceManager.themeFlag[themePref])
+//        } else {
+//            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+//        }
+//    }
+//}
+//
+//@Composable
+//fun XenonApp(
+//    viewModel: PhoneViewModel,
+//    signInViewModel: SignInViewModel,
+//    layoutType: LayoutType,
+//    isLandscape: Boolean,
+//    onOpenSettings: () -> Unit,
+//    appSize: IntSize,
+//) {
+//    Column(modifier = Modifier.fillMaxSize()) {
+//        MainLayout(
+//            viewModel = viewModel,
+//            signInViewModel = signInViewModel,
+//            isLandscape = isLandscape,
+//            layoutType = layoutType,
+//            onOpenSettings = onOpenSettings,
+//            appSize = appSize
+//        )
+//    }
+//}

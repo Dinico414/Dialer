@@ -61,7 +61,7 @@
         </activity>
 
         <activity
-            android:name=".CallScreenActivity"
+            android:name=".ui.layouts.callscreen.CallScreenActivity"
             android:exported="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"

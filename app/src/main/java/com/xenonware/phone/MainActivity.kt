@@ -1,4 +1,4 @@
-package com.xenonware.dialer
+package com.xenonware.phone
 
 import android.Manifest
 import android.app.Activity
@@ -27,8 +27,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xenonware.dialer.ui.theme.DialerTheme
+import com.xenonware.phone.ui.theme.XenonTheme
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -48,8 +50,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            DialerTheme {
-                MainScreen()
+            // Replaced old DialerTheme with the new XenonTheme
+            XenonTheme(
+                darkTheme = false,              // Light mode by default for dialer (common for phone apps)
+                useBlackedOutDarkTheme = false,
+                isCoverMode = false,
+                dynamicColor = true             // Use dynamic colors on Android 12+
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MainScreen()
+                }
             }
         }
     }
@@ -70,7 +83,11 @@ fun MainScreen() {
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
                         label = { Text(title) },
-                        icon = {Icons.Filled.ArrowBack}
+                        icon = {
+                            // Use appropriate icons – fallback to Call for simplicity
+                            if (index == 0) Icon(Icons.Default.Call, contentDescription = null)
+                            else Icon(Icons.Default.Call, contentDescription = null) // Replace with contacts icon if added
+                        }
                     )
                 }
             }
@@ -106,7 +123,7 @@ fun DialerScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             Toast.makeText(context, "Dialer app set as default", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Failed to set as default dialer", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Failed to set as default phone", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -118,7 +135,8 @@ fun DialerScreen(
         Text(
             text = if (phoneNumber.isEmpty()) "Enter number" else phoneNumber,
             modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Dialpad(
@@ -169,14 +187,21 @@ fun Dialpad(
             items(buttons) { button ->
                 Button(
                     onClick = { onNumberClick(button) },
-                    modifier = Modifier.size(80.dp)
+                    modifier = Modifier.size(80.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
-                    Text(text = button, style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        text = button,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -187,11 +212,11 @@ fun Dialpad(
                 Text("Call log", fontSize = 20.sp)
             }
 
-            FilledTonalButton(
+            Button(
                 modifier = Modifier.weight(1f).height(64.dp),
                 onClick = onCallClick,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color(0xFF4CAF50),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50), // Green call button
                     contentColor = Color.White
                 )
             ) {
@@ -205,13 +230,13 @@ fun Dialpad(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        FilledTonalButton(onClick = onSetDefault) {
+        OutlinedButton(onClick = onSetDefault) {
             Text("Set as Default Dialer")
         }
     }
 }
 
-// Safe calling
+// Safe calling (unchanged)
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
     val uri = Uri.parse("tel:$phoneNumber")
@@ -247,7 +272,6 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
     }
 }
 
-// Contacts (unchanged)
 data class Contact(val name: String, val phoneNumber: String)
 
 @Composable
@@ -297,15 +321,32 @@ fun ContactItem(contact: Contact) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = contact.name, fontSize = 20.sp, fontWeight = FontWeight.Medium)
-            Text(text = contact.phoneNumber, fontSize = 16.sp, color = Color.Gray)
+            Text(
+                text = contact.name,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = contact.phoneNumber,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         IconButton(
             onClick = { safePlaceCall(context, contact.phoneNumber) },
-            modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFF4CAF50))
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF4CAF50))
         ) {
-            Icon(Icons.Default.Call, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(28.dp))
+            Icon(
+                Icons.Default.Call,
+                contentDescription = "Call",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
         }
     }
     Divider()
@@ -315,8 +356,12 @@ private fun loadContacts(context: Context): List<Contact> {
     val list = mutableListOf<Contact>()
     val cursor = context.contentResolver.query(
         ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-        arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
-        null, null, "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
+        arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        ),
+        null, null,
+        "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
     )
     cursor?.use {
         val nameIdx = it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
@@ -330,7 +375,6 @@ private fun loadContacts(context: Context): List<Contact> {
     return list.distinctBy { it.phoneNumber }
 }
 
-// Your CallLogScreen – improved with auto-load and back button
 @Composable
 fun CallLogScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
     var callLogs by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -344,23 +388,20 @@ fun CallLogScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
         }
     }
 
-    // Auto-request permission on first launch
     LaunchedEffect(Unit) {
         permissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Top bar with back button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = onBack) {
-                Text("← Back")
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
             }
-            Spacer(Modifier.weight(1f))
             Text("Call Log", style = MaterialTheme.typography.headlineSmall)
         }
 
@@ -373,7 +414,8 @@ fun CallLogScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
                 items(callLogs) { log ->
                     Text(
                         text = log,
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Divider()
                 }
