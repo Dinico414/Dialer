@@ -114,6 +114,7 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
                                 .fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.surfaceContainer)
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(top = 8.dp)
                         ) {
                             Text(
                                 text = group.letter.toString(),
