@@ -1,16 +1,24 @@
 package com.xenonware.phone
 
+import android.app.role.RoleManager
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -23,6 +31,7 @@ import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInEvent
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
 import com.xenonware.phone.ui.layouts.MainLayout
+import com.xenonware.phone.ui.res.SetDefaultDialerOverlay
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.PhoneViewModel
@@ -100,7 +109,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-
+        viewModel.checkDefaultDialerStatus()
         lifecycleScope.launch {
             val user = googleAuthUiClient.getSignedInUser()
             val isSignedIn = user != null
@@ -109,10 +118,9 @@ class MainActivity : ComponentActivity() {
             sharedPreferenceManager.isUserLoggedIn = isSignedIn
             signInViewModel.updateSignInState(isSignedIn)
 
-            // Start real-time sync when app resumes (if already signed in)
-            // DELETE THIS LINE — IT WIPES LOCAL DATA!
+
             if (isSignedIn) {
-                viewModel.onSignedIn() // ← This is correct
+                viewModel.onSignedIn()
             }
         }
 
@@ -148,6 +156,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+
 fun XenonApp(
     viewModel: PhoneViewModel,
     signInViewModel: SignInViewModel,
@@ -156,14 +165,45 @@ fun XenonApp(
     onOpenSettings: () -> Unit,
     appSize: IntSize,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        MainLayout(
-            viewModel = viewModel,
-            signInViewModel = signInViewModel,
-            isLandscape = isLandscape,
-            layoutType = layoutType,
-            onOpenSettings = onOpenSettings,
-            appSize = appSize
-        )
+    val context = LocalContext.current
+    val showOverlay = viewModel.showSetDefaultOverlay.collectAsState().value
+
+    val roleRequestLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            Toast.makeText(context, "Phone is now the default dialer!", Toast.LENGTH_LONG).show()
+            viewModel.checkDefaultDialerStatus() // Hide overlay
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            MainLayout(
+                viewModel = viewModel,
+                signInViewModel = signInViewModel,
+                isLandscape = isLandscape,
+                layoutType = layoutType,
+                onOpenSettings = onOpenSettings,
+                appSize = appSize
+            )
+        }
+
+        if (showOverlay) {
+            SetDefaultDialerOverlay(
+                onSetDefault = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+                        if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+                            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
+                            roleRequestLauncher.launch(intent)
+                        }
+                    } else {
+                        Toast.makeText(context, "Please set as default in Settings > Apps", Toast.LENGTH_LONG).show()
+                    }
+                },
+
+            )
+        }
     }
 }

@@ -1,13 +1,26 @@
 package com.xenonware.phone.ui.layouts.main.phone
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.rounded.Contacts
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,13 +34,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.auth.api.identity.Identity
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.GoogleProfilBorder
-import com.xenon.mylibrary.res.GoogleProfilBorderNoGoogle
 import com.xenon.mylibrary.res.GoogleProfilePicture
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.values.LargePadding
-import com.xenon.mylibrary.values.MediumPadding
-import com.xenon.mylibrary.values.NoSpacing
-import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.R
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
@@ -106,7 +115,7 @@ fun CoverPhone(
                                 modifier = Modifier.fillMaxSize(),
                                 onShowCallLog = { currentScreen = PhoneScreen.CallHistory }
                             )
-                            PhoneScreen.CallHistory -> CallHistoryScreen(modifier = Modifier.fillMaxSize())
+                            PhoneScreen.CallHistory -> CallHistoryScreen(modifier = Modifier.fillMaxSize(), onBack = { currentScreen = PhoneScreen.Dialer })
                             PhoneScreen.Contacts -> ContactsScreen(modifier = Modifier.fillMaxSize())
                         }
                     }

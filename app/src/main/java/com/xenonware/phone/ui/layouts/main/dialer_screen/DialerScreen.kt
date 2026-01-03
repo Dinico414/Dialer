@@ -1,6 +1,5 @@
 package com.xenonware.phone.ui.layouts.main.dialer_screen
 
-import android.app.Activity
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
@@ -9,16 +8,19 @@ import android.os.Build
 import android.os.Bundle
 import android.telecom.TelecomManager
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,7 +37,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +50,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
+import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.LargePadding
+import com.xenon.mylibrary.values.LargestPadding
 
 @Composable
 fun DialerScreen(
@@ -58,50 +63,35 @@ fun DialerScreen(
     var phoneNumber by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    val roleRequestLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            Toast.makeText(context, "Dialer app set as default", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Failed to set as default phone", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     Column(
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Flexible spacer that pushes the dialpad to the bottom
+        Spacer(modifier = Modifier.weight(1f))
+        // Phone number display near the top
         Text(
             text = if (phoneNumber.isEmpty()) "Enter number" else phoneNumber,
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(16.dp),
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground
+            color = MaterialTheme.colorScheme.onBackground,
+            fontFamily = QuicksandTitleVariable
         )
-
+        // Dialpad pinned to the bottom of the screen
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit },
             onDeleteClick = {
-                if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
+                if (phoneNumber.isNotEmpty()) {
+                    phoneNumber = phoneNumber.dropLast(1)
+                }
             },
             onCallClick = {
                 if (phoneNumber.isNotEmpty()) {
                     safePlaceCall(context, phoneNumber)
                 }
             },
-            onShowCallLog = onShowCallLog,
-            onSetDefault = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
-                    if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER) && !roleManager.isRoleHeld(RoleManager.ROLE_DIALER)) {
-                        val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
-                        roleRequestLauncher.launch(intent)
-                    } else {
-                        Toast.makeText(context, "Already default or role not available", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+            onShowCallLog = onShowCallLog
         )
     }
 }
@@ -112,37 +102,48 @@ fun Dialpad(
     onDeleteClick: () -> Unit,
     onCallClick: () -> Unit,
     onShowCallLog: () -> Unit,
-    onSetDefault: () -> Unit
 ) {
     val buttons = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+    val extraBottomPadding = 64.dp + 2 * LargePadding
+
+    // Safe bottom inset (navigation bar, gesture area, etc.)
+    val safeBottomPadding = WindowInsets.safeDrawing
+        .only(WindowInsetsSides.Bottom)
+        .asPaddingValues()
+        .calculateBottomPadding()
 
     Column(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = safeBottomPadding + extraBottomPadding)
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
             items(buttons) { button ->
                 Button(
                     onClick = { onNumberClick(button) },
-                    modifier = Modifier.size(80.dp),
+                    modifier = Modifier.height(70.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surfaceBright
                     )
                 ) {
                     Text(
                         text = button,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontFamily = QuicksandTitleVariable
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(LargestPadding))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -150,7 +151,9 @@ fun Dialpad(
             modifier = Modifier.fillMaxWidth()
         ) {
             FilledTonalIconButton(
-                modifier = Modifier.size(64.dp).clip(CircleShape),
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape),
                 onClick = onShowCallLog
             ) {
                 Icon(
@@ -179,7 +182,9 @@ fun Dialpad(
             }
 
             FilledTonalIconButton(
-                modifier = Modifier.size(64.dp).clip(CircleShape),
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape),
                 onClick = onDeleteClick
             ) {
                 Icon(
@@ -188,11 +193,6 @@ fun Dialpad(
                     modifier = Modifier.size(28.sp.value.dp)
                 )
             }
-        }
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedButton(onClick = onSetDefault) {
-            Text("Set as Default Dialer")
         }
     }
 }
