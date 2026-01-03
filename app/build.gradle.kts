@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.xenonware.phone"
-        minSdk = 39
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "0.0.1"
