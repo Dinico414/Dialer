@@ -6,12 +6,15 @@ import android.telecom.VideoProfile
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -45,11 +48,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntOffset
@@ -57,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.theme.ScreenEnvironment
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
@@ -94,7 +99,7 @@ class CallScreenActivity : ComponentActivity() {
                 themePreference = themePreference,
                 coverTheme = applyCoverTheme,
                 blackedOutModeEnabled = blackedOutModeEnabled
-            ) { layoutType, isLandscape ->
+            ) { _, _ ->
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -147,12 +152,11 @@ fun CallScreen(call: Call?) {
 
     val handle = call.details.handle?.schemeSpecificPart ?: "Unknown number"
 
-    // Duration timer – only when truly ACTIVE
     val duration by produceState(0L) {
         while (state == Call.STATE_ACTIVE) {
             value = System.currentTimeMillis() - (call.details.connectTimeMillis
                 ?: System.currentTimeMillis())
-            delay(1000)
+            kotlinx.coroutines.delay(1000)
         }
     }
 
@@ -163,7 +167,6 @@ fun CallScreen(call: Call?) {
     ) {
         Spacer(Modifier.height(100.dp))
 
-        // Caller info + status/timer
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = handle, fontSize = 48.sp, color = colorScheme.onSurface)
             Spacer(Modifier.height(32.dp))
@@ -179,7 +182,6 @@ fun CallScreen(call: Call?) {
             Text(text = statusText, fontSize = 32.sp, color = colorScheme.onSurface)
         }
 
-        // Bottom controls – different layouts per state
         CallControls(state = state, call = call)
 
         Spacer(Modifier.height(80.dp))
@@ -190,59 +192,97 @@ fun CallScreen(call: Call?) {
 private fun CallControls(state: Int, call: Call) {
     when (state) {
 
-// Inside CallControls, for Call.STATE_RINGING:
         Call.STATE_RINGING -> {
-            val trackWidthDp = 360.dp
             val iconSizeDp = 52.dp
-
-            var offsetX by remember { mutableStateOf(0f) }
+            val draggableSizeDp = 96.dp
+            val maxTrackWidthDp = 480.dp
+            val horizontalPadding = 16.dp
 
             val density = LocalDensity.current
-            val trackWidthPx = with(density) { trackWidthDp.toPx() }
-            val iconSizePx = with(density) { iconSizeDp.toPx() }
+            val scope = rememberCoroutineScope()
 
-            // Allow full free movement
-            (trackWidthPx - iconSizePx) / 2 + 40f
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+            val availableWidthDp = screenWidthDp - (horizontalPadding * 2)
+            val trackWidthDp = minOf(maxTrackWidthDp, availableWidthDp)
+
+            val trackWidthPx = with(density) { trackWidthDp.toPx() }
+
+            // Max offset: circle touches the inner edges of the track
+            val maxOffsetPx = (trackWidthPx / 2) -
+                    with(density) { 16.dp.toPx() } -
+                    with(density) { draggableSizeDp.toPx() / 2 }
+
+            val offsetX = remember { Animatable(0f) }
 
             val draggableState = rememberDraggableState { delta ->
-                offsetX += delta
+                scope.launch {
+                    val newValue = (offsetX.value + delta).coerceIn(-maxOffsetPx, maxOffsetPx)
+                    offsetX.snapTo(newValue)
+                }
             }
 
-            // Strong rotational shake when near center
-            val infiniteTransition = rememberInfiniteTransition()
+            // Shake when near center
+
+            val infiniteTransition = rememberInfiniteTransition(label = "shake transition")
+
             val shakeRotation by infiniteTransition.animateFloat(
-                initialValue = -28f, targetValue = 28f, animationSpec = infiniteRepeatable(
-                    animation = tween(200, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                )
+                initialValue = 0f,  // Start from center (we'll define the motion via keyframes)
+                targetValue = 0f,   // End at center
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1000 + 500  // 600ms for shakes + 1000ms pause = 1600ms per cycle
+
+                        // Fast shake to -20°
+                        -20f at 100 with FastOutSlowInEasing
+                        // Quick return to +35°
+                        35f at 200 with FastOutSlowInEasing
+                        // Back to -35°
+                        -35f at 300 with FastOutSlowInEasing
+                        // Back to +35°
+                        35f at 400 with FastOutSlowInEasing
+                        //Back to -35°
+                        -35f at 500 with FastOutSlowInEasing
+                        // Back to +35°
+                        35f at 600 with FastOutSlowInEasing
+                        //Back to -35°
+                        -35f at 700 with FastOutSlowInEasing
+                        // Back to +35°
+                        35f at 800 with FastOutSlowInEasing
+                        // Back to -15°
+                        -15f at 900 with FastOutSlowInEasing
+                        // Final return to center (0°)
+                        0f at 1000 with FastOutSlowInEasing
+
+                        // Hold at 0° for the remaining time (1000ms pause)
+                        0f at durationMillis  // Ensures it stays at 0 until the cycle restarts
+                    },
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "shake rotation"
             )
 
-            // Rotation logic: hanging down by default, rotates based on drag direction
             val targetRotation = when {
-                offsetX > 80f -> -120f     // clearly swiped right → upright
-                offsetX < -80f -> 0f  // clearly swiped left → facing down
-                else -> 0f            // hanging down
+                offsetX.value > 80f -> -120f   // Accept (right)
+                offsetX.value < -80f -> 0f     // Reject (left)
+                else -> 0f
             }
 
             val rotation by animateFloatAsState(
-                targetValue = if (abs(offsetX) < 120f) targetRotation + shakeRotation else targetRotation,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
-                )
+                targetValue = if (abs(offsetX.value) < 120f) targetRotation + shakeRotation else targetRotation,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
             )
 
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = horizontalPadding)
                     .fillMaxWidth()
                     .height(136.dp)
                     .background(colorScheme.surfaceDim, CircleShape)
                     .padding(horizontal = 40.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Left: Decline hint
                 Icon(
-                    Icons.Rounded.CallEnd,
+                    imageVector = Icons.Rounded.CallEnd,
                     contentDescription = null,
                     tint = Color(0xFFFB4F43),
                     modifier = Modifier
@@ -250,9 +290,8 @@ private fun CallControls(state: Int, call: Call) {
                         .align(Alignment.CenterStart)
                 )
 
-                // Right: Accept hint
                 Icon(
-                    Icons.Rounded.Phone,
+                    imageVector = Icons.Rounded.Phone,
                     contentDescription = null,
                     tint = Color(0xFF4CAF50),
                     modifier = Modifier
@@ -262,46 +301,67 @@ private fun CallControls(state: Int, call: Call) {
 
                 Box(
                     modifier = Modifier
-                        .size(96.dp)
-                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .size(draggableSizeDp)
+                        .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                         .background(colorScheme.surfaceBright, CircleShape)
                         .draggable(
                             state = draggableState,
                             orientation = Orientation.Horizontal,
                             onDragStopped = { velocity ->
-                                val swipedRight = offsetX > 80f || velocity > 500f
-                                val swipedLeft = offsetX < -80f || velocity < -500f
+                                val positionThreshold = maxOffsetPx * 0.6f  // 60% of the way
+                                val velocityThreshold = 1000f
 
-                                when {
-                                    swipedRight -> {
-                                        call.answer(VideoProfile.STATE_AUDIO_ONLY)
-                                        offsetX = trackWidthPx / 2 + 100f
-                                    }
+                                val swipedRight = offsetX.value > positionThreshold || velocity > velocityThreshold
+                                val swipedLeft = offsetX.value < -positionThreshold || velocity < -velocityThreshold
 
-                                    swipedLeft -> {
-                                        call.reject(false, null)
-                                        offsetX = -trackWidthPx / 2 - 100f
-                                    }
-
-                                    else -> {
-                                        offsetX = 0f
+                                scope.launch {
+                                    when {
+                                        swipedRight -> {
+                                            call.answer(VideoProfile.STATE_AUDIO_ONLY)
+                                            offsetX.animateTo(
+                                                maxOffsetPx,
+                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                            )
+                                            // Stays at the right end — no reset
+                                        }
+                                        swipedLeft -> {
+                                            call.reject(false, null)
+                                            offsetX.animateTo(
+                                                -maxOffsetPx,
+                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                            )
+                                            // Stays at the left end — no reset
+                                        }
+                                        else -> {
+                                            offsetX.animateTo(
+                                                0f,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+                                            )
+                                        }
                                     }
                                 }
-
-                                if (swipedRight || swipedLeft) {
-                                    kotlinx.coroutines.MainScope().launch {
-                                        delay(600)
-                                        offsetX = 0f
-                                    }
-                                }
-                            })
-
+                            }
+                        )
                 ) {
-                    // Draggable phone icon
+                    val progress = (offsetX.value / maxOffsetPx).coerceIn(-1f, 1f)
+                    val blendAmount = abs(progress)
+                    val targetColor = if (progress > 0) Color(0xFF4CAF50) else Color(0xFFFB4F43)
+
+                    val blendedColor = lerp(
+                        colorScheme.onSurface,
+                        targetColor,
+                        blendAmount.coerceIn(0f, 1f)
+                    )
+
+                    val animatedColor by animateColorAsState(
+                        targetValue = blendedColor,
+                        animationSpec = tween(200)
+                    )
+
                     Icon(
-                        Icons.Rounded.CallEnd,
-                        contentDescription = "Swipe left to decline, right to accept",
-                        tint = colorScheme.onSurface,
+                        imageVector = Icons.Rounded.CallEnd,
+                        contentDescription = "Swipe right to accept, left to decline",
+                        tint = animatedColor,
                         modifier = Modifier
                             .size(iconSizeDp)
                             .align(Alignment.Center)
@@ -311,8 +371,8 @@ private fun CallControls(state: Int, call: Call) {
             }
         }
 
+        // Other states unchanged
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> {
-            // Outgoing call in progress: only Cancel
             Button(
                 onClick = { call.disconnect() },
                 colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
@@ -323,7 +383,6 @@ private fun CallControls(state: Int, call: Call) {
         }
 
         Call.STATE_ACTIVE -> {
-            // Active call: big red Hang Up
             Button(
                 onClick = { call.disconnect() },
                 colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
@@ -331,8 +390,6 @@ private fun CallControls(state: Int, call: Call) {
             ) {
                 Text("Hang Up", fontSize = 32.sp, color = colorScheme.onError)
             }
-
-            // Optional: Add more in-call controls here later (speaker, mute, hold, etc.)
         }
 
         Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
@@ -340,7 +397,6 @@ private fun CallControls(state: Int, call: Call) {
         }
 
         else -> {
-            // Fallback
             Button(
                 onClick = { call.disconnect() },
                 colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
