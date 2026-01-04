@@ -204,21 +204,19 @@ fun ContactItemCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 IconButton(
-                    onClick = {
+                    shape = RoundedCornerShape(
+                        topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
+                    ), onClick = {
                         val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
                             data = Uri.parse("smsto:${contact.phoneNumber}")
                         }
                         context.startActivity(smsIntent)
                     }, modifier = Modifier
                         .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 24.dp,
-                                bottomStart = 24.dp,
-                                topEnd = 4.dp,
-                                bottomEnd = 4.dp
-                            )
-                        )
+                        .clip(RoundedCornerShape(
+                            topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
+
+                        ))
                         .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
@@ -232,17 +230,15 @@ fun ContactItemCard(
                 }
 
                 IconButton(
+                    shape = RoundedCornerShape(
+                        topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
+                    ),
                     onClick = { safePlaceCall(context, contact.phoneNumber) },
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 4.dp,
-                                bottomStart = 4.dp,
-                                topEnd = 24.dp,
-                                bottomEnd = 24.dp
-                            )
-                        )
+                        .clip(RoundedCornerShape(
+                            topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
+                        ))
                         .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
