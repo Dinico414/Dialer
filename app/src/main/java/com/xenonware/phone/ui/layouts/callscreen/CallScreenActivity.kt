@@ -24,11 +24,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CallEnd
@@ -36,7 +36,7 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,10 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xenonware.phone.ui.theme.XenonTheme
+import com.xenonware.phone.data.SharedPreferenceManager
+import com.xenonware.phone.ui.theme.ScreenEnvironment
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -73,33 +75,42 @@ class CallScreenActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
 
         setContent {
-            // Use the new XenonTheme instead of the old DialerTheme
-            // We force a blacked-out dark theme for the call screen (pure black background, typical for in-call UI)
-            XenonTheme(
-                darkTheme = true,
-                useBlackedOutDarkTheme = true,
-                isCoverMode = false,
-                dynamicColor = true // You can set to false if you prefer static colors
-            ) {
+            val sharedPreferenceManager = SharedPreferenceManager(applicationContext)
+
+            val themePreference = sharedPreferenceManager.theme
+            val blackedOutModeEnabled = sharedPreferenceManager.blackedOutModeEnabled
+
+            val containerSize = LocalWindowInfo.current.containerSize
+            val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(containerSize)
+
+            ScreenEnvironment(
+                themePreference = themePreference,
+                coverTheme = applyCoverTheme,
+                blackedOutModeEnabled = blackedOutModeEnabled
+            ) { layoutType, isLandscape ->
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    // Override background to ensure pure black (in case blacked-out mode doesn't fully cover it)
-                    color = Color.Black
+                    color = colorScheme.surfaceContainer
                 ) {
                     CallScreen(call = currentCall)
                 }
             }
         }
 
-        // Auto-close activity 2 seconds after call fully ends
         currentCall?.let { call ->
             call.registerCallback(object : Call.Callback() {
                 override fun onStateChanged(call: Call, state: Int) {
-                    if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) && !shouldFinishAfterDelay) {
+                    if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING)
+                        && !shouldFinishAfterDelay
+                    ) {
                         shouldFinishAfterDelay = true
                         window.decorView.postDelayed({
                             if (!isFinishing && !isDestroyed) {
@@ -117,7 +128,7 @@ class CallScreenActivity : ComponentActivity() {
 fun CallScreen(call: Call?) {
     if (call == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No active call", fontSize = 32.sp, color = Color.White)
+            Text("No active call", fontSize = 32.sp, color = colorScheme.onSurface)
         }
         return
     }
@@ -154,7 +165,7 @@ fun CallScreen(call: Call?) {
 
         // Caller info + status/timer
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = handle, fontSize = 48.sp, color = Color.White)
+            Text(text = handle, fontSize = 48.sp, color = colorScheme.onSurface)
             Spacer(Modifier.height(32.dp))
 
             val statusText = when (state) {
@@ -165,7 +176,7 @@ fun CallScreen(call: Call?) {
                 else -> "Unknown state"
             }
 
-            Text(text = statusText, fontSize = 32.sp, color = Color.White)
+            Text(text = statusText, fontSize = 32.sp, color = colorScheme.onSurface)
         }
 
         // Bottom controls – different layouts per state
@@ -182,7 +193,7 @@ private fun CallControls(state: Int, call: Call) {
 // Inside CallControls, for Call.STATE_RINGING:
         Call.STATE_RINGING -> {
             val trackWidthDp = 360.dp
-            val iconSizeDp = 100.dp
+            val iconSizeDp = 52.dp
 
             var offsetX by remember { mutableStateOf(0f) }
 
@@ -191,7 +202,7 @@ private fun CallControls(state: Int, call: Call) {
             val iconSizePx = with(density) { iconSizeDp.toPx() }
 
             // Allow full free movement
-            val maxOffset = (trackWidthPx - iconSizePx) / 2 + 40f  // slight overshoot allowed
+            (trackWidthPx - iconSizePx) / 2 + 40f
 
             val draggableState = rememberDraggableState { delta ->
                 offsetX += delta
@@ -200,31 +211,32 @@ private fun CallControls(state: Int, call: Call) {
             // Strong rotational shake when near center
             val infiniteTransition = rememberInfiniteTransition()
             val shakeRotation by infiniteTransition.animateFloat(
-                initialValue = -28f,
-                targetValue = 28f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(500, easing = FastOutSlowInEasing),
+                initialValue = -28f, targetValue = 28f, animationSpec = infiniteRepeatable(
+                    animation = tween(200, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 )
             )
 
             // Rotation logic: hanging down by default, rotates based on drag direction
             val targetRotation = when {
-                offsetX > 80f -> 0f     // clearly swiped right → upright
-                offsetX < -80f -> 180f  // clearly swiped left → facing down
-                else -> 270f            // hanging down
+                offsetX > 80f -> -120f     // clearly swiped right → upright
+                offsetX < -80f -> 0f  // clearly swiped left → facing down
+                else -> 0f            // hanging down
             }
 
             val rotation by animateFloatAsState(
                 targetValue = if (abs(offsetX) < 120f) targetRotation + shakeRotation else targetRotation,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
+                )
             )
 
             Box(
                 modifier = Modifier
-                    .width(trackWidthDp)
-                    .height(180.dp)
-                    .background(Color(0xFF111111), CircleShape)
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth()
+                    .height(136.dp)
+                    .background(colorScheme.surfaceDim, CircleShape)
                     .padding(horizontal = 40.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -232,70 +244,81 @@ private fun CallControls(state: Int, call: Call) {
                 Icon(
                     Icons.Rounded.CallEnd,
                     contentDescription = null,
-                    tint = Color.Red.copy(alpha = 0.4f + (abs(offsetX.coerceAtMost(0f)) / trackWidthPx) * 0.6f),
-                    modifier = Modifier.size(iconSizeDp).align(Alignment.CenterStart)
+                    tint = Color(0xFFFB4F43),
+                    modifier = Modifier
+                        .size(iconSizeDp)
+                        .align(Alignment.CenterStart)
                 )
 
                 // Right: Accept hint
                 Icon(
                     Icons.Rounded.Phone,
                     contentDescription = null,
-                    tint = Color(0xFF00C853).copy(alpha = 0.4f + (offsetX.coerceAtLeast(0f) / trackWidthPx) * 0.6f),
-                    modifier = Modifier.size(iconSizeDp).align(Alignment.CenterEnd)
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier
+                        .size(iconSizeDp)
+                        .align(Alignment.CenterEnd)
                 )
 
-                // Draggable phone icon
-                Icon(
-                    Icons.Rounded.Phone,
-                    contentDescription = "Swipe left to decline, right to accept",
-                    tint = Color.White,
+                Box(
                     modifier = Modifier
+                        .size(96.dp)
                         .offset { IntOffset(offsetX.roundToInt(), 0) }
-                        .size(iconSizeDp)
-                        .background(Color(0xFF333333), CircleShape)
-                        .padding(24.dp)
-                        .rotate(rotation)
+                        .background(colorScheme.surfaceBright, CircleShape)
                         .draggable(
                             state = draggableState,
                             orientation = Orientation.Horizontal,
                             onDragStopped = { velocity ->
-                                // Decide based on final position (no velocity needed, but we still support fling feel)
                                 val swipedRight = offsetX > 80f || velocity > 500f
                                 val swipedLeft = offsetX < -80f || velocity < -500f
 
                                 when {
                                     swipedRight -> {
                                         call.answer(VideoProfile.STATE_AUDIO_ONLY)
-                                        offsetX = trackWidthPx / 2 + 100f  // fly off right
+                                        offsetX = trackWidthPx / 2 + 100f
                                     }
+
                                     swipedLeft -> {
                                         call.reject(false, null)
-                                        offsetX = -trackWidthPx / 2 - 100f  // fly off left
+                                        offsetX = -trackWidthPx / 2 - 100f
                                     }
+
                                     else -> {
-                                        offsetX = 0f  // snap back
+                                        offsetX = 0f
                                     }
                                 }
 
-                                // Reset to center after action (so shake returns)
                                 if (swipedRight || swipedLeft) {
                                     kotlinx.coroutines.MainScope().launch {
                                         delay(600)
                                         offsetX = 0f
                                     }
                                 }
-                            }
-                        )
-                )
+                            })
+
+                ) {
+                    // Draggable phone icon
+                    Icon(
+                        Icons.Rounded.CallEnd,
+                        contentDescription = "Swipe left to decline, right to accept",
+                        tint = colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(iconSizeDp)
+                            .align(Alignment.Center)
+                            .rotate(rotation)
+                    )
+                }
             }
-        }Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> {
+        }
+
+        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> {
             // Outgoing call in progress: only Cancel
             Button(
                 onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
                 modifier = Modifier.size(width = 200.dp, height = 80.dp)
             ) {
-                Text("Cancel", fontSize = 32.sp, color = MaterialTheme.colorScheme.onError)
+                Text("Cancel", fontSize = 32.sp, color = colorScheme.onError)
             }
         }
 
@@ -303,27 +326,27 @@ private fun CallControls(state: Int, call: Call) {
             // Active call: big red Hang Up
             Button(
                 onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
                 modifier = Modifier.size(width = 200.dp, height = 80.dp)
             ) {
-                Text("Hang Up", fontSize = 32.sp, color = MaterialTheme.colorScheme.onError)
+                Text("Hang Up", fontSize = 32.sp, color = colorScheme.onError)
             }
 
             // Optional: Add more in-call controls here later (speaker, mute, hold, etc.)
         }
 
         Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
-            Text("Call ended", fontSize = 32.sp, color = Color.White)
+            Text("Call ended", fontSize = 32.sp, color = colorScheme.onSurface)
         }
 
         else -> {
             // Fallback
             Button(
                 onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
                 modifier = Modifier.size(width = 200.dp, height = 80.dp)
             ) {
-                Text("End", fontSize = 32.sp, color = MaterialTheme.colorScheme.onError)
+                Text("End", fontSize = 32.sp, color = colorScheme.onError)
             }
         }
     }
