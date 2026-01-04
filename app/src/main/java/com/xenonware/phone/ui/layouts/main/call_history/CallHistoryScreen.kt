@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -235,6 +236,8 @@ fun CallHistoryItemCard(
         CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
         CallLog.Calls.OUTGOING_TYPE -> Icons.Rounded.KeyboardArrowUp to Color(0xFF4CAF50)
         CallLog.Calls.MISSED_TYPE -> Icons.Rounded.Close to Color(0xFFF44336)
+        CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF9E9E9E)
+        CallLog.Calls.BLOCKED_TYPE -> Icons.Rounded.Block to Color(0xFF9E9E9E)
         else -> Icons.Rounded.Remove to Color(0xFF9E9E9E)
     }
 
@@ -296,6 +299,8 @@ fun CallHistoryItemCard(
                         CallLog.Calls.INCOMING_TYPE -> "Incoming"
                         CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
                         CallLog.Calls.MISSED_TYPE -> "Missed"
+                        CallLog.Calls.REJECTED_TYPE -> "Rejected"
+                        CallLog.Calls.BLOCKED_TYPE -> "Blocked"
                         else -> "Unknown"
                     } + " • ${dateFormat.format(Date(entry.date))}",
                     fontSize = 14.sp,
@@ -315,12 +320,11 @@ fun CallHistoryItemCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF4CAF50))
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Call,
                     contentDescription = "Call",
-                    tint = MaterialTheme.colorScheme.surfaceBright,
+                    tint = Color(0xFF4CAF50),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -346,8 +350,8 @@ private fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
         val title = when {
             cal.after(today) || cal == today -> "Today"
             cal.after(yesterday) || cal == yesterday -> "Yesterday"
-            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }) -> "Last 7 Days"
-            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }) -> "Last 30 Days"
+            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }) -> "Last Week"
+            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }) -> "Last Month"
             cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
                     cal.get(Calendar.MONTH) == now.get(Calendar.MONTH) -> "This Month"
             else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
@@ -387,17 +391,38 @@ private fun loadCallLogEntries(context: Context): List<CallLogEntry> {
         val nameIndex = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
 
         while (it.moveToNext()) {
-            val number = it.getString(numberIndex) ?: "Unknown"
+            val rawNumber = it.getString(numberIndex)
             val name = if (nameIndex != -1) it.getString(nameIndex) else null
             val type = it.getInt(typeIndex)
             val date = it.getLong(dateIndex)
 
-            val displayName = if (!name.isNullOrBlank()) name else number
+            val displayName = when {
+                !name.isNullOrBlank() -> name.trim()
+
+                rawNumber.isNullOrBlank() ||
+                        rawNumber.equals("Private", ignoreCase = true) ||
+                        rawNumber.equals("Restricted", ignoreCase = true) ||
+                        rawNumber.equals("Unknown", ignoreCase = true) ||
+                        rawNumber.equals("Payphone", ignoreCase = true) ||
+                        rawNumber.equals("-1", ignoreCase = true) ||
+                        rawNumber.equals("-2", ignoreCase = true) ||
+                        rawNumber.equals("-3", ignoreCase = true) -> "Private"
+
+                else -> rawNumber.trim()
+            }
+
+            val phoneNumberToDial = if (rawNumber.isNullOrBlank() ||
+                rawNumber.equals("Private", ignoreCase = true) ||
+                rawNumber.equals("Unknown", ignoreCase = true)) {
+                "" 
+            } else {
+                rawNumber
+            }
 
             logs.add(
                 CallLogEntry(
                     nameOrNumber = displayName,
-                    phoneNumber = number,
+                    phoneNumber = phoneNumberToDial,
                     type = type,
                     date = date
                 )
