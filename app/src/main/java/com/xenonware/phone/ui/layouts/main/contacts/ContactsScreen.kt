@@ -219,12 +219,12 @@ fun ContactItemCard(
                                 bottomEnd = 4.dp
                             )
                         )
-                        .background(Color(0xFFFFC107))
+                        .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.Message,
                         contentDescription = "Send SMS",
-                        tint = colorScheme.surfaceBright,
+                        tint = Color(0xFFFFB300),
                         modifier = Modifier
                             .padding(start = 4.dp)
                             .size(24.dp)
@@ -243,12 +243,12 @@ fun ContactItemCard(
                                 bottomEnd = 24.dp
                             )
                         )
-                        .background(Color(0xFF4CAF50))
+                        .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Call,
                         contentDescription = "Call",
-                        tint = colorScheme.surfaceBright,
+                        tint = Color(0xFF4CAF50),
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .size(24.dp)
