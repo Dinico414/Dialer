@@ -207,12 +207,13 @@ private fun CallControls(state: Int, call: Call) {
 
             val trackWidthPx = with(density) { trackWidthDp.toPx() }
 
-            // Max offset: circle touches the inner edges of the track
             val maxOffsetPx = (trackWidthPx / 2) -
                     with(density) { 16.dp.toPx() } -
                     with(density) { draggableSizeDp.toPx() / 2 }
 
             val offsetX = remember { Animatable(0f) }
+
+            val upDownAmplitudePx = with(density) { 4.dp.toPx() }
 
             val draggableState = rememberDraggableState { delta ->
                 scope.launch {
@@ -221,44 +222,46 @@ private fun CallControls(state: Int, call: Call) {
                 }
             }
 
-            // Shake when near center
-
             val infiniteTransition = rememberInfiniteTransition(label = "shake transition")
 
             val shakeRotation by infiniteTransition.animateFloat(
-                initialValue = 0f,  // Start from center (we'll define the motion via keyframes)
-                targetValue = 0f,   // End at center
+                initialValue = 0f,
+                targetValue = 0f,
                 animationSpec = infiniteRepeatable(
                     animation = keyframes {
-                        durationMillis = 1000 + 500  // 600ms for shakes + 1000ms pause = 1600ms per cycle
+                        durationMillis = 1000 + 500
 
-                        // Fast shake to -20°
                         -20f at 100 with FastOutSlowInEasing
-                        // Quick return to +35°
                         35f at 200 with FastOutSlowInEasing
-                        // Back to -35°
                         -35f at 300 with FastOutSlowInEasing
-                        // Back to +35°
                         35f at 400 with FastOutSlowInEasing
-                        //Back to -35°
                         -35f at 500 with FastOutSlowInEasing
-                        // Back to +35°
                         35f at 600 with FastOutSlowInEasing
-                        //Back to -35°
                         -35f at 700 with FastOutSlowInEasing
-                        // Back to +35°
                         35f at 800 with FastOutSlowInEasing
-                        // Back to -15°
                         -15f at 900 with FastOutSlowInEasing
-                        // Final return to center (0°)
                         0f at 1000 with FastOutSlowInEasing
-
-                        // Hold at 0° for the remaining time (1000ms pause)
-                        0f at durationMillis  // Ensures it stays at 0 until the cycle restarts
+                        0f at durationMillis
                     },
                     repeatMode = RepeatMode.Restart
                 ),
                 label = "shake rotation"
+            )
+
+            val shakeVerticalOffset by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1000 + 500
+
+                        -upDownAmplitudePx at 1000 with FastOutSlowInEasing
+
+                        upDownAmplitudePx at durationMillis with FastOutSlowInEasing
+                    },
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "shake vertical offset"
             )
 
             val targetRotation = when {
@@ -269,7 +272,14 @@ private fun CallControls(state: Int, call: Call) {
 
             val rotation by animateFloatAsState(
                 targetValue = if (abs(offsetX.value) < 120f) targetRotation + shakeRotation else targetRotation,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+                label = "final rotation"
+            )
+
+            val currentVerticalOffset by animateFloatAsState(
+                targetValue = if (abs(offsetX.value) < 120f) shakeVerticalOffset else 0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+                label = "final vertical offset"
             )
 
             Box(
@@ -302,13 +312,18 @@ private fun CallControls(state: Int, call: Call) {
                 Box(
                     modifier = Modifier
                         .size(draggableSizeDp)
-                        .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                        .offset {
+                            IntOffset(
+                                offsetX.value.roundToInt(),
+                                currentVerticalOffset.roundToInt()
+                            )
+                        }
                         .background(colorScheme.surfaceBright, CircleShape)
                         .draggable(
                             state = draggableState,
                             orientation = Orientation.Horizontal,
                             onDragStopped = { velocity ->
-                                val positionThreshold = maxOffsetPx * 0.6f  // 60% of the way
+                                val positionThreshold = maxOffsetPx * 0.6f
                                 val velocityThreshold = 1000f
 
                                 val swipedRight = offsetX.value > positionThreshold || velocity > velocityThreshold
@@ -322,7 +337,6 @@ private fun CallControls(state: Int, call: Call) {
                                                 maxOffsetPx,
                                                 animationSpec = tween(200, easing = FastOutSlowInEasing)
                                             )
-                                            // Stays at the right end — no reset
                                         }
                                         swipedLeft -> {
                                             call.reject(false, null)
@@ -330,7 +344,6 @@ private fun CallControls(state: Int, call: Call) {
                                                 -maxOffsetPx,
                                                 animationSpec = tween(200, easing = FastOutSlowInEasing)
                                             )
-                                            // Stays at the left end — no reset
                                         }
                                         else -> {
                                             offsetX.animateTo(
@@ -370,8 +383,6 @@ private fun CallControls(state: Int, call: Call) {
                 }
             }
         }
-
-        // Other states unchanged
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> {
             Button(
                 onClick = { call.disconnect() },
