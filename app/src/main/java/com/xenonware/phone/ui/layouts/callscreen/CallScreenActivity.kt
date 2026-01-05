@@ -3,10 +3,14 @@
 package com.xenonware.phone.ui.layouts.callscreen
 
 import android.annotation.SuppressLint
+import android.content.Context.AUDIO_SERVICE
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.telecom.Call
+import android.telecom.CallAudioState
+import android.telecom.InCallService
 import android.telecom.VideoProfile
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -27,8 +31,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -43,8 +49,15 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BluetoothAudio
 import androidx.compose.material.icons.rounded.CallEnd
+import androidx.compose.material.icons.rounded.Headset
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -54,8 +67,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +85,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -81,6 +97,7 @@ import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
+import com.xenonware.phone.MyInCallService
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
@@ -560,32 +577,129 @@ private fun CallControls(state: Int, call: Call) {
             }
         }
 
-        else -> {
-            Box(
-                modifier = Modifier
-                    .height(136.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
+        else -> { // Active call – full controls
+            val inCallService = MyInCallService.getInstance()
+
+            // If service is not ready yet (very rare, but prevents crash)
+            if (inCallService == null) {
+                // Fallback: just show hang up button without mute/route
                 IconButton(
                     onClick = { call.disconnect() },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
                     modifier = Modifier
                         .size(width = 200.dp, height = 96.dp)
-                        .shadow(
-                            10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
-                        )
+                        .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.CallEnd,
                         tint = colorScheme.onSurface,
-                        contentDescription = "Cancel",
+                        contentDescription = "Hang up",
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                return
+            }
+
+            var audioState by remember {
+                mutableStateOf(
+                    MyInCallService.currentAudioState
+                        ?: inCallService.callAudioState
+                        ?: CallAudioState(false, CallAudioState.ROUTE_EARPIECE, CallAudioState.ROUTE_EARPIECE or CallAudioState.ROUTE_SPEAKER)
+                )
+            }
+
+            LaunchedEffect(MyInCallService.currentAudioState) {
+                MyInCallService.currentAudioState?.let { audioState = it }
+            }
+
+            var isMuted by remember { mutableStateOf(audioState.isMuted) }
+            var currentRoute by remember { mutableStateOf(audioState.route) }
+
+            LaunchedEffect(audioState) {
+                isMuted = audioState.isMuted
+                currentRoute = audioState.route
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.padding(bottom = LargePadding),
+                    horizontalArrangement = Arrangement.spacedBy(LargePadding)
+                ) {
+                    // Mute button
+                    IconButton(
+                        onClick = {
+                            val newMute = !isMuted
+                            inCallService.setMuted(newMute)
+                            isMuted = newMute
+                        },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                            .background(colorScheme.surfaceContainerLow, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isMuted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                            contentDescription = if (isMuted) "Unmute" else "Mute",
+                            tint = if (isMuted) Color(0xFFFB4F43) else colorScheme.onSurface,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Audio route selector (only if >1 option)
+                    val supportedMask = audioState.supportedRouteMask
+                    val routeOptions = buildList {
+                        if (supportedMask and CallAudioState.ROUTE_EARPIECE != 0)
+                            add(Triple(CallAudioState.ROUTE_EARPIECE, Icons.Rounded.Phone, "Earpiece"))
+                        if (supportedMask and CallAudioState.ROUTE_SPEAKER != 0)
+                            add(Triple(CallAudioState.ROUTE_SPEAKER, Icons.Rounded.VolumeUp, "Speaker"))
+                        if (supportedMask and CallAudioState.ROUTE_WIRED_HEADSET != 0)
+                            add(Triple(CallAudioState.ROUTE_WIRED_HEADSET, Icons.Rounded.Headset, "Wired headset"))
+                        if (supportedMask and CallAudioState.ROUTE_BLUETOOTH != 0)
+                            add(Triple(CallAudioState.ROUTE_BLUETOOTH, Icons.Rounded.Bluetooth, "Bluetooth"))
+                    }
+
+                    if (routeOptions.size > 1) {
+                        IconButton(
+                            onClick = {
+                                val currentIndex = routeOptions.indexOfFirst { it.first == currentRoute }
+                                val nextIndex = (currentIndex + 1) % routeOptions.size
+                                val newRoute = routeOptions[nextIndex].first
+                                inCallService.setAudioRoute(newRoute)
+                                currentRoute = newRoute
+                            },
+                            modifier = Modifier
+                                .size(72.dp)
+                                .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                                .background(colorScheme.surfaceContainerLow, CircleShape)
+                        ) {
+                            val icon = routeOptions.first { it.first == currentRoute }.second
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = "Switch audio output",
+                                tint = if (currentRoute == CallAudioState.ROUTE_SPEAKER) Color(0xFF4CAF50) else colorScheme.onSurface,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Hang up button
+                IconButton(
+                    onClick = { call.disconnect() },
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
+                    modifier = Modifier
+                        .size(width = 200.dp, height = 96.dp)
+                        .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CallEnd,
+                        tint = colorScheme.onSurface,
+                        contentDescription = "Hang up",
                         modifier = Modifier.size(40.dp)
                     )
                 }
             }
-        }
-    }
+        }}
 }
 
 private fun formatDuration(millis: Long): String {

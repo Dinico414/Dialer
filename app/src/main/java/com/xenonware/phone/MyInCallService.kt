@@ -2,11 +2,32 @@ package com.xenonware.phone
 
 import android.content.Intent
 import android.telecom.Call
+import android.telecom.CallAudioState
 import android.telecom.InCallService
 import android.util.Log
 import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity
 
 class MyInCallService : InCallService() {
+
+    companion object {
+        @Volatile
+        private var INSTANCE: MyInCallService? = null
+
+        fun getInstance(): MyInCallService? = INSTANCE
+
+        var currentAudioState: CallAudioState? = null
+            private set
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        INSTANCE = this
+    }
+
+    override fun onDestroy() {
+        INSTANCE = null
+        super.onDestroy()
+    }
 
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
@@ -27,5 +48,10 @@ class MyInCallService : InCallService() {
         if (CallScreenActivity.currentCall == call) {
             CallScreenActivity.currentCall = null
         }
+    }
+
+    override fun onCallAudioStateChanged(audioState: CallAudioState) {
+        super.onCallAudioStateChanged(audioState)
+        currentAudioState = audioState
     }
 }
