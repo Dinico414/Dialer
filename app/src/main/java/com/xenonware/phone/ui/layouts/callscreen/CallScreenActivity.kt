@@ -40,7 +40,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -69,6 +68,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.theme.ScreenEnvironment
@@ -213,8 +213,10 @@ fun CallScreen(call: Call?) {
         }
 
         Spacer(Modifier.weight(1f))
-
+//TODO replace Spacer With Box including modifier with weight 1f and add contact avatar here with 32.dp padding, the shape should be circle whilst active call and shape morth like the material 3 expressive loading indicator that adapts around main shape in the contact avatar
         CallControls(state = state, call = call)
+
+        Spacer(Modifier.height(LargePadding))
 
         if (state == Call.STATE_RINGING) {
             Box(
@@ -223,14 +225,10 @@ fun CallScreen(call: Call?) {
                     .weight(0.25f),
             ) {
                 TextButton(
-                    modifier = Modifier.align(Alignment.Center),
-                    onClick = {},
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = colorScheme.onSurface
-                    )
-                ) {
+                    onClick = {}) {
                     Text(
                         text = "SMS",
+                        color = colorScheme.onSurface,
                         fontFamily = QuicksandTitleVariable,
                         fontWeight = FontWeight.Light,
                         fontSize = 18.sp,
@@ -440,37 +438,51 @@ private fun CallControls(state: Int, call: Call) {
         }
 
         Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
-            IconButton(
-                onClick = { call.disconnect() },
-                enabled = false,
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = Color(0xFFFB4F43),
-                    disabledContainerColor = Color(0xFFFB4F43).copy(alpha = 0.5f),
-                    contentColor = colorScheme.onErrorContainer,
-                    disabledContentColor = colorScheme.onErrorContainer.copy(alpha = 0.5f)
-                ),
-                modifier = Modifier.size(width = 200.dp, height = 96.dp)
+            Box(
+                modifier = Modifier
+                    .height(136.dp)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.CallEnd,
-                    contentDescription = "Cancel",
-                    modifier = Modifier.size(40.dp)
-                )
+                IconButton(
+                    onClick = { call.disconnect() },
+                    enabled = false,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color(0xFFFB4F43),
+                        disabledContainerColor = Color(0xFFFB4F43).copy(alpha = 0.5f),
+                        contentColor = colorScheme.onSurface.copy(alpha = 0.75f),
+                        disabledContentColor = colorScheme.onSurface.copy(alpha = 0.5f)
+                    ),
+                    modifier = Modifier.size(width = 200.dp, height = 96.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CallEnd,
+                        contentDescription = "Cancel",
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
             }
         }
 
         else -> {
-            IconButton(
-                onClick = { call.disconnect() },
-                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
-                modifier = Modifier.size(width = 200.dp, height = 96.dp)
+            Box(
+                modifier = Modifier
+                    .height(136.dp)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.CallEnd,
-                    tint = colorScheme.onErrorContainer,
-                    contentDescription = "Cancel",
-                    modifier = Modifier.size(40.dp)
-                )
+                IconButton(
+                    onClick = { call.disconnect() },
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
+                    modifier = Modifier.size(width = 200.dp, height = 96.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CallEnd,
+                        tint = colorScheme.onSurface.copy(alpha = 0.75f),
+                        contentDescription = "Cancel",
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
             }
         }
     }
