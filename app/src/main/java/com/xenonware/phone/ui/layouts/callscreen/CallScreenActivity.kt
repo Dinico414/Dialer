@@ -54,15 +54,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
@@ -80,6 +86,7 @@ import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
 import com.xenonware.phone.ui.theme.ScreenEnvironment
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
@@ -114,11 +121,40 @@ class CallScreenActivity : ComponentActivity() {
                 coverTheme = applyCoverTheme,
                 blackedOutModeEnabled = blackedOutModeEnabled
             ) { _, _ ->
+                val surfaceContainer = colorScheme.surfaceContainer
+                val primaryContainer = colorScheme.primaryContainer
+                val secondaryContainer = colorScheme.secondaryContainer
 
-                Surface(
-                    modifier = Modifier.fillMaxSize(), color = colorScheme.surfaceContainer
-                ) {
-                    CallScreen(call = currentCall)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBehind {
+                            // 1. Fill the background with the top color
+                            drawRect(color = surfaceContainer)
+
+                            // 2. Add the Secondary color at the bottom right
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(secondaryContainer, Color.Transparent),
+                                    center = Offset(size.width, size.height),
+                                    radius = size.width * 1.2f
+                                )
+                            )
+
+                            // 3. Add the Primary color at the bottom left
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(primaryContainer, Color.Transparent),
+                                    center = Offset(0f, size.height),
+                                    radius = size.width * 1.5f
+                                )
+                            )
+                        }) {
+                    Surface(
+                        color = Color.Transparent, modifier = Modifier.fillMaxSize()
+                    ) {
+                        CallScreen(call = currentCall)
+                    }
                 }
             }
         }
@@ -149,8 +185,7 @@ fun CallScreen(call: Call?) {
         return
     }
 
-    @Suppress("DEPRECATION")
-    var state by remember { mutableIntStateOf(call.state) }
+    @Suppress("DEPRECATION") var state by remember { mutableIntStateOf(call.state) }
 
     DisposableEffect(call) {
         val callback = object : Call.Callback() {
@@ -166,15 +201,23 @@ fun CallScreen(call: Call?) {
     val rawNumber = call.details.handle?.schemeSpecificPart ?: "Private"
 
     val displayName = remember(rawNumber) {
-        if (rawNumber == "Private") "Private" else lookupContactName(context, rawNumber) ?: rawNumber
+        if (rawNumber == "Private") "Private" else lookupContactName(context, rawNumber)
+            ?: rawNumber
     }
 
-    val duration by produceState(0L) {
-        while (state == Call.STATE_ACTIVE) {
-            value = System.currentTimeMillis() - call.details.connectTimeMillis
-            kotlinx.coroutines.delay(1000)
+    var baseConnectTime by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(state) {
+        if (state == Call.STATE_ACTIVE) {
+            baseConnectTime = call.details.connectTimeMillis
+            while (true) {
+                // update state to trigger recompose
+                delay(1000)
+            }
         }
     }
+
+    val duration = System.currentTimeMillis() - baseConnectTime
 
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
@@ -183,8 +226,7 @@ fun CallScreen(call: Call?) {
             .calculateBottomPadding()
 
     Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(
             Modifier
@@ -225,14 +267,11 @@ fun CallScreen(call: Call?) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
+                .weight(1f), contentAlignment = Alignment.Center
         ) {
             // Pass correct name to avatar (so letter/initial is correct)
             RingingContactAvatar(
-                contact = Contact(name = displayName),
-                state = state,
-                size = 180.dp
+                contact = Contact(name = displayName), state = state, size = 180.dp
             )
         }
 
@@ -270,15 +309,10 @@ fun CallScreen(call: Call?) {
 private fun lookupContactName(context: android.content.Context, phoneNumber: String): String? {
     return try {
         val uri = Uri.withAppendedPath(
-            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-            Uri.encode(phoneNumber)
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber)
         )
         val cursor = context.contentResolver.query(
-            uri,
-            arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
-            null,
-            null,
-            null
+            uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null
         )
         cursor?.use {
             if (it.moveToFirst()) {
@@ -294,9 +328,9 @@ private fun lookupContactName(context: android.content.Context, phoneNumber: Str
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 private fun CallControls(state: Int, call: Call) {
+    val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
     when (state) {
         Call.STATE_RINGING -> {
-            // ... (unchanged ringing swipe-to-answer UI)
             val iconSizeDp = 52.dp
             val draggableSizeDp = 96.dp
             val maxTrackWidthDp = 480.dp
@@ -379,13 +413,13 @@ private fun CallControls(state: Int, call: Call) {
                 ),
                 label = "final vertical offset"
             )
-
             Box(
                 modifier = Modifier
                     .padding(horizontal = horizontalPadding)
                     .fillMaxWidth()
                     .height(136.dp)
-                    .background(colorScheme.surfaceDim, CircleShape)
+                    .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                    .background(colorScheme.surfaceContainerLow, CircleShape)
                     .padding(horizontal = 40.dp), contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -486,19 +520,22 @@ private fun CallControls(state: Int, call: Call) {
             Box(
                 modifier = Modifier
                     .height(136.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .alpha(0.6f),
                 contentAlignment = Alignment.Center
             ) {
                 IconButton(
                     onClick = { call.disconnect() },
-                    enabled = false,
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = Color(0xFFFB4F43),
-                        disabledContainerColor = Color(0xFFFB4F43).copy(alpha = 0.5f),
                         contentColor = colorScheme.onSurface,
-                        disabledContentColor = colorScheme.onSurface.copy(alpha = 0.5f)
                     ),
-                    modifier = Modifier.size(width = 200.dp, height = 96.dp)
+                    modifier = Modifier
+                        .size(width = 200.dp, height = 96.dp)
+                        .shadow(
+                            10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                        )
+
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.CallEnd,
@@ -519,7 +556,11 @@ private fun CallControls(state: Int, call: Call) {
                 IconButton(
                     onClick = { call.disconnect() },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
-                    modifier = Modifier.size(width = 200.dp, height = 96.dp)
+                    modifier = Modifier
+                        .size(width = 200.dp, height = 96.dp)
+                        .shadow(
+                            10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.CallEnd,

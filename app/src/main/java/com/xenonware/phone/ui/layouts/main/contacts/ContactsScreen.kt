@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Message
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -79,6 +81,7 @@ import androidx.graphics.shapes.toPath
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
+import com.xenon.mylibrary.values.SmallElevation
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 
@@ -385,6 +388,7 @@ fun RingingContactAvatar(
                 clip = true
                 shape = MorphPolygonShape(morph, finalProgress)
             }
+            .shadow(SmallElevation)
             .background(pastelBackground))
 
         Text(
