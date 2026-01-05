@@ -1,6 +1,8 @@
 package com.xenonware.phone.ui.layouts.callscreen
 
+import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.VideoProfile
 import android.view.WindowManager
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
@@ -91,7 +94,10 @@ class CallScreenActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
 
         setContent {
@@ -155,7 +161,13 @@ fun CallScreen(call: Call?) {
         onDispose { call.unregisterCallback(callback) }
     }
 
-    val handle = call.details.handle?.schemeSpecificPart ?: "Private"
+    val context = LocalContext.current
+    val rawNumber = call.details.handle?.schemeSpecificPart ?: "Private"
+
+    // Look up contact name efficiently
+    val displayName = remember(rawNumber) {
+        if (rawNumber == "Private") "Private" else lookupContactName(context, rawNumber) ?: rawNumber
+    }
 
     val duration by produceState(0L) {
         while (state == Call.STATE_ACTIVE) {
@@ -171,12 +183,10 @@ fun CallScreen(call: Call?) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
 
-
-
     Column(
-        modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Spacer(
             Modifier
                 .padding(top = safeTopPadding)
@@ -204,28 +214,29 @@ fun CallScreen(call: Call?) {
 
             Spacer(Modifier.height(LargestPadding))
 
+            // Now shows real contact name or number
             Text(
-                text = handle,
+                text = displayName,
                 fontSize = 48.sp,
                 fontFamily = QuicksandTitleVariable,
                 color = colorScheme.onSurface
             )
-
-
         }
 
-        // Inside your CallScreen Column, where the TODO was:
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f), contentAlignment = Alignment.Center
+                .weight(1f),
+            contentAlignment = Alignment.Center
         ) {
+            // Pass correct name to avatar (so letter/initial is correct)
             RingingContactAvatar(
-                contact = Contact(name = handle), // 'handle' from Call details
-                state = state,                    // 'state' from Call state
-                size = 180.dp                     // Much larger for the call screen
+                contact = Contact(name = displayName),
+                state = state,
+                size = 180.dp
             )
         }
+
         CallControls(state = state, call = call)
 
         Spacer(Modifier.height(LargePadding))
@@ -236,8 +247,7 @@ fun CallScreen(call: Call?) {
                     .padding(bottom = safeBottomPadding)
                     .weight(0.25f),
             ) {
-                TextButton(
-                    onClick = {}) {
+                TextButton(onClick = {}) {
                     Text(
                         text = "SMS",
                         color = colorScheme.onSurface,
@@ -258,11 +268,35 @@ fun CallScreen(call: Call?) {
     }
 }
 
+private fun lookupContactName(context: android.content.Context, phoneNumber: String): String? {
+    return try {
+        val uri = Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            Uri.encode(phoneNumber)
+        )
+        val cursor = context.contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )
+        cursor?.use {
+            if (it.moveToFirst()) {
+                return it.getString(it.getColumnIndexOrThrow(ContactsContract.PhoneLookup.DISPLAY_NAME))
+            }
+        }
+        null
+    } catch (e: Exception) {
+        null // In case of any permission or security issue
+    }
+}
+
 @Composable
 private fun CallControls(state: Int, call: Call) {
     when (state) {
-
         Call.STATE_RINGING -> {
+            // ... (unchanged ringing swipe-to-answer UI)
             val iconSizeDp = 52.dp
             val draggableSizeDp = 96.dp
             val maxTrackWidthDp = 480.dp
@@ -319,7 +353,6 @@ private fun CallControls(state: Int, call: Call) {
                         durationMillis = 1000 + 500
 
                         -upDownAmplitudePx at 1000 with FastOutSlowInEasing
-
                         upDownAmplitudePx at durationMillis with FastOutSlowInEasing
                     }, repeatMode = RepeatMode.Restart
                 ), label = "shake vertical offset"
@@ -462,7 +495,7 @@ private fun CallControls(state: Int, call: Call) {
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = Color(0xFFFB4F43),
                         disabledContainerColor = Color(0xFFFB4F43).copy(alpha = 0.5f),
-                        contentColor = colorScheme.onSurface.copy(alpha = 0.75f),
+                        contentColor = colorScheme.onSurface,
                         disabledContentColor = colorScheme.onSurface.copy(alpha = 0.5f)
                     ),
                     modifier = Modifier.size(width = 200.dp, height = 96.dp)
@@ -490,7 +523,7 @@ private fun CallControls(state: Int, call: Call) {
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.CallEnd,
-                        tint = colorScheme.onSurface.copy(alpha = 0.75f),
+                        tint = colorScheme.onSurface,
                         contentDescription = "Cancel",
                         modifier = Modifier.size(40.dp)
                     )
