@@ -265,8 +265,8 @@ private fun CallControls(state: Int, call: Call) {
             )
 
             val targetRotation = when {
-                offsetX.value > 80f -> -120f   // Accept (right)
-                offsetX.value < -80f -> 0f     // Reject (left)
+                offsetX.value > 100f -> -135f
+                offsetX.value < -100f -> 0f
                 else -> 0f
             }
 
@@ -318,7 +318,7 @@ private fun CallControls(state: Int, call: Call) {
                                 currentVerticalOffset.roundToInt()
                             )
                         }
-                        .background(colorScheme.surfaceBright, CircleShape)
+                        .background(colorScheme.onSurface, CircleShape)
                         .draggable(
                             state = draggableState,
                             orientation = Orientation.Horizontal,
@@ -356,19 +356,19 @@ private fun CallControls(state: Int, call: Call) {
                             }
                         )
                 ) {
-                    val progress = (offsetX.value / maxOffsetPx).coerceIn(-1f, 1f)
+                    val progress = (offsetX.value / maxOffsetPx).coerceIn(-0.85f, 0.85f)
                     val blendAmount = abs(progress)
                     val targetColor = if (progress > 0) Color(0xFF4CAF50) else Color(0xFFFB4F43)
 
                     val blendedColor = lerp(
-                        colorScheme.onSurface,
+                        colorScheme.surfaceBright,
                         targetColor,
                         blendAmount.coerceIn(0f, 1f)
                     )
 
                     val animatedColor by animateColorAsState(
                         targetValue = blendedColor,
-                        animationSpec = tween(200)
+                        animationSpec = tween(100)
                     )
 
                     Icon(
