@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Message
@@ -81,7 +80,6 @@ import androidx.graphics.shapes.toPath
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
-import com.xenon.mylibrary.values.SmallElevation
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 
@@ -379,18 +377,26 @@ fun RingingContactAvatar(
     Box(
         modifier = modifier.size(size), contentAlignment = Alignment.Center
     ) {
+        val currentMorphShape = remember(finalProgress) {
+            MorphPolygonShape(morph, finalProgress)
+        }
+
+        val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
+
         Box(modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
                 rotationZ = finalRotation
                 scaleX = finalScale
                 scaleY = finalScale
+                shadowElevation = 10.dp.toPx()
+                this.spotShadowColor = shadowTint
+                this.ambientShadowColor = shadowTint
+                shape = currentMorphShape
                 clip = true
-                shape = MorphPolygonShape(morph, finalProgress)
             }
-            .shadow(SmallElevation)
-            .background(pastelBackground))
-
+            .background(pastelBackground)
+        )
         Text(
             text = contact.name.firstOrNull()?.uppercase() ?: "?",
             fontSize = (size.value * 0.42).sp,
