@@ -326,10 +326,7 @@ fun RingingContactAvatar(
     size: androidx.compose.ui.unit.Dp = 64.dp,
 ) {
     val isRinging = state in setOf(
-        Call.STATE_RINGING,
-        Call.STATE_DIALING,
-        Call.STATE_CONNECTING,
-        Call.STATE_PULLING_CALL
+        Call.STATE_RINGING, Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL
     )
 
     val stateMorphProgress by animateFloatAsState(
@@ -340,35 +337,29 @@ fun RingingContactAvatar(
 
     val infiniteTransition = rememberInfiniteTransition(label = "expressiveIndeterminate")
 
-    // 1. THE CONSTANT FLOW (Linear)
-    // This ensures there is ALWAYS motion. It never stops.
     val baseRotation by infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
             animation = tween(8000, easing = LinearEasing), repeatMode = RepeatMode.Restart
         ), label = "BaseRotation"
     )
 
-    // 2. THE EXPRESSIVE KICK (Bezier)
-    // This adds the "speed bursts" on top of the base rotation.
     val kickRotation by infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 3000, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1f)
-            ), repeatMode = RepeatMode.Restart
+            animation = tween(3000, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1f)),
+            repeatMode = RepeatMode.Restart
         ), label = "KickRotation"
     )
 
-    // 3. THE LIQUID PULSE
     val liquidPulse by infiniteTransition.animateFloat(
-        initialValue = 0.82f, targetValue = 1.12f, animationSpec = infiniteRepeatable(
+        initialValue = 0.7f, targetValue = 1.2f, animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
         ), label = "Pulse"
     )
 
-    // Logic: Combine base flow + expressive kick only when ringing
-    val finalRotation = if (isRinging) baseRotation + kickRotation else 0f
-    val finalProgress =
-        if (isRinging) (stateMorphProgress * liquidPulse).coerceIn(0f, 1f) else stateMorphProgress
+    val finalRotation = (baseRotation + kickRotation) * stateMorphProgress
+    val finalScale = 1f + 0.5f * stateMorphProgress
+    val pulseFactor = 1f + (liquidPulse - 1f) * stateMorphProgress
+    val finalProgress = (stateMorphProgress * pulseFactor).coerceIn(0f, 1f)
 
     val circle = remember { RoundedPolygon.circle(numVertices = 8) }
     val expressiveShape = remember {
@@ -385,21 +376,16 @@ fun RingingContactAvatar(
     Box(
         modifier = modifier.size(size), contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    rotationZ = finalRotation
-
-                    // Pop the scale slightly higher to make it feel "Big"
-                    val scaleFactor = if (isRinging) 1.5f else 1.0f
-                    scaleX = scaleFactor
-                    scaleY = scaleFactor
-
-                    clip = true
-                    shape = MorphPolygonShape(morph, finalProgress)
-                }
-                .background(pastelBackground))
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                rotationZ = finalRotation
+                scaleX = finalScale
+                scaleY = finalScale
+                clip = true
+                shape = MorphPolygonShape(morph, finalProgress)
+            }
+            .background(pastelBackground))
 
         Text(
             text = contact.name.firstOrNull()?.uppercase() ?: "?",
@@ -411,7 +397,6 @@ fun RingingContactAvatar(
     }
 }
 
-// Custom Shape to bridge RoundedPolygon and Compose Shape
 class MorphPolygonShape(
     private val morph: Morph,
     private val progress: Float,
@@ -423,7 +408,6 @@ class MorphPolygonShape(
         density: Density,
     ): Outline {
         val path = morph.toPath(progress).asComposePath()
-        // Scale path to fit the actual Box size
         matrix.reset()
         matrix.setScale(size.width / 2f, size.height / 2f)
         matrix.postTranslate(size.width / 2f, size.height / 2f)
