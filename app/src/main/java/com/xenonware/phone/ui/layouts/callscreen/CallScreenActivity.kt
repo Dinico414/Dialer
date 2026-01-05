@@ -1,5 +1,8 @@
+@file:Suppress("UnusedUnaryOperator")
+
 package com.xenonware.phone.ui.layouts.callscreen
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
@@ -52,7 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -94,10 +97,7 @@ class CallScreenActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
 
         setContent {
@@ -149,7 +149,8 @@ fun CallScreen(call: Call?) {
         return
     }
 
-    var state by remember { mutableStateOf(call.state) }
+    @Suppress("DEPRECATION")
+    var state by remember { mutableIntStateOf(call.state) }
 
     DisposableEffect(call) {
         val callback = object : Call.Callback() {
@@ -164,15 +165,13 @@ fun CallScreen(call: Call?) {
     val context = LocalContext.current
     val rawNumber = call.details.handle?.schemeSpecificPart ?: "Private"
 
-    // Look up contact name efficiently
     val displayName = remember(rawNumber) {
         if (rawNumber == "Private") "Private" else lookupContactName(context, rawNumber) ?: rawNumber
     }
 
     val duration by produceState(0L) {
         while (state == Call.STATE_ACTIVE) {
-            value = System.currentTimeMillis() - (call.details.connectTimeMillis
-                ?: System.currentTimeMillis())
+            value = System.currentTimeMillis() - call.details.connectTimeMillis
             kotlinx.coroutines.delay(1000)
         }
     }
@@ -287,11 +286,12 @@ private fun lookupContactName(context: android.content.Context, phoneNumber: Str
             }
         }
         null
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null // In case of any permission or security issue
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 private fun CallControls(state: Int, call: Call) {
     when (state) {
@@ -332,16 +332,16 @@ private fun CallControls(state: Int, call: Call) {
                     animation = keyframes {
                         durationMillis = 1000 + 500
 
-                        -20f at 100 with FastOutSlowInEasing
-                        35f at 200 with FastOutSlowInEasing
-                        -35f at 300 with FastOutSlowInEasing
-                        35f at 400 with FastOutSlowInEasing
-                        -35f at 500 with FastOutSlowInEasing
-                        35f at 600 with FastOutSlowInEasing
-                        -35f at 700 with FastOutSlowInEasing
-                        35f at 800 with FastOutSlowInEasing
-                        -15f at 900 with FastOutSlowInEasing
-                        0f at 1000 with FastOutSlowInEasing
+                        -20f at 100 using FastOutSlowInEasing
+                        35f at 200 using FastOutSlowInEasing
+                        -35f at 300 using FastOutSlowInEasing
+                        35f at 400 using FastOutSlowInEasing
+                        -35f at 500 using FastOutSlowInEasing
+                        35f at 600 using FastOutSlowInEasing
+                        -35f at 700 using FastOutSlowInEasing
+                        35f at 800 using FastOutSlowInEasing
+                        -15f at 900 using FastOutSlowInEasing
+                        0f at 1000 using FastOutSlowInEasing
                         0f at durationMillis
                     }, repeatMode = RepeatMode.Restart
                 ), label = "shake rotation"
@@ -352,8 +352,8 @@ private fun CallControls(state: Int, call: Call) {
                     animation = keyframes {
                         durationMillis = 1000 + 500
 
-                        -upDownAmplitudePx at 1000 with FastOutSlowInEasing
-                        upDownAmplitudePx at durationMillis with FastOutSlowInEasing
+                        -upDownAmplitudePx at 1000 using FastOutSlowInEasing
+                        upDownAmplitudePx at durationMillis using FastOutSlowInEasing
                     }, repeatMode = RepeatMode.Restart
                 ), label = "shake vertical offset"
             )
@@ -536,5 +536,5 @@ private fun CallControls(state: Int, call: Call) {
 private fun formatDuration(millis: Long): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    return "%02d:%02d".format(minutes, seconds)
 }
