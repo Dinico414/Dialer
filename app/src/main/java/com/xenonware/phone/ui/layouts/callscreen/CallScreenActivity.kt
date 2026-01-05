@@ -22,26 +22,32 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -58,9 +64,12 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.LargestPadding
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 import kotlinx.coroutines.launch
@@ -80,10 +89,7 @@ class CallScreenActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
 
         setContent {
@@ -102,8 +108,7 @@ class CallScreenActivity : ComponentActivity() {
             ) { _, _ ->
 
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = colorScheme.surfaceContainer
+                    modifier = Modifier.fillMaxSize(), color = colorScheme.surfaceContainer
                 ) {
                     CallScreen(call = currentCall)
                 }
@@ -113,9 +118,7 @@ class CallScreenActivity : ComponentActivity() {
         currentCall?.let { call ->
             call.registerCallback(object : Call.Callback() {
                 override fun onStateChanged(call: Call, state: Int) {
-                    if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING)
-                        && !shouldFinishAfterDelay
-                    ) {
+                    if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) && !shouldFinishAfterDelay) {
                         shouldFinishAfterDelay = true
                         window.decorView.postDelayed({
                             if (!isFinishing && !isDestroyed) {
@@ -150,7 +153,7 @@ fun CallScreen(call: Call?) {
         onDispose { call.unregisterCallback(callback) }
     }
 
-    val handle = call.details.handle?.schemeSpecificPart ?: "Unknown number"
+    val handle = call.details.handle?.schemeSpecificPart ?: "Private"
 
     val duration by produceState(0L) {
         while (state == Call.STATE_ACTIVE) {
@@ -160,31 +163,88 @@ fun CallScreen(call: Call?) {
         }
     }
 
+    val safeTopPadding =
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+    val safeBottomPadding =
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
+            .calculateBottomPadding()
+
+
+
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(100.dp))
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = handle, fontSize = 48.sp, color = colorScheme.onSurface)
-            Spacer(Modifier.height(32.dp))
+        Spacer(
+            Modifier
+                .padding(top = safeTopPadding)
+                .weight(0.25f)
+        )
 
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             val statusText = when (state) {
                 Call.STATE_RINGING -> "Incoming call..."
                 Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
+                Call.STATE_HOLDING -> "Call is on hold"
                 Call.STATE_ACTIVE -> formatDuration(duration)
-                Call.STATE_DISCONNECTED -> if (duration > 0) "Call ended" else "Call declined/failed"
+                Call.STATE_DISCONNECTED -> if (duration > 0) "Call ended" else "Call failed"
                 else -> "Unknown state"
             }
 
-            Text(text = statusText, fontSize = 32.sp, color = colorScheme.onSurface)
+            Text(
+                text = statusText,
+                fontSize = 24.sp,
+                color = colorScheme.onSurface.copy(alpha = 0.6f),
+                fontWeight = FontWeight.Light
+            )
+
+            Spacer(Modifier.height(LargestPadding))
+
+            Text(
+                text = handle,
+                fontSize = 48.sp,
+                fontFamily = QuicksandTitleVariable,
+                color = colorScheme.onSurface
+            )
+
+
         }
+
+        Spacer(Modifier.weight(1f))
 
         CallControls(state = state, call = call)
 
-        Spacer(Modifier.height(80.dp))
+        if (state == Call.STATE_RINGING) {
+            Box(
+                Modifier
+                    .padding(bottom = safeBottomPadding)
+                    .weight(0.25f),
+            ) {
+                TextButton(
+                    modifier = Modifier.align(Alignment.Center),
+                    onClick = {},
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colorScheme.onSurface
+                    )
+                ) {
+                    Text(
+                        text = "SMS",
+                        fontFamily = QuicksandTitleVariable,
+                        fontWeight = FontWeight.Light,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        } else {
+            Spacer(
+                Modifier
+                    .padding(bottom = safeBottomPadding)
+                    .weight(0.25f)
+            )
+        }
     }
 }
 
@@ -207,9 +267,8 @@ private fun CallControls(state: Int, call: Call) {
 
             val trackWidthPx = with(density) { trackWidthDp.toPx() }
 
-            val maxOffsetPx = (trackWidthPx / 2) -
-                    with(density) { 16.dp.toPx() } -
-                    with(density) { draggableSizeDp.toPx() / 2 }
+            val maxOffsetPx =
+                (trackWidthPx / 2) - with(density) { 16.dp.toPx() } - with(density) { draggableSizeDp.toPx() / 2 }
 
             val offsetX = remember { Animatable(0f) }
 
@@ -225,9 +284,7 @@ private fun CallControls(state: Int, call: Call) {
             val infiniteTransition = rememberInfiniteTransition(label = "shake transition")
 
             val shakeRotation by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 0f,
-                animationSpec = infiniteRepeatable(
+                initialValue = 0f, targetValue = 0f, animationSpec = infiniteRepeatable(
                     animation = keyframes {
                         durationMillis = 1000 + 500
 
@@ -242,26 +299,20 @@ private fun CallControls(state: Int, call: Call) {
                         -15f at 900 with FastOutSlowInEasing
                         0f at 1000 with FastOutSlowInEasing
                         0f at durationMillis
-                    },
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "shake rotation"
+                    }, repeatMode = RepeatMode.Restart
+                ), label = "shake rotation"
             )
 
             val shakeVerticalOffset by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 0f,
-                animationSpec = infiniteRepeatable(
+                initialValue = 0f, targetValue = 0f, animationSpec = infiniteRepeatable(
                     animation = keyframes {
                         durationMillis = 1000 + 500
 
                         -upDownAmplitudePx at 1000 with FastOutSlowInEasing
 
                         upDownAmplitudePx at durationMillis with FastOutSlowInEasing
-                    },
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "shake vertical offset"
+                    }, repeatMode = RepeatMode.Restart
+                ), label = "shake vertical offset"
             )
 
             val targetRotation = when {
@@ -272,13 +323,17 @@ private fun CallControls(state: Int, call: Call) {
 
             val rotation by animateFloatAsState(
                 targetValue = if (abs(offsetX.value) < 120f) targetRotation + shakeRotation else targetRotation,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
+                ),
                 label = "final rotation"
             )
 
             val currentVerticalOffset by animateFloatAsState(
                 targetValue = if (abs(offsetX.value) < 120f) shakeVerticalOffset else 0f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
+                ),
                 label = "final vertical offset"
             )
 
@@ -288,8 +343,7 @@ private fun CallControls(state: Int, call: Call) {
                     .fillMaxWidth()
                     .height(136.dp)
                     .background(colorScheme.surfaceDim, CircleShape)
-                    .padding(horizontal = 40.dp),
-                contentAlignment = Alignment.Center
+                    .padding(horizontal = 40.dp), contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.CallEnd,
@@ -314,8 +368,7 @@ private fun CallControls(state: Int, call: Call) {
                         .size(draggableSizeDp)
                         .offset {
                             IntOffset(
-                                offsetX.value.roundToInt(),
-                                currentVerticalOffset.roundToInt()
+                                offsetX.value.roundToInt(), currentVerticalOffset.roundToInt()
                             )
                         }
                         .background(colorScheme.onSurface, CircleShape)
@@ -326,25 +379,31 @@ private fun CallControls(state: Int, call: Call) {
                                 val positionThreshold = maxOffsetPx * 0.6f
                                 val velocityThreshold = 1000f
 
-                                val swipedRight = offsetX.value > positionThreshold || velocity > velocityThreshold
-                                val swipedLeft = offsetX.value < -positionThreshold || velocity < -velocityThreshold
+                                val swipedRight =
+                                    offsetX.value > positionThreshold || velocity > velocityThreshold
+                                val swipedLeft =
+                                    offsetX.value < -positionThreshold || velocity < -velocityThreshold
 
                                 scope.launch {
                                     when {
                                         swipedRight -> {
                                             call.answer(VideoProfile.STATE_AUDIO_ONLY)
                                             offsetX.animateTo(
-                                                maxOffsetPx,
-                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                                maxOffsetPx, animationSpec = tween(
+                                                    200, easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
+
                                         swipedLeft -> {
                                             call.reject(false, null)
                                             offsetX.animateTo(
-                                                -maxOffsetPx,
-                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                                -maxOffsetPx, animationSpec = tween(
+                                                    200, easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
+
                                         else -> {
                                             offsetX.animateTo(
                                                 0f,
@@ -353,22 +412,18 @@ private fun CallControls(state: Int, call: Call) {
                                         }
                                     }
                                 }
-                            }
-                        )
+                            })
                 ) {
                     val progress = (offsetX.value / maxOffsetPx).coerceIn(-0.85f, 0.85f)
                     val blendAmount = abs(progress)
                     val targetColor = if (progress > 0) Color(0xFF4CAF50) else Color(0xFFFB4F43)
 
                     val blendedColor = lerp(
-                        colorScheme.surfaceBright,
-                        targetColor,
-                        blendAmount.coerceIn(0f, 1f)
+                        colorScheme.surfaceBright, targetColor, blendAmount.coerceIn(0f, 1f)
                     )
 
                     val animatedColor by animateColorAsState(
-                        targetValue = blendedColor,
-                        animationSpec = tween(100)
+                        targetValue = blendedColor, animationSpec = tween(100)
                     )
 
                     Icon(
@@ -383,37 +438,39 @@ private fun CallControls(state: Int, call: Call) {
                 }
             }
         }
-        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> {
-            Button(
-                onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                modifier = Modifier.size(width = 200.dp, height = 80.dp)
-            ) {
-                Text("Cancel", fontSize = 32.sp, color = colorScheme.onError)
-            }
-        }
-
-        Call.STATE_ACTIVE -> {
-            Button(
-                onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                modifier = Modifier.size(width = 200.dp, height = 80.dp)
-            ) {
-                Text("Hang Up", fontSize = 32.sp, color = colorScheme.onError)
-            }
-        }
 
         Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
-            Text("Call ended", fontSize = 32.sp, color = colorScheme.onSurface)
+            IconButton(
+                onClick = { call.disconnect() },
+                enabled = false,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color(0xFFFB4F43),
+                    disabledContainerColor = Color(0xFFFB4F43).copy(alpha = 0.5f),
+                    contentColor = colorScheme.onErrorContainer,
+                    disabledContentColor = colorScheme.onErrorContainer.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.size(width = 200.dp, height = 96.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CallEnd,
+                    contentDescription = "Cancel",
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
 
         else -> {
-            Button(
+            IconButton(
                 onClick = { call.disconnect() },
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                modifier = Modifier.size(width = 200.dp, height = 80.dp)
+                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
+                modifier = Modifier.size(width = 200.dp, height = 96.dp)
             ) {
-                Text("End", fontSize = 32.sp, color = colorScheme.onError)
+                Icon(
+                    imageVector = Icons.Rounded.CallEnd,
+                    tint = colorScheme.onErrorContainer,
+                    contentDescription = "Cancel",
+                    modifier = Modifier.size(40.dp)
+                )
             }
         }
     }
