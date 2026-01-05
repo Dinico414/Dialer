@@ -71,6 +71,8 @@ import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenonware.phone.data.SharedPreferenceManager
+import com.xenonware.phone.ui.layouts.main.contacts.Contact
+import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -212,8 +214,18 @@ fun CallScreen(call: Call?) {
 
         }
 
-        Spacer(Modifier.weight(1f))
-//TODO replace Spacer With Box including modifier with weight 1f and add contact avatar here with 32.dp padding, the shape should be circle whilst active call and shape morth like the material 3 expressive loading indicator that adapts around main shape in the contact avatar
+        // Inside your CallScreen Column, where the TODO was:
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f), contentAlignment = Alignment.Center
+        ) {
+            RingingContactAvatar(
+                contact = Contact(name = handle), // 'handle' from Call details
+                state = state,                    // 'state' from Call state
+                size = 180.dp                     // Much larger for the call screen
+            )
+        }
         CallControls(state = state, call = call)
 
         Spacer(Modifier.height(LargePadding))

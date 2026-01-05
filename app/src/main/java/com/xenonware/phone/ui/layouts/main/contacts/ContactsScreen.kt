@@ -3,11 +3,20 @@ package com.xenonware.phone.ui.layouts.main.contacts
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.ContactsContract
+import android.telecom.Call
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +44,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,19 +55,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 
-data class Contact(val name: String, val phoneNumber: String)
+data class Contact(val name: String, val phoneNumber: String? = null)
 data class ContactGroup(val letter: Char, val contacts: List<Contact>)
 
 @Composable
@@ -112,7 +135,7 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .background(colorScheme.surfaceContainer)
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .padding(top = 8.dp)
                         ) {
@@ -121,7 +144,7 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
                                 fontSize = 20.sp,
                                 fontFamily = QuicksandTitleVariable,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -149,7 +172,7 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun ContactItemCard(
-    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
+    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
 
@@ -175,7 +198,7 @@ fun ContactItemCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceBright),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright),
     ) {
         Row(
             modifier = Modifier
@@ -193,12 +216,12 @@ fun ContactItemCard(
                     fontFamily = QuicksandTitleVariable,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = colorScheme.onSurface
                 )
                 Text(
-                    text = contact.phoneNumber,
+                    text = contact.phoneNumber.toString(),
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = colorScheme.onSurfaceVariant
                 )
             }
 
@@ -208,15 +231,20 @@ fun ContactItemCard(
                         topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
                     ), onClick = {
                         val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("smsto:${contact.phoneNumber}")
+                            data = "smsto:${contact.phoneNumber}".toUri()
                         }
                         context.startActivity(smsIntent)
                     }, modifier = Modifier
                         .size(48.dp)
-                        .clip(RoundedCornerShape(
-                            topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 24.dp,
+                                bottomStart = 24.dp,
+                                topEnd = 4.dp,
+                                bottomEnd = 4.dp
 
-                        ))
+                            )
+                        )
                         .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
@@ -233,12 +261,17 @@ fun ContactItemCard(
                     shape = RoundedCornerShape(
                         topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
                     ),
-                    onClick = { safePlaceCall(context, contact.phoneNumber) },
+                    onClick = { safePlaceCall(context, contact.phoneNumber.toString()) },
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(RoundedCornerShape(
-                            topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
-                        ))
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 4.dp,
+                                bottomStart = 4.dp,
+                                topEnd = 24.dp,
+                                bottomEnd = 24.dp
+                            )
+                        )
                         .background(colorScheme.surfaceContainerHigh)
                 ) {
                     Icon(
@@ -258,19 +291,16 @@ fun ContactItemCard(
 @Composable
 fun ContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
     val firstLetter = contact.name.firstOrNull()?.uppercaseChar() ?: '?'
-
     val pastelBackground = remember(contact.name) {
         val hash = contact.name.hashCode()
         val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
         Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.80f)
     }
-
     val textColor = remember(contact.name) {
         val hash = contact.name.hashCode()
         val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
         Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.25f)
     }
-
     Box(
         modifier = modifier
             .size(48.dp)
@@ -285,6 +315,121 @@ fun ContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
             fontWeight = FontWeight.SemiBold,
             color = textColor
         )
+    }
+}
+
+@Composable
+fun RingingContactAvatar(
+    modifier: Modifier = Modifier,
+    contact: Contact,
+    state: Int = -1,
+    size: androidx.compose.ui.unit.Dp = 64.dp,
+) {
+    val isRinging = state in setOf(
+        Call.STATE_RINGING,
+        Call.STATE_DIALING,
+        Call.STATE_CONNECTING,
+        Call.STATE_PULLING_CALL
+    )
+
+    val stateMorphProgress by animateFloatAsState(
+        targetValue = if (isRinging) 1f else 0f,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "StateMorph"
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "expressiveIndeterminate")
+
+    // 1. THE CONSTANT FLOW (Linear)
+    // This ensures there is ALWAYS motion. It never stops.
+    val baseRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing), repeatMode = RepeatMode.Restart
+        ), label = "BaseRotation"
+    )
+
+    // 2. THE EXPRESSIVE KICK (Bezier)
+    // This adds the "speed bursts" on top of the base rotation.
+    val kickRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 3000, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1f)
+            ), repeatMode = RepeatMode.Restart
+        ), label = "KickRotation"
+    )
+
+    // 3. THE LIQUID PULSE
+    val liquidPulse by infiniteTransition.animateFloat(
+        initialValue = 0.82f, targetValue = 1.12f, animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
+        ), label = "Pulse"
+    )
+
+    // Logic: Combine base flow + expressive kick only when ringing
+    val finalRotation = if (isRinging) baseRotation + kickRotation else 0f
+    val finalProgress =
+        if (isRinging) (stateMorphProgress * liquidPulse).coerceIn(0f, 1f) else stateMorphProgress
+
+    val circle = remember { RoundedPolygon.circle(numVertices = 8) }
+    val expressiveShape = remember {
+        RoundedPolygon.star(
+            numVerticesPerRadius = 8, innerRadius = 0.6f, rounding = CornerRounding(0.22f)
+        )
+    }
+    val morph = remember(circle, expressiveShape) { Morph(circle, expressiveShape) }
+
+    val hash = contact.name.hashCode()
+    val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+    val pastelBackground = Color.hsl(hue = hue, saturation = 0.45f, lightness = 0.85f)
+
+    Box(
+        modifier = modifier.size(size), contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = finalRotation
+
+                    // Pop the scale slightly higher to make it feel "Big"
+                    val scaleFactor = if (isRinging) 1.5f else 1.0f
+                    scaleX = scaleFactor
+                    scaleY = scaleFactor
+
+                    clip = true
+                    shape = MorphPolygonShape(morph, finalProgress)
+                }
+                .background(pastelBackground))
+
+        Text(
+            text = contact.name.firstOrNull()?.uppercase() ?: "?",
+            fontSize = (size.value * 0.42).sp,
+            fontFamily = QuicksandTitleVariable,
+            fontWeight = FontWeight.Bold,
+            color = Color.hsl(hue = hue, saturation = 0.7f, lightness = 0.2f)
+        )
+    }
+}
+
+// Custom Shape to bridge RoundedPolygon and Compose Shape
+class MorphPolygonShape(
+    private val morph: Morph,
+    private val progress: Float,
+) : Shape {
+    private val matrix = android.graphics.Matrix()
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val path = morph.toPath(progress).asComposePath()
+        // Scale path to fit the actual Box size
+        matrix.reset()
+        matrix.setScale(size.width / 2f, size.height / 2f)
+        matrix.postTranslate(size.width / 2f, size.height / 2f)
+        path.asAndroidPath().transform(matrix)
+
+        return Outline.Generic(path)
     }
 }
 
@@ -311,11 +456,11 @@ private fun loadContacts(context: Context): List<Contact> {
 }
 
 private fun safePlaceCall(context: Context, phoneNumber: String) {
-    val uri = Uri.parse("tel:$phoneNumber")
+    val uri = "tel:$phoneNumber".toUri()
     val intent = Intent(Intent.ACTION_CALL, uri)
     try {
         context.startActivity(intent)
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
     }
 }
