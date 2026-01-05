@@ -54,10 +54,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -205,25 +204,40 @@ fun CallScreen(call: Call?) {
             ?: rawNumber
     }
 
-    var baseConnectTime by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(state) {
-        if (state == Call.STATE_ACTIVE) {
-            baseConnectTime = call.details.connectTimeMillis
+    val duration by produceState(0L, state, call.details.connectTimeMillis) {
+        if (state == Call.STATE_ACTIVE && call.details.connectTimeMillis > 0) {
             while (true) {
-                // update state to trigger recompose
+                value = System.currentTimeMillis() - call.details.connectTimeMillis
                 delay(1000)
             }
+        } else {
+            value = 0L
         }
     }
-
-    val duration = System.currentTimeMillis() - baseConnectTime
-
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
     val safeBottomPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
+
+//    LaunchedEffect(state) {
+//        val toastText = when (state) {
+//            Call.STATE_NEW -> "New call"
+//            Call.STATE_DIALING -> "Dialing..."
+//            Call.STATE_RINGING -> "Incoming call"
+//            Call.STATE_HOLDING -> "Call on hold"
+//            Call.STATE_ACTIVE -> "Call connected"
+//            Call.STATE_DISCONNECTED -> "Call ended"
+//            Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
+//            Call.STATE_CONNECTING -> "Connecting..."
+//            Call.STATE_DISCONNECTING -> "Disconnecting..."
+//            Call.STATE_PULLING_CALL -> "Pulling call..."
+//            Call.STATE_AUDIO_PROCESSING -> "Audio processing"
+//            Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
+//            else -> "else"
+//        }
+//        Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+//    }
 
     Column(
         modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
@@ -242,7 +256,7 @@ fun CallScreen(call: Call?) {
                 Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
                 Call.STATE_HOLDING -> "Call is on hold"
                 Call.STATE_ACTIVE -> formatDuration(duration)
-                Call.STATE_DISCONNECTED -> if (duration > 0) "Call ended" else "Call failed"
+                Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> if (duration > 0) "Call ended" else "Call failed"
                 else -> "Unknown state"
             }
 
