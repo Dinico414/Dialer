@@ -70,7 +70,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalRippleConfiguration
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Surface
@@ -277,23 +276,27 @@ fun CallScreen(call: Call?) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
 
-    LaunchedEffect(state) {
-        val toastText = when (state) {
-            Call.STATE_NEW -> "New call"
-            Call.STATE_DIALING -> "Dialing..."
-            Call.STATE_RINGING -> "Incoming call"
-            Call.STATE_HOLDING -> "Call on hold"
-            Call.STATE_ACTIVE -> "Call connected"
-            Call.STATE_DISCONNECTED -> "Call ended"
-            Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
-            Call.STATE_CONNECTING -> "Connecting..."
-            Call.STATE_DISCONNECTING -> "Disconnecting..."
-            Call.STATE_PULLING_CALL -> "Pulling call..."
-            Call.STATE_AUDIO_PROCESSING -> "Audio processing"
-            Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
-            else -> "else"
+    val showToast = false
+
+    if (showToast) {
+        LaunchedEffect(state) {
+            val toastText = when (state) {
+                Call.STATE_NEW -> "New call"
+                Call.STATE_DIALING -> "Dialing..."
+                Call.STATE_RINGING -> "Incoming call"
+                Call.STATE_HOLDING -> "Call on hold"
+                Call.STATE_ACTIVE -> "Call connected"
+                Call.STATE_DISCONNECTED -> "Call ended"
+                Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
+                Call.STATE_CONNECTING -> "Connecting..."
+                Call.STATE_DISCONNECTING -> "Disconnecting..."
+                Call.STATE_PULLING_CALL -> "Pulling call..."
+                Call.STATE_AUDIO_PROCESSING -> "Audio processing"
+                Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
+                else -> "else"
+            }
+            Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
         }
-        Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
     }
 
     Column(
@@ -326,7 +329,6 @@ fun CallScreen(call: Call?) {
 
             Spacer(Modifier.height(LargestPadding))
 
-            // Now shows real contact name or number
             Text(
                 text = displayName,
                 fontSize = 48.sp,
@@ -340,7 +342,6 @@ fun CallScreen(call: Call?) {
                 .fillMaxWidth()
                 .weight(1f), contentAlignment = Alignment.Center
         ) {
-            // Pass correct name to avatar (so letter/initial is correct)
             RingingContactAvatar(
                 contact = Contact(name = displayName), state = state, size = 180.dp
             )
@@ -364,7 +365,7 @@ fun CallScreen(call: Call?) {
                     val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
 
-                    val targetTextColor = if (isPressed) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurface
+                    val targetTextColor = if (isPressed) Color(0xFFFFB300) else colorScheme.onSurface
 
                     val animatedTextColor by animateColorAsState(
                         targetValue = targetTextColor,
@@ -415,7 +416,7 @@ private fun lookupContactName(context: android.content.Context, phoneNumber: Str
         }
         null
     } catch (_: Exception) {
-        null // In case of any permission or security issue
+        null
     }
 }
 
@@ -423,6 +424,21 @@ private fun lookupContactName(context: android.content.Context, phoneNumber: Str
 @Composable
 private fun CallControls(state: Int, call: Call) {
     val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
+    var previousActiveState by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(state) {
+        if (state == Call.STATE_RINGING) {
+            previousActiveState = Call.STATE_RINGING
+        } else if (state in listOf(
+                Call.STATE_ACTIVE,
+                Call.STATE_HOLDING,
+                Call.STATE_DIALING,
+                Call.STATE_PULLING_CALL
+            )) {
+            previousActiveState = Call.STATE_ACTIVE
+        }
+    }
+
     when (state) {
         Call.STATE_RINGING -> {
             val iconSizeDp = 52.dp
@@ -610,7 +626,9 @@ private fun CallControls(state: Int, call: Call) {
             }
         }
 
-        Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
+        Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> {
+            val cameFromRinging = previousActiveState == Call.STATE_RINGING
+
             Box(
                 modifier = Modifier
                     .height(136.dp)
@@ -618,27 +636,79 @@ private fun CallControls(state: Int, call: Call) {
                     .alpha(0.6f),
                 contentAlignment = Alignment.Center
             ) {
-                IconButton(
-                    onClick = { call.disconnect() },
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = Color(0xFFFB4F43),
-                        contentColor = colorScheme.onSurface,
-                    ), modifier = Modifier
-                        .size(width = 200.dp, height = 96.dp)
-                        .shadow(
-                            10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                if (cameFromRinging) {
+                    val iconSizeDp = 52.dp
+                    val draggableSizeDp = 96.dp
+                    @Suppress("UnusedVariable", "unused") val maxTrackWidthDp = 480.dp
+                    val horizontalPadding = 16.dp
+
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = horizontalPadding)
+                            .fillMaxWidth()
+                            .height(136.dp)
+                            .shadow(
+                                10.dp,
+                                CircleShape,
+                                ambientColor = shadowTint,
+                                spotColor = shadowTint
+                            )
+                            .background(colorScheme.surfaceContainerLow, CircleShape)
+                            .padding(horizontal = 16.dp), contentAlignment = Alignment.Center
+                    ) {
+
+                        Icon(
+                            imageVector = Icons.Rounded.Phone,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier
+                                .padding(24.dp)
+                                .size(iconSizeDp)
+                                .align(Alignment.CenterEnd)
                         )
 
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CallEnd,
-                        contentDescription = "Cancel",
-                        modifier = Modifier.size(40.dp)
-                    )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .size(draggableSizeDp)
+                                .background(colorScheme.onSurface, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CallEnd,
+                                contentDescription = "Decline",
+                                tint = Color(0xFFFB4F43),
+                                modifier = Modifier
+                                    .size(iconSizeDp)
+                                    .align(Alignment.Center)
+                            )
+                        }
+                    }
+
+                } else {
+                    IconButton(
+                        onClick = { call.disconnect() },
+                        enabled = state == Call.STATE_DISCONNECTING,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color(0xFFFB4F43),
+                            disabledContainerColor = Color(0xFFFB4F43),
+                            contentColor = colorScheme.onSurface,
+                            disabledContentColor = colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .size(width = 200.dp, height = 96.dp)
+                            .shadow(
+                                10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CallEnd,
+                            contentDescription = "Ending call...",
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
             }
         }
-
         else -> { // Active call – full in-call controls
             val inCallService = MyInCallService.getInstance() ?: return
 
@@ -658,7 +728,7 @@ private fun CallControls(state: Int, call: Call) {
             }
 
             var isMuted by remember { mutableStateOf(audioState.isMuted) }
-            var currentRoute by remember { mutableStateOf(audioState.route) }
+            var currentRoute by remember { mutableIntStateOf(audioState.route) }
             var isOnHold by remember(call.details) { mutableStateOf(call.state == Call.STATE_HOLDING) }
             var showKeypad by remember { mutableStateOf(false) }
 
@@ -745,7 +815,10 @@ private fun CallControls(state: Int, call: Call) {
                             }, modifier = Modifier
                                 .size(72.dp)
                                 .shadow(
-                                    8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                                    8.dp,
+                                    CircleShape,
+                                    ambientColor = shadowTint,
+                                    spotColor = shadowTint
                                 )
                                 .background(
                                     if (currentRoute == CallAudioState.ROUTE_EARPIECE)
@@ -798,7 +871,8 @@ private fun CallControls(state: Int, call: Call) {
                             .shadow(
                                 8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
                             )
-                            .background(if (showKeypad) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                            .background(
+                                if (showKeypad) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
                                 CircleShape
                             )
                     ) {
@@ -817,7 +891,10 @@ private fun CallControls(state: Int, call: Call) {
                         modifier = Modifier
                             .padding(horizontal = 32.dp, vertical = LargePadding)
                             .shadow(
-                                8.dp, RoundedCornerShape(LargeCornerRadius), ambientColor = shadowTint, spotColor = shadowTint
+                                8.dp,
+                                RoundedCornerShape(LargeCornerRadius),
+                                ambientColor = shadowTint,
+                                spotColor = shadowTint
                             )
                             .background(
                                 colorScheme.surfaceContainerLowest,
