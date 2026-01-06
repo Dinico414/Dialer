@@ -5,27 +5,16 @@ import android.telecom.Call
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalWindowInfo
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.layouts.callscreen.CallScreenContent
 import com.xenonware.phone.ui.theme.ScreenEnvironment
-import com.xenonware.phone.viewmodel.CallScreenViewModel
-import com.xenonware.phone.viewmodel.CallScreenViewModelFactory
 
 class CallScreenActivity : ComponentActivity() {
-    private val viewModel: CallScreenViewModel by viewModels {
-        CallScreenViewModelFactory(applicationContext, currentCall)
-    }
-    private lateinit var sharedPreferenceManager: SharedPreferenceManager
-
-    private var lastAppliedTheme: Int = -1
-    private var lastAppliedCoverThemeEnabled: Boolean = false
-    private var lastAppliedBlackedOutMode: Boolean = false
 
     companion object {
         var currentCall: Call? = null
@@ -35,38 +24,32 @@ class CallScreenActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        sharedPreferenceManager = SharedPreferenceManager(applicationContext)
 
-        val initialThemePref = sharedPreferenceManager.theme
-        val initialCoverThemeEnabledSetting = sharedPreferenceManager.coverThemeEnabled
-        val initialBlackedOutMode = sharedPreferenceManager.blackedOutModeEnabled
-
-
-        lastAppliedTheme = initialThemePref
-        lastAppliedCoverThemeEnabled = initialCoverThemeEnabledSetting
-        lastAppliedBlackedOutMode = initialBlackedOutMode
-
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        )
 
         setContent {
-            val currentContainerSize = LocalWindowInfo.current.containerSize
-            val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(currentContainerSize)
+            val sharedPreferenceManager = SharedPreferenceManager(applicationContext)
+
+            val themePreference = sharedPreferenceManager.theme
+            val blackedOutModeEnabled = sharedPreferenceManager.blackedOutModeEnabled
+
+            val containerSize = LocalWindowInfo.current.containerSize
+            val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(containerSize)
+
             ScreenEnvironment(
-                themePreference = sharedPreferenceManager.theme,
+                themePreference = themePreference,
                 coverTheme = applyCoverTheme,
-                blackedOutModeEnabled = sharedPreferenceManager.blackedOutModeEnabled
+                blackedOutModeEnabled = blackedOutModeEnabled
             ) { _, _ ->
                 Surface(
-                    modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface
+                    color = Color.Transparent, modifier = Modifier.fillMaxSize()
                 ) {
-                    CallScreenContent(
-                        call = currentCall, onFinishRequested = {
-                            if (!isFinishing && !isDestroyed) finish()
-                        }, viewModel = viewModel
-                    )
+                    CallScreenContent(call = currentCall)
                 }
             }
+
         }
 
         currentCall?.registerCallback(object : Call.Callback() {
