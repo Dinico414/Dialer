@@ -276,7 +276,7 @@ fun CallScreen(call: Call?) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
 
-    val showToast = false
+    val showToast = true
 
     if (showToast) {
         LaunchedEffect(state) {
@@ -307,16 +307,30 @@ fun CallScreen(call: Call?) {
                 .padding(top = safeTopPadding)
                 .weight(0.25f)
         )
+        var previousActiveState by remember { mutableStateOf<Int?>(null) }
+        LaunchedEffect(state) {
+            if (state == Call.STATE_RINGING) {
+                previousActiveState = Call.STATE_RINGING
+            } else if (state in listOf(
+                    Call.STATE_ACTIVE,
+                    Call.STATE_HOLDING,
+                    Call.STATE_DIALING,
+                    Call.STATE_PULLING_CALL
+                )) {
+                previousActiveState = Call.STATE_ACTIVE
+            }
+        }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val cameFromRinging = previousActiveState == Call.STATE_RINGING
             val statusText = when (state) {
                 Call.STATE_RINGING -> "Incoming call..."
                 Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
                 Call.STATE_HOLDING -> "Call is on hold"
                 Call.STATE_ACTIVE -> formatDuration(duration)
-                Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> if (duration > 0) "Call ended" else "Call failed"
+                Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> if (cameFromRinging) "Call denied" else "Call ended"
                 else -> "Unknown state"
             }
 
@@ -647,12 +661,6 @@ private fun CallControls(state: Int, call: Call) {
                             .padding(horizontal = horizontalPadding)
                             .fillMaxWidth()
                             .height(136.dp)
-                            .shadow(
-                                10.dp,
-                                CircleShape,
-                                ambientColor = shadowTint,
-                                spotColor = shadowTint
-                            )
                             .background(colorScheme.surfaceContainerLow, CircleShape)
                             .padding(horizontal = 16.dp), contentAlignment = Alignment.Center
                     ) {
