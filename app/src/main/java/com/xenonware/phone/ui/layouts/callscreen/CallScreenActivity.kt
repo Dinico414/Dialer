@@ -31,6 +31,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,12 +68,16 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -323,15 +328,38 @@ fun CallScreen(call: Call?) {
                     .padding(bottom = safeBottomPadding)
                     .weight(0.25f),
             ) {
-                TextButton(onClick = {}) {
-                    Text(
-                        text = "SMS",
-                        color = colorScheme.onSurface,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.Light,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                CompositionLocalProvider(
+                    LocalRippleConfiguration provides RippleConfiguration(
+                        color = Color(0xFFFFB300)
                     )
+                ) {
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+
+                    val targetTextColor = if (isPressed) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurface
+
+                    val animatedTextColor by animateColorAsState(
+                        targetValue = targetTextColor,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "TextColorAnimation"
+                    )
+
+                    TextButton(
+                        onClick = {},
+                        interactionSource = interactionSource
+                    ) {
+                        Text(
+                            text = "SMS",
+                            color = animatedTextColor,
+                            fontFamily = QuicksandTitleVariable,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                 }
             }
         } else {
