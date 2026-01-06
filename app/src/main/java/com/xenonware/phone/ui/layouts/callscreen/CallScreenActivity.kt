@@ -3,18 +3,16 @@
 package com.xenonware.phone.ui.layouts.callscreen
 
 import android.annotation.SuppressLint
-import android.content.Context.AUDIO_SERVICE
-import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
-import android.telecom.InCallService
 import android.telecom.VideoProfile
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -28,9 +26,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,17 +47,23 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BluetoothAudio
 import androidx.compose.material.icons.rounded.CallEnd
+import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.Headset
+import androidx.compose.material.icons.rounded.Merge
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -65,6 +71,7 @@ import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -85,7 +92,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -95,6 +101,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.LargeCornerRadius
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenonware.phone.MyInCallService
@@ -560,8 +567,7 @@ private fun CallControls(state: Int, call: Call) {
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = Color(0xFFFB4F43),
                         contentColor = colorScheme.onSurface,
-                    ),
-                    modifier = Modifier
+                    ), modifier = Modifier
                         .size(width = 200.dp, height = 96.dp)
                         .shadow(
                             10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
@@ -577,34 +583,17 @@ private fun CallControls(state: Int, call: Call) {
             }
         }
 
-        else -> { // Active call – full controls
-            val inCallService = MyInCallService.getInstance()
-
-            // If service is not ready yet (very rare, but prevents crash)
-            if (inCallService == null) {
-                // Fallback: just show hang up button without mute/route
-                IconButton(
-                    onClick = { call.disconnect() },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
-                    modifier = Modifier
-                        .size(width = 200.dp, height = 96.dp)
-                        .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CallEnd,
-                        tint = colorScheme.onSurface,
-                        contentDescription = "Hang up",
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-                return
-            }
+        else -> { // Active call – full in-call controls
+            val inCallService = MyInCallService.getInstance() ?: return
 
             var audioState by remember {
                 mutableStateOf(
-                    MyInCallService.currentAudioState
-                        ?: inCallService.callAudioState
-                        ?: CallAudioState(false, CallAudioState.ROUTE_EARPIECE, CallAudioState.ROUTE_EARPIECE or CallAudioState.ROUTE_SPEAKER)
+                    MyInCallService.currentAudioState ?: inCallService.callAudioState
+                    ?: CallAudioState(
+                        false,
+                        CallAudioState.ROUTE_EARPIECE,
+                        CallAudioState.ROUTE_EARPIECE or CallAudioState.ROUTE_SPEAKER
+                    )
                 )
             }
 
@@ -614,48 +603,79 @@ private fun CallControls(state: Int, call: Call) {
 
             var isMuted by remember { mutableStateOf(audioState.isMuted) }
             var currentRoute by remember { mutableStateOf(audioState.route) }
+            var isOnHold by remember(call.details) { mutableStateOf(call.state == Call.STATE_HOLDING) }
+            var showKeypad by remember { mutableStateOf(false) }
 
             LaunchedEffect(audioState) {
                 isMuted = audioState.isMuted
                 currentRoute = audioState.route
             }
 
+            DisposableEffect(call) {
+                val callback = object : Call.Callback() {
+                    override fun onStateChanged(call: Call, state: Int) {
+                        isOnHold = state == Call.STATE_HOLDING
+                    }
+                }
+                call.registerCallback(callback)
+                onDispose { call.unregisterCallback(callback) }
+            }
+
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                // Top row: Mute, Speaker, Hold, Keypad
                 Row(
-                    modifier = Modifier.padding(bottom = LargePadding),
                     horizontalArrangement = Arrangement.spacedBy(LargePadding)
                 ) {
-                    // Mute button
+                    // Mute
                     IconButton(
                         onClick = {
                             val newMute = !isMuted
                             inCallService.setMuted(newMute)
                             isMuted = newMute
-                        },
-                        modifier = Modifier
+                        }, modifier = Modifier
                             .size(72.dp)
-                            .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
-                            .background(colorScheme.surfaceContainerLow, CircleShape)
+                            .shadow(
+                                8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                            .background(
+                                if (isMuted) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                                CircleShape
+                            )
                     ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
-                            tint = if (isMuted) Color(0xFFFB4F43) else colorScheme.onSurface,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Crossfade(targetState = isMuted) { muted ->
+                            Icon(
+                                imageVector = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                                contentDescription = if (muted) "Unmute" else "Mute",
+                                tint = if (muted) Color(0xFFFB4F43) else colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
 
-                    // Audio route selector (only if >1 option)
+                    // Speaker / Audio Route
                     val supportedMask = audioState.supportedRouteMask
                     val routeOptions = buildList {
-                        if (supportedMask and CallAudioState.ROUTE_EARPIECE != 0)
-                            add(Triple(CallAudioState.ROUTE_EARPIECE, Icons.Rounded.Phone, "Earpiece"))
-                        if (supportedMask and CallAudioState.ROUTE_SPEAKER != 0)
-                            add(Triple(CallAudioState.ROUTE_SPEAKER, Icons.Rounded.VolumeUp, "Speaker"))
-                        if (supportedMask and CallAudioState.ROUTE_WIRED_HEADSET != 0)
-                            add(Triple(CallAudioState.ROUTE_WIRED_HEADSET, Icons.Rounded.Headset, "Wired headset"))
-                        if (supportedMask and CallAudioState.ROUTE_BLUETOOTH != 0)
-                            add(Triple(CallAudioState.ROUTE_BLUETOOTH, Icons.Rounded.Bluetooth, "Bluetooth"))
+                        if (supportedMask and CallAudioState.ROUTE_EARPIECE != 0) add(
+                            Triple(
+                                CallAudioState.ROUTE_EARPIECE, Icons.Rounded.Phone, "Earpiece"
+                            )
+                        )
+                        if (supportedMask and CallAudioState.ROUTE_SPEAKER != 0) add(
+                            Triple(
+                                CallAudioState.ROUTE_SPEAKER, Icons.AutoMirrored.Rounded.VolumeUp, "Speaker"
+                            )
+                        )
+                        if (supportedMask and CallAudioState.ROUTE_WIRED_HEADSET != 0) add(
+                            Triple(
+                                CallAudioState.ROUTE_WIRED_HEADSET, Icons.Rounded.Headset, "Wired headset"
+                            )
+                        )
+                        if (supportedMask and CallAudioState.ROUTE_BLUETOOTH != 0) add(
+                            Triple(
+                                CallAudioState.ROUTE_BLUETOOTH, Icons.Rounded.Bluetooth, "Bluetooth"
+                            )
+                        )
                     }
 
                     if (routeOptions.size > 1) {
@@ -666,22 +686,177 @@ private fun CallControls(state: Int, call: Call) {
                                 val newRoute = routeOptions[nextIndex].first
                                 inCallService.setAudioRoute(newRoute)
                                 currentRoute = newRoute
-                            },
-                            modifier = Modifier
+                            }, modifier = Modifier
                                 .size(72.dp)
-                                .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
-                                .background(colorScheme.surfaceContainerLow, CircleShape)
+                                .shadow(
+                                    8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                                )
+                                .background(
+                                    if (currentRoute == CallAudioState.ROUTE_EARPIECE)
+                                        colorScheme.surfaceContainerLowest else colorScheme.onSurface,
+                                    CircleShape
+                                )
                         ) {
                             val icon = routeOptions.first { it.first == currentRoute }.second
                             Icon(
                                 imageVector = icon,
-                                contentDescription = "Switch audio output",
-                                tint = if (currentRoute == CallAudioState.ROUTE_SPEAKER) Color(0xFF4CAF50) else colorScheme.onSurface,
+                                contentDescription = "Audio output",
+                                tint = if (currentRoute == CallAudioState.ROUTE_EARPIECE)
+                                    colorScheme.primary else colorScheme.inversePrimary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
                     }
+
+                    // Hold / Unhold
+                    IconButton(
+                        onClick = {
+                            if (isOnHold)
+                                call.unhold()
+                                call.hold()
+                        }, modifier = Modifier
+                            .size(72.dp)
+                            .shadow(
+                                8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                            .background(
+                                if (isOnHold) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                                CircleShape
+                            )
+                    ) {
+                        Crossfade(targetState = isOnHold) { held ->
+                            Icon(
+                                imageVector = if (held) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                                contentDescription = if (held) "Resume" else "Hold",
+                                tint = if (held) colorScheme.inversePrimary else colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+
+                    // Keypad toggle
+                    IconButton(
+                        onClick = { showKeypad = !showKeypad },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .shadow(
+                                8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                            .background(if (showKeypad) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Dialpad,
+                            contentDescription = "Show keypad",
+                            tint = if (showKeypad) colorScheme.inversePrimary else colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
+
+                // DTMF Keypad (shown when toggled)
+                if (showKeypad) {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 32.dp, vertical = LargePadding)
+                            .shadow(
+                                8.dp, RoundedCornerShape(LargeCornerRadius), ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                            .background(
+                                colorScheme.surfaceContainerLowest,
+                                RoundedCornerShape(LargeCornerRadius)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        val keys = listOf(
+                            listOf("1", "2", "3"),
+                            listOf("4", "5", "6"),
+                            listOf("7", "8", "9"),
+                            listOf("*", "0", "#")
+                        )
+                        val letters = listOf(
+                            listOf(" ", "ABC", "DEF"),
+                            listOf("GHI", "JKL", "MNO"),
+                            listOf("PQRS", "TUV", "WXYZ"),
+                            listOf(" ", " ", " ")
+                        )
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(keys.flatten().indices.toList()) { index ->
+                                val row = index / 3
+                                val col = index % 3
+                                val key = keys[row][col]
+                                val subtitle = letters[row][col]
+
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple(radius = 40.dp),
+                                            onClick = {
+                                                call.playDtmfTone(key[0])
+                                                // Stop tone after 150ms
+                                                android.os.Handler(android.os.Looper.getMainLooper())
+                                                    .postDelayed({
+                                                        call.stopDtmfTone()
+                                                    }, 150)
+                                            })
+                                ) {
+                                    Text(
+                                        text = key,
+                                        fontSize = 36.sp,
+                                        fontFamily = QuicksandTitleVariable,
+                                        color = colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (subtitle.isNotBlank()) {
+                                        Text(
+                                            text = subtitle,
+                                            fontSize = 12.sp,
+                                            fontFamily = QuicksandTitleVariable,
+                                            fontWeight = FontWeight.Light,
+                                            color = colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Second row: Merge (only if supported and multiple calls exist)
+                val canMerge =
+                    call.details.callCapabilities and Call.Details.CAPABILITY_MERGE_CONFERENCE != 0
+                val hasConference =
+                    call.children.isNotEmpty() || call.conferenceableCalls.isNotEmpty()
+
+                if (canMerge && hasConference) {
+                    IconButton(
+                        onClick = { call.conference(call.conferenceableCalls.first()) },
+                        modifier = Modifier
+                            .padding(bottom = LargePadding)
+                            .size(72.dp)
+                            .shadow(
+                                8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                            )
+                            .background(colorScheme.surfaceContainerLowest, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Merge,
+                            contentDescription = "Merge calls",
+                            tint = colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(LargestPadding))
 
                 // Hang up button
                 IconButton(
@@ -689,17 +864,20 @@ private fun CallControls(state: Int, call: Call) {
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
                     modifier = Modifier
                         .size(width = 200.dp, height = 96.dp)
-                        .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                        .shadow(
+                            10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.CallEnd,
                         tint = colorScheme.onSurface,
-                        contentDescription = "Hang up",
+                        contentDescription = "End call",
                         modifier = Modifier.size(40.dp)
                     )
                 }
             }
-        }}
+        }
+    }
 }
 
 private fun formatDuration(millis: Long): String {
