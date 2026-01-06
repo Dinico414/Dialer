@@ -158,24 +158,19 @@ class CallScreenActivity : ComponentActivity() {
 
                 // Primary breathing: radius multiplier 1.3f → 1.7f
                 val primaryBreath by infiniteTransition.animateFloat(
-                    initialValue = 1.3f,
-                    targetValue = 1.7f,
-                    animationSpec = infiniteRepeatable(
+                    initialValue = 1.3f, targetValue = 1.7f, animationSpec = infiniteRepeatable(
                         animation = tween(durationMillis = 6500, easing = FastOutSlowInEasing),
                         repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "primaryBreath"
+                    ), label = "primaryBreath"
                 )
 
                 // Secondary breathing: same range but offset by half cycle for unsynced effect
                 val secondaryBreath by infiniteTransition.animateFloat(
                     initialValue = 1.7f, // Start at opposite end
-                    targetValue = 1.3f,
-                    animationSpec = infiniteRepeatable(
+                    targetValue = 1.3f, animationSpec = infiniteRepeatable(
                         animation = tween(durationMillis = 16000, easing = FastOutSlowInEasing),
                         repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "secondaryBreath"
+                    ), label = "secondaryBreath"
                 )
 
                 Box(
@@ -202,11 +197,9 @@ class CallScreenActivity : ComponentActivity() {
                                     radius = size.width * primaryBreath // Animated!
                                 )
                             )
-                        }
-                ) {
+                        }) {
                     Surface(
-                        color = Color.Transparent,
-                        modifier = Modifier.fillMaxSize()
+                        color = Color.Transparent, modifier = Modifier.fillMaxSize()
                     ) {
                         CallScreen(call = currentCall)
                     }
@@ -316,11 +309,19 @@ fun CallScreen(call: Call?) {
                     Call.STATE_HOLDING,
                     Call.STATE_DIALING,
                     Call.STATE_PULLING_CALL
-                )) {
+                )
+            ) {
                 previousActiveState = Call.STATE_ACTIVE
             }
         }
+        var callWasRejectedByUser by remember { mutableStateOf(false) }
 
+        LaunchedEffect(state) {
+            if (state == Call.STATE_RINGING) {
+                callWasRejectedByUser = false
+                previousActiveState = Call.STATE_RINGING
+            }
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -330,7 +331,11 @@ fun CallScreen(call: Call?) {
                 Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
                 Call.STATE_HOLDING -> "Call is on hold"
                 Call.STATE_ACTIVE -> formatDuration(duration)
-                Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> if (cameFromRinging) "Call denied" else "Call ended"
+                Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
+                    callWasRejectedByUser -> "Call rejected"
+                    cameFromRinging && !callWasRejectedByUser -> "Call missed"
+                    else -> "Call ended"
+                }
                 else -> "Unknown state"
             }
 
@@ -361,7 +366,11 @@ fun CallScreen(call: Call?) {
             )
         }
 
-        CallControls(state = state, call = call)
+        CallControls(
+            state = state,
+            call = call,
+            onUserRejectedCall = { callWasRejectedByUser = true }
+        )
 
         Spacer(Modifier.height(LargePadding))
 
@@ -379,20 +388,20 @@ fun CallScreen(call: Call?) {
                     val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
 
-                    val targetTextColor = if (isPressed) Color(0xFFFFB300) else colorScheme.onSurface
+                    val targetTextColor =
+                        if (isPressed) Color(0xFFFFB300) else colorScheme.onSurface
 
                     val animatedTextColor by animateColorAsState(
-                        targetValue = targetTextColor,
-                        animationSpec = spring(
+                        targetValue = targetTextColor, animationSpec = spring(
                             dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "TextColorAnimation"
+                            stiffness = Spring.StiffnessVeryLow
+                        ), label = "TextColorAnimation"
                     )
 
                     TextButton(
-                        onClick = {},
-                        interactionSource = interactionSource
+                        onClick = {
+                            call.reject(true, null)
+                                  }, interactionSource = interactionSource
                     ) {
                         Text(
                             text = "SMS",
@@ -436,7 +445,7 @@ private fun lookupContactName(context: android.content.Context, phoneNumber: Str
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-private fun CallControls(state: Int, call: Call) {
+private fun CallControls(state: Int, call: Call, onUserRejectedCall: () -> Unit = {}) {
     val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
     var previousActiveState by remember { mutableStateOf<Int?>(null) }
 
@@ -444,11 +453,9 @@ private fun CallControls(state: Int, call: Call) {
         if (state == Call.STATE_RINGING) {
             previousActiveState = Call.STATE_RINGING
         } else if (state in listOf(
-                Call.STATE_ACTIVE,
-                Call.STATE_HOLDING,
-                Call.STATE_DIALING,
-                Call.STATE_PULLING_CALL
-            )) {
+                Call.STATE_ACTIVE, Call.STATE_HOLDING, Call.STATE_DIALING, Call.STATE_PULLING_CALL
+            )
+        ) {
             previousActiveState = Call.STATE_ACTIVE
         }
     }
@@ -597,6 +604,7 @@ private fun CallControls(state: Int, call: Call) {
                                         }
 
                                         swipedLeft -> {
+                                            onUserRejectedCall()
                                             call.reject(false, null)
                                             offsetX.animateTo(
                                                 -maxOffsetPx, animationSpec = tween(
@@ -705,7 +713,10 @@ private fun CallControls(state: Int, call: Call) {
                         modifier = Modifier
                             .size(width = 200.dp, height = 96.dp)
                             .shadow(
-                                10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint
+                                10.dp,
+                                CircleShape,
+                                ambientColor = shadowTint,
+                                spotColor = shadowTint
                             )
                     ) {
                         Icon(
@@ -717,6 +728,7 @@ private fun CallControls(state: Int, call: Call) {
                 }
             }
         }
+
         else -> { // Active call – full in-call controls
             val inCallService = MyInCallService.getInstance() ?: return
 
@@ -797,12 +809,16 @@ private fun CallControls(state: Int, call: Call) {
                         )
                         if (supportedMask and CallAudioState.ROUTE_SPEAKER != 0) add(
                             Triple(
-                                CallAudioState.ROUTE_SPEAKER, Icons.AutoMirrored.Rounded.VolumeUp, "Speaker"
+                                CallAudioState.ROUTE_SPEAKER,
+                                Icons.AutoMirrored.Rounded.VolumeUp,
+                                "Speaker"
                             )
                         )
                         if (supportedMask and CallAudioState.ROUTE_WIRED_HEADSET != 0) add(
                             Triple(
-                                CallAudioState.ROUTE_WIRED_HEADSET, Icons.Rounded.Headset, "Wired headset"
+                                CallAudioState.ROUTE_WIRED_HEADSET,
+                                Icons.Rounded.Headset,
+                                "Wired headset"
                             )
                         )
                         if (supportedMask and CallAudioState.ROUTE_BLUETOOTH != 0) add(
@@ -815,7 +831,8 @@ private fun CallControls(state: Int, call: Call) {
                     if (routeOptions.size > 1) {
                         IconButton(
                             onClick = {
-                                val currentIndex = routeOptions.indexOfFirst { it.first == currentRoute }
+                                val currentIndex =
+                                    routeOptions.indexOfFirst { it.first == currentRoute }
                                 val nextIndex = (currentIndex + 1) % routeOptions.size
                                 val newRoute = routeOptions[nextIndex].first
                                 inCallService.setAudioRoute(newRoute)
@@ -829,8 +846,7 @@ private fun CallControls(state: Int, call: Call) {
                                     spotColor = shadowTint
                                 )
                                 .background(
-                                    if (currentRoute == CallAudioState.ROUTE_EARPIECE)
-                                        colorScheme.surfaceContainerLowest else colorScheme.onSurface,
+                                    if (currentRoute == CallAudioState.ROUTE_EARPIECE) colorScheme.surfaceContainerLowest else colorScheme.onSurface,
                                     CircleShape
                                 )
                         ) {
@@ -838,8 +854,7 @@ private fun CallControls(state: Int, call: Call) {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = "Audio output",
-                                tint = if (currentRoute == CallAudioState.ROUTE_EARPIECE)
-                                    colorScheme.primary else colorScheme.inversePrimary,
+                                tint = if (currentRoute == CallAudioState.ROUTE_EARPIECE) colorScheme.primary else colorScheme.inversePrimary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -848,9 +863,8 @@ private fun CallControls(state: Int, call: Call) {
                     // Hold / Unhold
                     IconButton(
                         onClick = {
-                            if (isOnHold)
-                                call.unhold()
-                                call.hold()
+                            if (isOnHold) call.unhold()
+                            call.hold()
                         }, modifier = Modifier
                             .size(72.dp)
                             .shadow(
