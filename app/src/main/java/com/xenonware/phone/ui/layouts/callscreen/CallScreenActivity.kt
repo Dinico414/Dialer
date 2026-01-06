@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -547,6 +548,7 @@ private fun CallControls(state: Int, call: Call, onUserRejectedCall: () -> Unit 
             Box(
                 modifier = Modifier
                     .padding(horizontal = horizontalPadding)
+                    .widthIn(max = maxTrackWidthDp)
                     .fillMaxWidth()
                     .height(136.dp)
                     .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
@@ -661,12 +663,13 @@ private fun CallControls(state: Int, call: Call, onUserRejectedCall: () -> Unit 
                 if (cameFromRinging) {
                     val iconSizeDp = 52.dp
                     val draggableSizeDp = 96.dp
-                    @Suppress("UnusedVariable", "unused") val maxTrackWidthDp = 480.dp
+                    val maxTrackWidthDp = 480.dp
                     val horizontalPadding = 16.dp
 
                     Box(
                         modifier = Modifier
                             .padding(horizontal = horizontalPadding)
+                            .widthIn(max = maxTrackWidthDp)
                             .fillMaxWidth()
                             .height(136.dp)
                             .background(colorScheme.surfaceContainerLow, CircleShape)
