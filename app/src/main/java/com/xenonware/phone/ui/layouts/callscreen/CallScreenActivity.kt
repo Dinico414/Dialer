@@ -10,6 +10,7 @@ import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.VideoProfile
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
@@ -153,33 +154,60 @@ class CallScreenActivity : ComponentActivity() {
                 val primaryContainer = colorScheme.primaryContainer
                 val secondaryContainer = colorScheme.secondaryContainer
 
+                // Infinite breathing animations
+                val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+
+                // Primary breathing: radius multiplier 1.3f → 1.7f
+                val primaryBreath by infiniteTransition.animateFloat(
+                    initialValue = 1.3f,
+                    targetValue = 1.7f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 6500, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "primaryBreath"
+                )
+
+                // Secondary breathing: same range but offset by half cycle for unsynced effect
+                val secondaryBreath by infiniteTransition.animateFloat(
+                    initialValue = 1.7f, // Start at opposite end
+                    targetValue = 1.3f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 16000, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "secondaryBreath"
+                )
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .drawBehind {
-                            // 1. Fill the background with the top color
+                            // 1. Base background
                             drawRect(color = surfaceContainer)
 
-                            // 2. Add the Secondary color at the bottom right
+                            // 2. Secondary radial gradient (bottom-right) - breathing
                             drawRect(
                                 brush = Brush.radialGradient(
                                     colors = listOf(secondaryContainer, Color.Transparent),
                                     center = Offset(size.width, size.height),
-                                    radius = size.width * 1.2f
+                                    radius = size.width * secondaryBreath // Animated!
                                 )
                             )
 
-                            // 3. Add the Primary color at the bottom left
+                            // 3. Primary radial gradient (bottom-left) - breathing
                             drawRect(
                                 brush = Brush.radialGradient(
                                     colors = listOf(primaryContainer, Color.Transparent),
                                     center = Offset(0f, size.height),
-                                    radius = size.width * 1.5f
+                                    radius = size.width * primaryBreath // Animated!
                                 )
                             )
-                        }) {
+                        }
+                ) {
                     Surface(
-                        color = Color.Transparent, modifier = Modifier.fillMaxSize()
+                        color = Color.Transparent,
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         CallScreen(call = currentCall)
                     }
@@ -249,24 +277,24 @@ fun CallScreen(call: Call?) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
 
-//    LaunchedEffect(state) {
-//        val toastText = when (state) {
-//            Call.STATE_NEW -> "New call"
-//            Call.STATE_DIALING -> "Dialing..."
-//            Call.STATE_RINGING -> "Incoming call"
-//            Call.STATE_HOLDING -> "Call on hold"
-//            Call.STATE_ACTIVE -> "Call connected"
-//            Call.STATE_DISCONNECTED -> "Call ended"
-//            Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
-//            Call.STATE_CONNECTING -> "Connecting..."
-//            Call.STATE_DISCONNECTING -> "Disconnecting..."
-//            Call.STATE_PULLING_CALL -> "Pulling call..."
-//            Call.STATE_AUDIO_PROCESSING -> "Audio processing"
-//            Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
-//            else -> "else"
-//        }
-//        Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
-//    }
+    LaunchedEffect(state) {
+        val toastText = when (state) {
+            Call.STATE_NEW -> "New call"
+            Call.STATE_DIALING -> "Dialing..."
+            Call.STATE_RINGING -> "Incoming call"
+            Call.STATE_HOLDING -> "Call on hold"
+            Call.STATE_ACTIVE -> "Call connected"
+            Call.STATE_DISCONNECTED -> "Call ended"
+            Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
+            Call.STATE_CONNECTING -> "Connecting..."
+            Call.STATE_DISCONNECTING -> "Disconnecting..."
+            Call.STATE_PULLING_CALL -> "Pulling call..."
+            Call.STATE_AUDIO_PROCESSING -> "Audio processing"
+            Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
+            else -> "else"
+        }
+        Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
