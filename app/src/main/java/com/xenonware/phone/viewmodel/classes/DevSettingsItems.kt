@@ -53,6 +53,7 @@ fun DevSettingsItems(
 
     ) {
     val isDeveloperModeEnabled by viewModel.devModeToggleState.collectAsState()
+    val isNewLayoutEnabled by viewModel.newLayoutToggleState.collectAsState()
 
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -112,7 +113,7 @@ fun DevSettingsItems(
                 val newCheckedState = !isDeveloperModeEnabled
                 viewModel.setDeveloperModeEnabled(newCheckedState)
             },
-            shape = tileShapeOverride ?: /*if(isDeveloperModeEnabled) topShape else*/ standaloneShape,
+            shape = tileShapeOverride ?: topShape /*standaloneShape*/,
             backgroundColor = tileBackgroundColor,
             contentColor = tileContentColor,
             subtitleColor = tileSubtitleColor,
@@ -123,5 +124,24 @@ fun DevSettingsItems(
         if (isDeveloperModeEnabled) {
             Spacer(modifier = Modifier.height(SmallSpacing))
         }
+
+        SettingsSwitchTile(
+            title = "Enable new(unstable) layout",
+            subtitle = "",
+            checked = isNewLayoutEnabled,
+            onCheckedChange = { newCheckedState ->
+                viewModel.setNewLayoutEnabled(newCheckedState)
+            },
+            onClick = {
+                val newCheckedState = !isNewLayoutEnabled
+                viewModel.setNewLayoutEnabled(newCheckedState)
+            },
+            shape = tileShapeOverride ?: bottomShape,
+            backgroundColor = tileBackgroundColor,
+            contentColor = tileContentColor,
+            subtitleColor = tileSubtitleColor,
+            horizontalPadding = tileHorizontalPadding,
+            verticalPadding = tileVerticalPadding
+        )
     }
 }

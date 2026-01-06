@@ -15,6 +15,8 @@ class DevSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     private val _devModeToggleState = MutableStateFlow(sharedPreferenceManager.developerModeEnabled)
     val devModeToggleState: StateFlow<Boolean> = _devModeToggleState.asStateFlow()
+    val newLayoutToggleState = MutableStateFlow(sharedPreferenceManager.newLayoutEnabled)
+
 
     fun setDeveloperModeEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -26,6 +28,17 @@ class DevSettingsViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
+
+    fun setNewLayoutEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sharedPreferenceManager.newLayoutEnabled = enabled
+            newLayoutToggleState.value = enabled
+            if (!enabled) {
+                //put in any dev settings
+            }
+        }
+    }
+
 
     fun triggerExampleDevActionThatRequiresRestart() {
         viewModelScope.launch {

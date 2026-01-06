@@ -18,6 +18,7 @@ class SharedPreferenceManager(context: Context) {
     private val coverDisplayDimension2Key = "cover_display_dimension_2"
     private val blackedOutModeKey = "blacked_out_mode_enabled"
     private val developerModeKey = "developer_mode_enabled"
+    private val newLayoutKey = "new_layout_enabled"
     private val isUserLoggedInKey = "is_user_logged_in"
 
 
@@ -60,6 +61,10 @@ class SharedPreferenceManager(context: Context) {
         get() = sharedPreferences.getBoolean(developerModeKey, false)
         set(value) = sharedPreferences.edit { putBoolean(developerModeKey, value) }
 
+    var newLayoutEnabled: Boolean
+        get() = sharedPreferences.getBoolean(newLayoutKey, false)
+        set(value) = sharedPreferences.edit { putBoolean(newLayoutKey, value) }
+
     var isUserLoggedIn: Boolean
         get() = sharedPreferences.getBoolean(isUserLoggedInKey, false)
         set(value) = sharedPreferences.edit { putBoolean(isUserLoggedInKey, value) }
@@ -85,6 +90,8 @@ class SharedPreferenceManager(context: Context) {
             remove(coverDisplayDimension2Key)
             putBoolean(blackedOutModeKey, false)
             putBoolean(developerModeKey, false)
+            putBoolean(newLayoutKey, false)
+            putBoolean(isUserLoggedInKey, false)
         }
     }
 }

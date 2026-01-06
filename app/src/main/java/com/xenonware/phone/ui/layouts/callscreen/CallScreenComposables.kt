@@ -1,0 +1,697 @@
+@file:Suppress("UnusedUnaryOperator")
+
+package com.xenonware.phone.ui.layouts.callscreen
+
+import android.telecom.Call
+import android.telecom.CallAudioState
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.CallEnd
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.Headset
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.RippleConfiguration
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.LargeCornerRadius
+import com.xenon.mylibrary.values.LargePadding
+import com.xenon.mylibrary.values.LargestPadding
+import com.xenonware.phone.ui.layouts.main.contacts.Contact
+import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
+import com.xenonware.phone.viewmodel.CallScreenViewModel
+import com.xenonware.phone.viewmodel.formatDuration
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+@Composable
+fun CallScreenContent(
+    call: Call?,
+    onFinishRequested: () -> Unit,
+    viewModel: CallScreenViewModel
+) {
+    if (call == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No active call", fontSize = 32.sp, color = colorScheme.onSurface)
+        }
+        return
+    }
+
+    val state by remember { mutableIntStateOf(viewModel.callState) }
+    val duration by viewModel.duration.collectAsState()
+    val displayName = viewModel.displayName
+    val callWasRejectedByUser = viewModel.callWasRejectedByUser
+
+    val safeTopPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+        .asPaddingValues().calculateTopPadding()
+    val safeBottomPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+        .asPaddingValues().calculateBottomPadding()
+
+    val previousActiveState = remember(state) {
+        if (state == Call.STATE_RINGING) Call.STATE_RINGING else Call.STATE_ACTIVE
+    }
+
+    LaunchedEffect(state) {
+        if (state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) {
+            kotlinx.coroutines.delay(2000)
+            onFinishRequested()
+        }
+    }
+
+    // Breathing background animations
+    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+    val primaryBreath by infiniteTransition.animateFloat(
+        initialValue = 1.3f, targetValue = 1.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(6500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "primaryBreath"
+    )
+    val secondaryBreath by infiniteTransition.animateFloat(
+        initialValue = 1.7f, targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(16000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "secondaryBreath"
+    )
+    val surfaceContainer = colorScheme.surfaceContainer
+    val primaryContainer = colorScheme.primaryContainer
+    val secondaryContainer = colorScheme.secondaryContainer
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawBehind {
+                drawRect(color = surfaceContainer)
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(secondaryContainer, Color.Transparent),
+                        center = Offset(size.width, size.height),
+                        radius = size.width * secondaryBreath
+                    )
+                )
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(primaryContainer, Color.Transparent),
+                        center = Offset(0f, size.height),
+                        radius = size.width * primaryBreath
+                    )
+                )
+            }
+    ) {
+        Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.padding(top = safeTopPadding).weight(0.25f))
+
+                // Status and name
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val statusText = when (state) {
+                        Call.STATE_RINGING -> "Incoming call..."
+                        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
+                        Call.STATE_HOLDING -> "Call is on hold"
+                        Call.STATE_ACTIVE -> formatDuration(duration)
+                        Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
+                            callWasRejectedByUser -> "Call rejected"
+                            previousActiveState == Call.STATE_RINGING -> "Call missed"
+                            else -> "Call ended"
+                        }
+                        else -> "Unknown state"
+                    }
+
+                    Text(
+                        text = statusText,
+                        fontSize = 24.sp,
+                        color = colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Light
+                    )
+
+                    Spacer(Modifier.height(LargestPadding))
+
+                    Text(
+                        text = displayName,
+                        fontSize = 48.sp,
+                        fontFamily = QuicksandTitleVariable,
+                        color = colorScheme.onSurface
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    RingingContactAvatar(
+                        contact = Contact(name = displayName),
+                        state = state,
+                        size = 180.dp
+                    )
+                }
+
+                CallControls(state = state, viewModel = viewModel)
+
+                Spacer(Modifier.height(LargePadding))
+
+                if (state == Call.STATE_RINGING) {
+                    Box(
+                        Modifier
+                            .padding(bottom = safeBottomPadding)
+                            .weight(0.25f)
+                    ) {
+                        SmsRejectButton(onClick = viewModel::rejectCall)
+                    }
+                } else {
+                    Spacer(Modifier.padding(bottom = safeBottomPadding).weight(0.25f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmsRejectButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val targetTextColor = if (isPressed) Color(0xFFFFB300) else colorScheme.onSurface
+    val animatedTextColor by animateColorAsState(
+        targetValue = targetTextColor,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessVeryLow
+        ),
+        label = "TextColorAnimation"
+    )
+
+    CompositionLocalProvider(
+        LocalRippleConfiguration provides RippleConfiguration(color = Color(0xFFFFB300))
+    ) {
+        TextButton(onClick = onClick, interactionSource = interactionSource) {
+            Text(
+                text = "SMS",
+                color = animatedTextColor,
+                fontFamily = QuicksandTitleVariable,
+                fontWeight = FontWeight.Light,
+                fontSize = 18.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CallControls(state: Int, viewModel: CallScreenViewModel) {
+    val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
+
+    when (state) {
+        Call.STATE_RINGING -> RingingSwipeControls(
+            onAnswer = viewModel::answerCall,
+            onReject = viewModel::rejectCall
+        )
+
+        Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> {
+            Box(
+                modifier = Modifier
+                    .height(136.dp)
+                    .fillMaxWidth()
+                    .alpha(0.6f),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(
+                    onClick = viewModel::disconnectCall,
+                    enabled = state == Call.STATE_DISCONNECTING,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color(0xFFFB4F43),
+                        disabledContainerColor = Color(0xFFFB4F43),
+                        contentColor = colorScheme.onSurface,
+                        disabledContentColor = colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .size(width = 200.dp, height = 96.dp)
+                        .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CallEnd,
+                        contentDescription = "Ending call...",
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+        }
+
+        else -> ActiveCallControls(viewModel)
+    }
+}
+
+@Composable
+private fun RingingSwipeControls(
+    onAnswer: () -> Unit,
+    onReject: () -> Unit
+) {
+    val iconSizeDp = 52.dp
+    val draggableSizeDp = 96.dp
+    val maxTrackWidthDp = 480.dp
+    val horizontalPadding = 16.dp
+
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val availableWidthDp = screenWidthDp - (horizontalPadding * 2)
+    val trackWidthDp = minOf(maxTrackWidthDp, availableWidthDp)
+
+    val trackWidthPx = with(density) { trackWidthDp.toPx() }
+    val maxOffsetPx = (trackWidthPx / 2) - with(density) { 16.dp.toPx() } - with(density) { draggableSizeDp.toPx() / 2 }
+
+    val offsetX = remember { Animatable(0f) }
+
+    val upDownAmplitudePx = with(density) { 4.dp.toPx() }
+
+    val draggableState = rememberDraggableState { delta ->
+        scope.launch {
+            val newValue = (offsetX.value + delta).coerceIn(-maxOffsetPx, maxOffsetPx)
+            offsetX.snapTo(newValue)
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "shake transition")
+
+    val shakeRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 1500
+                -20f at 100 using FastOutSlowInEasing
+                35f at 200 using FastOutSlowInEasing
+                -35f at 300 using FastOutSlowInEasing
+                35f at 400 using FastOutSlowInEasing
+                -35f at 500 using FastOutSlowInEasing
+                35f at 600 using FastOutSlowInEasing
+                -35f at 700 using FastOutSlowInEasing
+                35f at 800 using FastOutSlowInEasing
+                -15f at 900 using FastOutSlowInEasing
+                0f at 1000 using FastOutSlowInEasing
+                0f at durationMillis
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shake rotation"
+    )
+
+    val shakeVerticalOffset by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 1500
+                -upDownAmplitudePx at 1000 using FastOutSlowInEasing
+                upDownAmplitudePx at durationMillis using FastOutSlowInEasing
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shake vertical offset"
+    )
+
+    val targetRotation = when {
+        offsetX.value > 100f -> -135f
+        offsetX.value < -100f -> 0f
+        else -> 0f
+    }
+
+    val rotation by animateFloatAsState(
+        targetValue = if (abs(offsetX.value) < 120f) targetRotation + shakeRotation else targetRotation,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+        label = "final rotation"
+    )
+
+    val currentVerticalOffset by animateFloatAsState(
+        targetValue = if (abs(offsetX.value) < 120f) shakeVerticalOffset else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+        label = "final vertical offset"
+    )
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = horizontalPadding)
+            .widthIn(max = maxTrackWidthDp)
+            .fillMaxWidth()
+            .height(136.dp)
+            .shadow(10.dp, CircleShape, ambientColor = colorScheme.scrim.copy(alpha = 0.6f), spotColor = colorScheme.scrim.copy(alpha = 0.6f))
+            .background(colorScheme.surfaceContainerLow, CircleShape)
+            .padding(horizontal = 40.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.CallEnd,
+            contentDescription = null,
+            tint = Color(0xFFFB4F43),
+            modifier = Modifier.size(iconSizeDp).align(Alignment.CenterStart)
+        )
+
+        Icon(
+            imageVector = Icons.Rounded.Phone,
+            contentDescription = null,
+            tint = Color(0xFF4CAF50),
+            modifier = Modifier.size(iconSizeDp).align(Alignment.CenterEnd)
+        )
+
+        Box(
+            modifier = Modifier
+                .size(draggableSizeDp)
+                .offset { IntOffset(offsetX.value.roundToInt(), currentVerticalOffset.roundToInt()) }
+                .background(colorScheme.onSurface, CircleShape)
+                .draggable(
+                    state = draggableState,
+                    orientation = Orientation.Horizontal,
+                    onDragStopped = { velocity ->
+                        val positionThreshold = maxOffsetPx * 0.6f
+                        val velocityThreshold = 1000f
+
+                        val swipedRight = offsetX.value > positionThreshold || velocity > velocityThreshold
+                        val swipedLeft = offsetX.value < -positionThreshold || velocity < -velocityThreshold
+
+                        scope.launch {
+                            when {
+                                swipedRight -> {
+                                    onAnswer()
+                                    offsetX.animateTo(maxOffsetPx, tween(200, easing = FastOutSlowInEasing))
+                                }
+                                swipedLeft -> {
+                                    onReject()
+                                    offsetX.animateTo(-maxOffsetPx, tween(200, easing = FastOutSlowInEasing))
+                                }
+                                else -> {
+                                    offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                }
+                            }
+                        }
+                    }
+                )
+        ) {
+            val progress = (offsetX.value / maxOffsetPx).coerceIn(-0.85f, 0.85f)
+            val blendAmount = abs(progress)
+            val targetColor = if (progress > 0) Color(0xFF4CAF50) else Color(0xFFFB4F43)
+
+            val blendedColor = lerp(colorScheme.surfaceBright, targetColor, blendAmount.coerceIn(0f, 1f))
+            val animatedColor by animateColorAsState(targetValue = blendedColor, animationSpec = tween(100))
+
+            Icon(
+                imageVector = Icons.Rounded.CallEnd,
+                contentDescription = "Swipe right to accept, left to decline",
+                tint = animatedColor,
+                modifier = Modifier
+                    .size(iconSizeDp)
+                    .align(Alignment.Center)
+                    .rotate(rotation)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveCallControls(viewModel: CallScreenViewModel) {
+    val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
+
+    var showKeypad by remember { mutableStateOf(false) }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Top row: Mute, Audio Route, Hold, Keypad
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(LargePadding)
+        ) {
+            // Mute
+            IconButton(
+                onClick = viewModel::toggleMute,
+                modifier = Modifier
+                    .size(72.dp)
+                    .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                    .background(
+                        if (viewModel.isMuted) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                        CircleShape
+                    )
+            ) {
+                Crossfade(targetState = viewModel.isMuted) { muted ->
+                    Icon(
+                        imageVector = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                        contentDescription = if (muted) "Unmute" else "Mute",
+                        tint = if (muted) Color(0xFFFB4F43) else colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            // Audio Route (Speaker / Bluetooth / etc.)
+            val routeOptions = buildList {
+                if (CallAudioState.ROUTE_EARPIECE != 0) add(
+                    Triple(CallAudioState.ROUTE_EARPIECE, Icons.Rounded.Phone, "Earpiece")
+                )
+                if (CallAudioState.ROUTE_SPEAKER != 0) add(
+                    Triple(CallAudioState.ROUTE_SPEAKER, Icons.AutoMirrored.Rounded.VolumeUp, "Speaker")
+                )
+                if (CallAudioState.ROUTE_WIRED_HEADSET != 0) add(
+                    Triple(CallAudioState.ROUTE_WIRED_HEADSET, Icons.Rounded.Headset, "Headset")
+                )
+                if (CallAudioState.ROUTE_BLUETOOTH != 0) add(
+                    Triple(CallAudioState.ROUTE_BLUETOOTH, Icons.Rounded.Bluetooth, "Bluetooth")
+                )
+            }
+
+            if (routeOptions.size > 1) {
+                IconButton(
+                    onClick = viewModel::cycleAudioRoute,
+                    modifier = Modifier
+                        .size(72.dp)
+                        .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                        .background(
+                            if (viewModel.currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
+                                colorScheme.surfaceContainerLowest
+                            else
+                                colorScheme.onSurface,
+                            CircleShape
+                        )
+                ) {
+                    val icon = routeOptions.first { it.first == viewModel.currentAudioRoute }.second
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = "Audio output",
+                        tint = if (viewModel.currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
+                            colorScheme.primary else colorScheme.inversePrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            // Hold / Unhold
+            IconButton(
+                onClick = viewModel::toggleHold,
+                modifier = Modifier
+                    .size(72.dp)
+                    .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                    .background(
+                        if (viewModel.isOnHold) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                        CircleShape
+                    )
+            ) {
+                Crossfade(targetState = viewModel.isOnHold) { held ->
+                    Icon(
+                        imageVector = if (held) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                        contentDescription = if (held) "Resume" else "Hold",
+                        tint = if (held) colorScheme.inversePrimary else colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            // Keypad
+            IconButton(
+                onClick = { showKeypad = !showKeypad },
+                modifier = Modifier
+                    .size(72.dp)
+                    .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                    .background(
+                        if (showKeypad) colorScheme.onSurface else colorScheme.surfaceContainerLowest,
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Dialpad,
+                    contentDescription = "Show keypad",
+                    tint = if (showKeypad) colorScheme.inversePrimary else colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        // DTMF Keypad
+        if (showKeypad) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 32.dp, vertical = LargePadding)
+                    .shadow(
+                        8.dp,
+                        RoundedCornerShape(LargeCornerRadius),
+                        ambientColor = shadowTint,
+                        spotColor = shadowTint
+                    )
+                    .background(colorScheme.surfaceContainerLowest, RoundedCornerShape(LargeCornerRadius))
+                    .padding(16.dp)
+            ) {
+                val keys = listOf(
+                    listOf("1", "2", "3"),
+                    listOf("4", "5", "6"),
+                    listOf("7", "8", "9"),
+                    listOf("*", "0", "#")
+                )
+                val letters = listOf(
+                    listOf(" ", "ABC", "DEF"),
+                    listOf("GHI", "JKL", "MNO"),
+                    listOf("PQRS", "TUV", "WXYZ"),
+                    listOf(" ", " ", " ")
+                )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(keys.flatten().indices.toList()) { index ->
+                        val row = index / 3
+                        val col = index % 3
+                        val key = keys[row][col]
+                        val subtitle = letters[row][col]
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clickable {
+                                    viewModel.playDtmfTone(key[0])
+                                }
+                        ) {
+                            Text(
+                                text = key,
+                                fontSize = 36.sp,
+                                fontFamily = QuicksandTitleVariable,
+                                color = colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (subtitle.isNotBlank()) {
+                                Text(
+                                    text = subtitle,
+                                    fontSize = 12.sp,
+                                    fontFamily = QuicksandTitleVariable,
+                                    fontWeight = FontWeight.Light,
+                                    color = colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Merge button (if applicable)
+        // Note: You might want to expose hasConference / canMerge in ViewModel if needed
+        Spacer(Modifier.height(LargestPadding))
+
+        // Hang up button
+        IconButton(
+            onClick = viewModel::disconnectCall,
+            colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
+            modifier = Modifier
+                .size(width = 200.dp, height = 96.dp)
+                .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CallEnd,
+                tint = colorScheme.onSurface,
+                contentDescription = "End call",
+                modifier = Modifier.size(40.dp)
+            )
+        }
+    }
+}
