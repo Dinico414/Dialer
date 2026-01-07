@@ -6,6 +6,7 @@ import android.telecom.CallAudioState
 import android.telecom.InCallService
 import android.util.Log
 import com.xenonware.phone.data.SharedPreferenceManager
+import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.CallScreenActivity as NewCallScreen
 import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallScreen
 
@@ -20,17 +21,25 @@ class MyInCallService : InCallService() {
         @Volatile
         private var INSTANCE: MyInCallService? = null
         fun getInstance(): MyInCallService? = INSTANCE
+
         var currentAudioState: CallAudioState? = null
+            private set
+
+        // Safe reference for receiver and notification updates
+        @Volatile
+        var currentCall: Call? = null
             private set
     }
 
     override fun onCreate() {
         super.onCreate()
         INSTANCE = this
+        CallNotificationHelper.createNotificationChannel(this)
     }
 
     override fun onDestroy() {
         INSTANCE = null
+        currentCall = null
         super.onDestroy()
     }
 
@@ -38,40 +47,62 @@ class MyInCallService : InCallService() {
         super.onCallAdded(call)
         Log.d("MyInCallService", "Call added: $call")
 
-        val targetActivityClass = if (useNewLayout) {
+        // Preserve your original activity static behavior
+        if (useNewLayout) {
             NewCallScreen.currentCall = call
-            NewCallScreen::class.java
         } else {
             OldCallScreen.currentCall = call
-            OldCallScreen::class.java
         }
+
+        // Also store in service for receiver safety
+        currentCall = call
+
+        val targetActivityClass = if (useNewLayout) NewCallScreen::class.java else OldCallScreen::class.java
 
         val intent = Intent(this, targetActivityClass).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         startActivity(intent)
+
+        call.registerCallback(object : Call.Callback() {
+            override fun onStateChanged(call: Call, state: Int) {
+                when (state) {
+                    Call.STATE_ACTIVE -> {
+                        CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call, useNewLayout)
+                    }
+                    Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
+                        CallNotificationHelper.dismissOngoingCallNotification(this@MyInCallService)
+                        currentCall = null
+                        NewCallScreen.currentCall = null
+                        OldCallScreen.currentCall = null
+                    }
+                }
+            }
+        })
+
+        if (call.state == Call.STATE_ACTIVE) {
+            CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)
+        }
     }
 
     @Deprecated("Deprecated in Java")
     @Suppress("DEPRECATION")
-    @Override
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         super.onCallAudioStateChanged(audioState)
         currentAudioState = audioState
+
+        currentCall?.takeIf { it.state == Call.STATE_ACTIVE }?.let { call ->
+            CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)
+        }
     }
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
-        Log.d("MyInCallService", "Call removed: $call")
-
-        if (useNewLayout) {
-            if (NewCallScreen.currentCall == call) {
-                NewCallScreen.currentCall = null
-            }
-        } else {
-            if (OldCallScreen.currentCall == call) {
-                OldCallScreen.currentCall = null
-            }
+        if (currentCall == call) {
+            currentCall = null
+            NewCallScreen.currentCall = null
+            OldCallScreen.currentCall = null
+            CallNotificationHelper.dismissOngoingCallNotification(this)
         }
     }
 }

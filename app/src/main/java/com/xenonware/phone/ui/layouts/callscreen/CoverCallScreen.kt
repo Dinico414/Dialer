@@ -26,7 +26,7 @@ fun CoverCallScreen(
         CallScreenUi(
             call = call,
             isLandscape = isLandscape,
-            forceCompactMode = true // always compact on cover screen
+            forceCompactMode = true
         )
     }
 }

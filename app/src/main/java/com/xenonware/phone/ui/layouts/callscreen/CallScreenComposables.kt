@@ -100,7 +100,7 @@ import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargeCornerRadius
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
-import com.xenonware.phone.MyInCallService
+import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
 import com.xenonware.phone.viewmodel.CallScreenViewModel

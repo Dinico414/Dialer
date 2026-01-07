@@ -9,7 +9,7 @@ import android.telecom.CallAudioState
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xenonware.phone.MyInCallService
+import com.xenonware.phone.service.MyInCallService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,7 +115,8 @@ class CallScreenViewModel : ViewModel() {
                     _previousActiveState.value = Call.STATE_ACTIVE
                 }
                 showToastForState(newState)
-            }        }
+            }
+        }
         call.registerCallback(callback)
     }
 
@@ -132,23 +133,26 @@ class CallScreenViewModel : ViewModel() {
     }
 
     private fun showToastForState(state: Int) {
-        val context = inCallService?.applicationContext ?: return
-        val text = when (state) {
-            Call.STATE_NEW -> "New call"
-            Call.STATE_DIALING -> "Dialing..."
-            Call.STATE_RINGING -> "Incoming call"
-            Call.STATE_HOLDING -> "Call on hold"
-            Call.STATE_ACTIVE -> "Call connected"
-            Call.STATE_DISCONNECTED -> "Call ended"
-            Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
-            Call.STATE_CONNECTING -> "Connecting..."
-            Call.STATE_DISCONNECTING -> "Disconnecting..."
-            Call.STATE_PULLING_CALL -> "Pulling call..."
-            Call.STATE_AUDIO_PROCESSING -> "Audio processing"
-            Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
-            else -> "Unknown state"
+        val showToast = false
+        if (showToast) {
+            val context = inCallService?.applicationContext ?: return
+            val text = when (state) {
+                Call.STATE_NEW -> "New call"
+                Call.STATE_DIALING -> "Dialing..."
+                Call.STATE_RINGING -> "Incoming call"
+                Call.STATE_HOLDING -> "Call on hold"
+                Call.STATE_ACTIVE -> "Call connected"
+                Call.STATE_DISCONNECTED -> "Call ended"
+                Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
+                Call.STATE_CONNECTING -> "Connecting..."
+                Call.STATE_DISCONNECTING -> "Disconnecting..."
+                Call.STATE_PULLING_CALL -> "Pulling call..."
+                Call.STATE_AUDIO_PROCESSING -> "Audio processing"
+                Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
+                else -> "Unknown state"
+            }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
-        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
     fun toggleMute() {

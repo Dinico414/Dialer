@@ -22,7 +22,7 @@ fun CallScreenLayout(
                 call = currentCall,
                 isLandscape = isLandscape,
                 layoutType = layoutType,
-                appSize = appSize
+                appSize = appSize,
             )
         }
         LayoutType.SMALL,
@@ -33,7 +33,7 @@ fun CallScreenLayout(
                 call = currentCall,
                 isLandscape = isLandscape,
                 layoutType = layoutType,
-                appSize = appSize
+                appSize = appSize,
             )
         }
     }
