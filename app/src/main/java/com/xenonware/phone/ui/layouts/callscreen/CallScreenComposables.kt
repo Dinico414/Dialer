@@ -1,6 +1,8 @@
 package com.xenonware.phone.ui.layouts.callscreen
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.VideoProfile
@@ -69,6 +71,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -107,30 +110,44 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
-fun CallScreenContent(
+fun CallScreenUi(
     call: Call?,
-    viewModel: CallScreenViewModel = viewModel()
+    isLandscape: Boolean,
+    forceCompactMode: Boolean = false
 ) {
     val context = LocalContext.current
+    val viewModel: CallScreenViewModel = viewModel()
+    val activity = context as? Activity
+
+    DisposableEffect(isLandscape) {
+        activity?.requestedOrientation = if (isLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        }
+
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
 
     LaunchedEffect(call) {
         call?.let { viewModel.initialize(it, context) }
     }
 
     val stateNullable by viewModel.callState.collectAsStateWithLifecycle()
-    val state = stateNullable ?: return run {
+    val state = stateNullable ?: run {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No active call", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurface)
         }
-    }
-    val displayName by viewModel.displayName.collectAsStateWithLifecycle()
-    val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
-    val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
-
-    if (call == null) {
         return
     }
 
+    if (call == null) return
+
+    val displayName by viewModel.displayName.collectAsStateWithLifecycle()
+    val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
+    val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
     val cameFromRinging = previousActiveState == Call.STATE_RINGING
 
     val duration by produceState(0L, state, call.details.connectTimeMillis) {
@@ -156,6 +173,15 @@ fun CallScreenContent(
         }
         else -> "Unknown state"
     }
+
+    val isCompact = forceCompactMode || isLandscape
+
+    val avatarSize = if (isCompact) 140.dp else 180.dp
+    val nameFontSize = if (isCompact) 36.sp else 48.sp
+    val statusFontSize = if (isCompact) 20.sp else 24.sp
+    val controlButtonSize = if (isCompact) 64.dp else 72.dp
+    val endCallButtonWidth = if (isCompact) 160.dp else 200.dp
+    val verticalSpacerWeight = if (isCompact) 0.15f else 0.25f
 
     val surfaceContainer = MaterialTheme.colorScheme.surfaceContainer
     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
@@ -211,19 +237,19 @@ fun CallScreenContent(
             val safeBottomPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
                 .asPaddingValues().calculateBottomPadding()
 
-            Spacer(Modifier.padding(top = safeTopPadding).weight(0.25f))
+            Spacer(Modifier.padding(top = safeTopPadding).weight(verticalSpacerWeight))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = statusText,
-                    fontSize = 24.sp,
+                    fontSize = statusFontSize,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     fontWeight = FontWeight.Light
                 )
-                Spacer(Modifier.height(LargestPadding))
+                Spacer(Modifier.height(if (isCompact) LargePadding else LargestPadding))
                 Text(
                     text = displayName,
-                    fontSize = 48.sp,
+                    fontSize = nameFontSize,
                     fontFamily = QuicksandTitleVariable,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -233,16 +259,23 @@ fun CallScreenContent(
                 RingingContactAvatar(
                     contact = Contact(name = displayName),
                     state = state,
-                    size = 180.dp
+                    size = avatarSize
                 )
             }
 
-            CallControls(state = state, call = call, viewModel = viewModel)
+            CallControls(
+                state = state,
+                call = call,
+                viewModel = viewModel,
+                isCompact = isCompact,
+                controlButtonSize = controlButtonSize,
+                endCallButtonWidth = endCallButtonWidth
+            )
 
             Spacer(Modifier.height(LargePadding))
 
             if (state == Call.STATE_RINGING) {
-                Box(Modifier.padding(bottom = safeBottomPadding).weight(0.25f)) {
+                Box(Modifier.padding(bottom = safeBottomPadding).weight(verticalSpacerWeight)) {
                     CompositionLocalProvider(
                         LocalRippleConfiguration provides RippleConfiguration(color = Color(0xFFFFB300))
                     ) {
@@ -275,14 +308,21 @@ fun CallScreenContent(
                     }
                 }
             } else {
-                Spacer(Modifier.padding(bottom = safeBottomPadding).weight(0.25f))
+                Spacer(Modifier.padding(bottom = safeBottomPadding).weight(verticalSpacerWeight))
             }
         }
     }
 }
 
 @Composable
-private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel) {
+private fun CallControls(
+    state: Int,
+    call: Call,
+    viewModel: CallScreenViewModel,
+    isCompact: Boolean,
+    controlButtonSize: androidx.compose.ui.unit.Dp,
+    endCallButtonWidth: androidx.compose.ui.unit.Dp
+) {
     val shadowTint = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f)
 
     val isMuted by viewModel.isMuted.collectAsStateWithLifecycle()
@@ -303,7 +343,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
             val cameFromRinging = previousActiveState == Call.STATE_RINGING
             Box(
                 modifier = Modifier
-                    .height(136.dp)
+                    .height(if (isCompact) 112.dp else 136.dp)
                     .fillMaxWidth()
                     .alpha(0.6f),
                 contentAlignment = Alignment.Center
@@ -319,7 +359,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             .padding(horizontal = horizontalPadding)
                             .widthIn(max = maxTrackWidthDp)
                             .fillMaxWidth()
-                            .height(136.dp)
+                            .height(if (isCompact) 112.dp else 136.dp)
                             .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape)
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
@@ -361,7 +401,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             disabledContentColor = MaterialTheme.colorScheme.onSurface
                         ),
                         modifier = Modifier
-                            .size(width = 200.dp, height = 96.dp)
+                            .size(width = endCallButtonWidth, height = 96.dp)
                             .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                     ) {
                         Icon(
@@ -381,7 +421,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                     IconButton(
                         onClick = { viewModel.toggleMute() },
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(controlButtonSize)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
                                 if (isMuted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -404,7 +444,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             IconButton(
                                 onClick = { viewModel.cycleAudioRoute(audio.supportedRouteMask) },
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(controlButtonSize)
                                     .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                                     .background(
                                         if (currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
@@ -433,7 +473,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                     IconButton(
                         onClick = { viewModel.toggleHold() },
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(controlButtonSize)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
                                 if (isOnHold) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -454,7 +494,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                     IconButton(
                         onClick = { viewModel.toggleKeypad() },
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(controlButtonSize)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
                                 if (showKeypad) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -473,7 +513,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                 if (showKeypad) {
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 32.dp, vertical = LargePadding)
+                            .padding(horizontal = if (isCompact) 24.dp else 32.dp, vertical = LargePadding)
                             .shadow(8.dp, RoundedCornerShape(LargeCornerRadius), ambientColor = shadowTint, spotColor = shadowTint)
                             .background(MaterialTheme.colorScheme.surfaceContainerLowest, RoundedCornerShape(LargeCornerRadius))
                             .padding(16.dp)
@@ -505,7 +545,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
-                                        .size(80.dp)
+                                        .size(if (isCompact) 70.dp else 80.dp)
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = ripple(radius = 40.dp),
@@ -519,7 +559,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                                 ) {
                                     Text(
                                         text = key,
-                                        fontSize = 36.sp,
+                                        fontSize = if (isCompact) 32.sp else 36.sp,
                                         fontFamily = QuicksandTitleVariable,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Medium
@@ -547,7 +587,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                         onClick = { call.conference(call.conferenceableCalls.first()) },
                         modifier = Modifier
                             .padding(bottom = LargePadding)
-                            .size(72.dp)
+                            .size(controlButtonSize)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape)
                     ) {
@@ -566,7 +606,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                     onClick = { call.disconnect() },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFFB4F43)),
                     modifier = Modifier
-                        .size(width = 200.dp, height = 96.dp)
+                        .size(width = endCallButtonWidth, height = 96.dp)
                         .shadow(10.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                 ) {
                     Icon(
@@ -582,7 +622,6 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")
-@Suppress("UnusedUnaryOperator")
 @Composable
 private fun RingingSwipeControl(call: Call, onUserReject: () -> Unit) {
     val iconSizeDp = 52.dp

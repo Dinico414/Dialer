@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalWindowInfo
 import com.xenonware.phone.data.SharedPreferenceManager
-import com.xenonware.phone.ui.layouts.callscreen.CallScreenContent
+import com.xenonware.phone.ui.layouts.CallScreenLayout
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 
 class CallScreenActivity : ComponentActivity() {
@@ -38,15 +38,19 @@ class CallScreenActivity : ComponentActivity() {
             val containerSize = LocalWindowInfo.current.containerSize
             val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(containerSize)
 
+            // In CallScreenActivity.kt setContent block
             ScreenEnvironment(
                 themePreference = themePreference,
                 coverTheme = applyCoverTheme,
                 blackedOutModeEnabled = blackedOutModeEnabled
-            ) { _, _ ->
-                Surface(
-                    color = Color.Transparent, modifier = Modifier.fillMaxSize()
-                ) {
-                    CallScreenContent(call = currentCall)
+            ) { layoutType, isLandscape ->
+                Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize()) {
+                    CallScreenLayout(
+                        currentCall = currentCall,
+                        isLandscape = isLandscape,
+                        layoutType = layoutType,
+                        appSize = containerSize
+                    )
                 }
             }
 
