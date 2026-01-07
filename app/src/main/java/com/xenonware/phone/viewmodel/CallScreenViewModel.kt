@@ -7,48 +7,47 @@ import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.widget.Toast
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xenonware.phone.MyInCallService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class CallScreenViewModel : ViewModel() {
 
-    var callState by mutableStateOf<Int?>(null)
-        private set
+    private val _callState = MutableStateFlow<Int?>(null)
+    val callState: StateFlow<Int?> = _callState.asStateFlow()
 
-    var displayName by mutableStateOf("Unknown")
-        private set
+    private val _displayName = MutableStateFlow("Unknown")
+    val displayName: StateFlow<String> = _displayName.asStateFlow()
 
-    var connectTimeMillis by mutableStateOf(0L)
-        private set
+    private val _connectTimeMillis = MutableStateFlow(0L)
+    val connectTimeMillis: StateFlow<Long> = _connectTimeMillis.asStateFlow()
 
-    var durationTrigger by mutableStateOf(0)
-        private set
+    private val _durationTrigger = MutableStateFlow(0)
+    val durationTrigger: StateFlow<Int> = _durationTrigger.asStateFlow()
 
-    var currentAudioRoute by mutableStateOf(CallAudioState.ROUTE_EARPIECE)
-        private set
+    private val _currentAudioRoute = MutableStateFlow(CallAudioState.ROUTE_EARPIECE)
+    val currentAudioRoute: StateFlow<Int> = _currentAudioRoute.asStateFlow()
 
-    var isMuted by mutableStateOf(false)
-        private set
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
 
+    private val _isOnHold = MutableStateFlow(false)
+    val isOnHold: StateFlow<Boolean> = _isOnHold.asStateFlow()
 
-    var isOnHold by mutableStateOf(false)
-        private set
+    private val _showKeypad = MutableStateFlow(false)
+    val showKeypad: StateFlow<Boolean> = _showKeypad.asStateFlow()
 
-    var showKeypad by mutableStateOf(false)
-        private set
+    private val _callWasRejectedByUser = MutableStateFlow(false)
+    val callWasRejectedByUser: StateFlow<Boolean> = _callWasRejectedByUser.asStateFlow()
 
-    var callWasRejectedByUser by mutableStateOf(false)
-        private set
-
-    var previousActiveState by mutableStateOf<Int?>(null)
-        private set
+    private val _previousActiveState = MutableStateFlow<Int?>(null)
+    val previousActiveState: StateFlow<Int?> = _previousActiveState.asStateFlow()
 
     private var currentCall: Call? = null
 
@@ -58,18 +57,18 @@ class CallScreenViewModel : ViewModel() {
     fun initialize(call: Call, context: Context) {
         currentCall = call
 
-        callState = call.state
-        connectTimeMillis = call.details.connectTimeMillis
+        _callState.value = call.state
+        _connectTimeMillis.value = call.details.connectTimeMillis
         updateDurationTrigger()  // Initial trigger
 
-        previousActiveState = when (call.state) {
+        _previousActiveState.value = when (call.state) {
             Call.STATE_RINGING -> Call.STATE_RINGING
             in listOf(Call.STATE_ACTIVE, Call.STATE_HOLDING, Call.STATE_DIALING, Call.STATE_PULLING_CALL) -> Call.STATE_ACTIVE
             else -> null
         }
 
         val rawNumber = call.details.handle?.schemeSpecificPart ?: "Private"
-        displayName = if (rawNumber == "Private") {
+        _displayName.value = if (rawNumber == "Private") {
             "Private"
         } else {
             lookupContactName(context, rawNumber) ?: rawNumber
@@ -82,12 +81,12 @@ class CallScreenViewModel : ViewModel() {
     private fun registerCallCallback(call: Call) {
         val callback = object : Call.Callback() {
             override fun onStateChanged(call: Call, newState: Int) {
-                callState = newState
-                isOnHold = newState == Call.STATE_HOLDING
+                _callState.value = newState
+                _isOnHold.value = newState == Call.STATE_HOLDING
 
                 if (newState == Call.STATE_RINGING) {
-                    previousActiveState = Call.STATE_RINGING
-                    callWasRejectedByUser = false
+                    _previousActiveState.value = Call.STATE_RINGING
+                    _callWasRejectedByUser.value = false
                 } else if (newState in listOf(
                         Call.STATE_ACTIVE,
                         Call.STATE_HOLDING,
@@ -95,7 +94,7 @@ class CallScreenViewModel : ViewModel() {
                         Call.STATE_PULLING_CALL
                     )
                 ) {
-                    previousActiveState = Call.STATE_ACTIVE
+                    _previousActiveState.value = Call.STATE_ACTIVE
                 }
 
                 updateDurationTrigger()  // Critical: force timer restart on state change
@@ -106,15 +105,15 @@ class CallScreenViewModel : ViewModel() {
     }
 
     private fun updateDurationTrigger() {
-        durationTrigger += 1  // Increment to force produceState recomputation
+        _durationTrigger.value += 1  // Increment to force produceState recomputation
     }
 
     private fun startAudioStatePolling() {
         viewModelScope.launch {
             while (true) {
                 MyInCallService.currentAudioState?.let { audioState ->
-                    isMuted = audioState.isMuted
-                    currentAudioRoute = audioState.route
+                    _isMuted.value = audioState.isMuted
+                    _currentAudioRoute.value = audioState.route
                 }
                 delay(300)
             }
@@ -142,9 +141,9 @@ class CallScreenViewModel : ViewModel() {
     }
 
     fun toggleMute() {
-        val newMute = !isMuted
+        val newMute = !_isMuted.value
         inCallService?.setMuted(newMute)
-        isMuted = newMute
+        _isMuted.value = newMute
     }
 
     fun cycleAudioRoute(supportedRouteMask: Int) {
@@ -156,26 +155,26 @@ class CallScreenViewModel : ViewModel() {
         }
 
         if (routes.size > 1) {
-            val currentIndex = routes.indexOf(currentAudioRoute)
+            val currentIndex = routes.indexOf(_currentAudioRoute.value)
             val nextIndex = (currentIndex + 1) % routes.size
             val nextRoute = routes[nextIndex]
             inCallService?.setAudioRoute(nextRoute)
-            currentAudioRoute = nextRoute
+            _currentAudioRoute.value = nextRoute
         }
     }
 
     fun toggleHold() {
         currentCall?.let {
-            if (isOnHold) it.unhold() else it.hold()
+            if (_isOnHold.value) it.unhold() else it.hold()
         }
     }
 
     fun toggleKeypad() {
-        showKeypad = !showKeypad
+        _showKeypad.value = !_showKeypad.value
     }
 
     fun setUserRejectedCall() {
-        callWasRejectedByUser = true
+        _callWasRejectedByUser.value = true
     }
 
     fun formatDuration(millis: Long): String {

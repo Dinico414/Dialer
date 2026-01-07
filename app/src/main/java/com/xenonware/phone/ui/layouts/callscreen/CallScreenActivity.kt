@@ -401,6 +401,7 @@ fun CallScreen(call: Call?) {
 
                     TextButton(
                         onClick = {
+                            callWasRejectedByUser = true
                             call.reject(true, null)
                                   }, interactionSource = interactionSource
                     ) {

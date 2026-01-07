@@ -90,6 +90,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargeCornerRadius
@@ -115,22 +116,29 @@ fun CallScreenContent(
         call?.let { viewModel.initialize(it, context) }
     }
 
-    val state by viewModel.callState
-
-    if (call == null || state == null) {
+    val stateNullable by viewModel.callState.collectAsStateWithLifecycle()
+    val state = stateNullable ?: return run {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No active call", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurface)
         }
+    }
+    val displayName by viewModel.displayName.collectAsStateWithLifecycle()
+    val connectTimeMillis by viewModel.connectTimeMillis.collectAsStateWithLifecycle()
+    val durationTrigger by viewModel.durationTrigger.collectAsStateWithLifecycle()
+    val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
+    val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
+
+    if (call == null) {
         return
     }
 
-    val cameFromRinging = viewModel.previousActiveState == Call.STATE_RINGING
+    val cameFromRinging = previousActiveState == Call.STATE_RINGING
 
     // Live duration timer — uses durationTrigger to restart reliably
-    val duration by produceState(0L, viewModel.durationTrigger) {
-        if (state == Call.STATE_ACTIVE && viewModel.connectTimeMillis > 0) {
+    val duration by produceState(0L, durationTrigger, connectTimeMillis) {
+        if (state == Call.STATE_ACTIVE && connectTimeMillis > 0) {
             while (true) {
-                value = System.currentTimeMillis() - viewModel.connectTimeMillis
+                value = System.currentTimeMillis() - connectTimeMillis
                 delay(1000)
             }
         } else {
@@ -144,8 +152,8 @@ fun CallScreenContent(
         Call.STATE_HOLDING -> "Call is on hold"
         Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
-            viewModel.callWasRejectedByUser -> "Call rejected"
-            cameFromRinging && !viewModel.callWasRejectedByUser -> "Call missed"
+            callWasRejectedByUser -> "Call rejected"
+            cameFromRinging && !callWasRejectedByUser -> "Call missed"
             else -> "Call ended"
         }
         else -> "Unknown state"
@@ -216,7 +224,7 @@ fun CallScreenContent(
                 )
                 Spacer(Modifier.height(LargestPadding))
                 Text(
-                    text = viewModel.displayName,
+                    text = displayName,
                     fontSize = 48.sp,
                     fontFamily = QuicksandTitleVariable,
                     color = MaterialTheme.colorScheme.onSurface
@@ -225,7 +233,7 @@ fun CallScreenContent(
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 RingingContactAvatar(
-                    contact = Contact(name = viewModel.displayName),
+                    contact = Contact(name = displayName),
                     state = state,
                     size = 180.dp
                 )
@@ -279,6 +287,12 @@ fun CallScreenContent(
 private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel) {
     val shadowTint = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f)
 
+    val isMuted by viewModel.isMuted.collectAsStateWithLifecycle()
+    val currentAudioRoute by viewModel.currentAudioRoute.collectAsStateWithLifecycle()
+    val isOnHold by viewModel.isOnHold.collectAsStateWithLifecycle()
+    val showKeypad by viewModel.showKeypad.collectAsStateWithLifecycle()
+    val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
+
     when (state) {
         Call.STATE_RINGING -> {
             RingingSwipeControl(
@@ -288,7 +302,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
         }
 
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> {
-            val cameFromRinging = viewModel.previousActiveState == Call.STATE_RINGING
+            val cameFromRinging = previousActiveState == Call.STATE_RINGING
             Box(
                 modifier = Modifier
                     .height(136.dp)
@@ -372,11 +386,11 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             .size(72.dp)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
-                                if (viewModel.isMuted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
+                                if (isMuted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
                                 CircleShape
                             )
                     ) {
-                        Crossfade(targetState = viewModel.isMuted) { muted ->
+                        Crossfade(targetState = isMuted) { muted ->
                             Icon(
                                 imageVector = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
                                 contentDescription = if (muted) "Unmute" else "Mute",
@@ -395,12 +409,12 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                                     .size(72.dp)
                                     .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                                     .background(
-                                        if (viewModel.currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
+                                        if (currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
                                             MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.onSurface,
                                         CircleShape
                                     )
                             ) {
-                                val icon = when (viewModel.currentAudioRoute) {
+                                val icon = when (currentAudioRoute) {
                                     CallAudioState.ROUTE_SPEAKER -> Icons.AutoMirrored.Rounded.VolumeUp
                                     CallAudioState.ROUTE_WIRED_HEADSET -> Icons.Rounded.Headset
                                     CallAudioState.ROUTE_BLUETOOTH -> Icons.Rounded.Bluetooth
@@ -409,7 +423,7 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = "Audio output",
-                                    tint = if (viewModel.currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
+                                    tint = if (currentAudioRoute == CallAudioState.ROUTE_EARPIECE)
                                         MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
                                     modifier = Modifier.size(32.dp)
                                 )
@@ -424,11 +438,11 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             .size(72.dp)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
-                                if (viewModel.isOnHold) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
+                                if (isOnHold) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
                                 CircleShape
                             )
                     ) {
-                        Crossfade(targetState = viewModel.isOnHold) { held ->
+                        Crossfade(targetState = isOnHold) { held ->
                             Icon(
                                 imageVector = if (held) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
                                 contentDescription = if (held) "Resume" else "Hold",
@@ -445,20 +459,20 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
                             .size(72.dp)
                             .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                             .background(
-                                if (viewModel.showKeypad) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
+                                if (showKeypad) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
                                 CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Dialpad,
                             contentDescription = "Show keypad",
-                            tint = if (viewModel.showKeypad) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.primary,
+                            tint = if (showKeypad) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(32.dp)
                         )
                     }
                 }
 
-                if (viewModel.showKeypad) {
+                if (showKeypad) {
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 32.dp, vertical = LargePadding)
