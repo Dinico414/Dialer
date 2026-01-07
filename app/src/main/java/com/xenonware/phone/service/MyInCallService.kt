@@ -1,4 +1,4 @@
-package com.xenonware.phone
+package com.xenonware.phone.service
 
 import android.content.Intent
 import android.telecom.Call
