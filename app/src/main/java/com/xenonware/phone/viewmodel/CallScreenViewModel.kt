@@ -7,7 +7,6 @@ import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.widget.Toast
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xenonware.phone.MyInCallService
@@ -94,11 +93,29 @@ class CallScreenViewModel : ViewModel() {
                 showToastForState(newState)
             }
 
-            @RequiresApi(Build.VERSION_CODES.S)
             override fun onDetailsChanged(call: Call, details: Call.Details) {
-                _callState.value = details.state
-            }
-        }
+                val newState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    details.state
+                } else {
+                    call.state
+                }
+                _callState.value = newState
+                _isOnHold.value = newState == Call.STATE_HOLDING
+
+                if (newState == Call.STATE_RINGING) {
+                    _previousActiveState.value = Call.STATE_RINGING
+                    _callWasRejectedByUser.value = false
+                } else if (newState in listOf(
+                        Call.STATE_ACTIVE,
+                        Call.STATE_HOLDING,
+                        Call.STATE_DIALING,
+                        Call.STATE_PULLING_CALL
+                    )
+                ) {
+                    _previousActiveState.value = Call.STATE_ACTIVE
+                }
+                showToastForState(newState)
+            }        }
         call.registerCallback(callback)
     }
 
