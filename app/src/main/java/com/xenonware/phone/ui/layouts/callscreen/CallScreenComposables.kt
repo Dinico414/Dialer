@@ -123,8 +123,6 @@ fun CallScreenContent(
         }
     }
     val displayName by viewModel.displayName.collectAsStateWithLifecycle()
-    val connectTimeMillis by viewModel.connectTimeMillis.collectAsStateWithLifecycle()
-    val durationTrigger by viewModel.durationTrigger.collectAsStateWithLifecycle()
     val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
     val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
 
@@ -134,11 +132,10 @@ fun CallScreenContent(
 
     val cameFromRinging = previousActiveState == Call.STATE_RINGING
 
-    // Live duration timer — uses durationTrigger to restart reliably
-    val duration by produceState(0L, durationTrigger, connectTimeMillis) {
-        if (state == Call.STATE_ACTIVE && connectTimeMillis > 0) {
+    val duration by produceState(0L, state, call.details.connectTimeMillis) {
+        if (state == Call.STATE_ACTIVE && call.details.connectTimeMillis > 0) {
             while (true) {
-                value = System.currentTimeMillis() - connectTimeMillis
+                value = System.currentTimeMillis() - call.details.connectTimeMillis
                 delay(1000)
             }
         } else {

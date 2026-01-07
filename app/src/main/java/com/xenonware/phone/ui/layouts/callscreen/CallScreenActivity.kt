@@ -228,9 +228,6 @@ class CallScreenActivity : ComponentActivity() {
 @Composable
 fun CallScreen(call: Call?) {
     if (call == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No active call", fontSize = 32.sp, color = colorScheme.onSurface)
-        }
         return
     }
 
