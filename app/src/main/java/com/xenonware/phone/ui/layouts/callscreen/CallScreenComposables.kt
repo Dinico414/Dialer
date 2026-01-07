@@ -1,5 +1,6 @@
 package com.xenonware.phone.ui.layouts.callscreen
 
+import android.annotation.SuppressLint
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.VideoProfile
@@ -580,6 +581,8 @@ private fun CallControls(state: Int, call: Call, viewModel: CallScreenViewModel)
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
+@Suppress("UnusedUnaryOperator")
 @Composable
 private fun RingingSwipeControl(call: Call, onUserReject: () -> Unit) {
     val iconSizeDp = 52.dp

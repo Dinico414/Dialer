@@ -11,7 +11,6 @@ import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallSc
 
 class MyInCallService : InCallService() {
 
-
     private val prefManager by lazy { SharedPreferenceManager(this) }
 
     private val useNewLayout: Boolean
@@ -52,6 +51,10 @@ class MyInCallService : InCallService() {
         }
         startActivity(intent)
     }
+
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
+    @Override
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         super.onCallAudioStateChanged(audioState)
         currentAudioState = audioState

@@ -1,12 +1,13 @@
 package com.xenonware.phone.viewmodel
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xenonware.phone.MyInCallService
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
+@Suppress("DEPRECATION")
 class CallScreenViewModel : ViewModel() {
 
     private val _callState = MutableStateFlow<Int?>(null)
@@ -24,12 +26,6 @@ class CallScreenViewModel : ViewModel() {
 
     private val _displayName = MutableStateFlow("Unknown")
     val displayName: StateFlow<String> = _displayName.asStateFlow()
-
-    private val _connectTimeMillis = MutableStateFlow(0L)
-    val connectTimeMillis: StateFlow<Long> = _connectTimeMillis.asStateFlow()
-
-    private val _durationTrigger = MutableStateFlow(0)
-    val durationTrigger: StateFlow<Int> = _durationTrigger.asStateFlow()
 
     private val _currentAudioRoute = MutableStateFlow(CallAudioState.ROUTE_EARPIECE)
     val currentAudioRoute: StateFlow<Int> = _currentAudioRoute.asStateFlow()
@@ -57,11 +53,10 @@ class CallScreenViewModel : ViewModel() {
     fun initialize(call: Call, context: Context) {
         currentCall = call
 
-        _callState.value = call.state
-        _connectTimeMillis.value = call.details.connectTimeMillis
-        updateDurationTrigger()  // Initial trigger
+        val state = getCallState(call)
+        _callState.value = state
 
-        _previousActiveState.value = when (call.state) {
+        _previousActiveState.value = when (state) {
             Call.STATE_RINGING -> Call.STATE_RINGING
             in listOf(Call.STATE_ACTIVE, Call.STATE_HOLDING, Call.STATE_DIALING, Call.STATE_PULLING_CALL) -> Call.STATE_ACTIVE
             else -> null
@@ -96,16 +91,15 @@ class CallScreenViewModel : ViewModel() {
                 ) {
                     _previousActiveState.value = Call.STATE_ACTIVE
                 }
-
-                updateDurationTrigger()  // Critical: force timer restart on state change
                 showToastForState(newState)
+            }
+
+            @RequiresApi(Build.VERSION_CODES.S)
+            override fun onDetailsChanged(call: Call, details: Call.Details) {
+                _callState.value = details.state
             }
         }
         call.registerCallback(callback)
-    }
-
-    private fun updateDurationTrigger() {
-        _durationTrigger.value += 1  // Increment to force produceState recomputation
     }
 
     private fun startAudioStatePolling() {
@@ -158,7 +152,9 @@ class CallScreenViewModel : ViewModel() {
             val currentIndex = routes.indexOf(_currentAudioRoute.value)
             val nextIndex = (currentIndex + 1) % routes.size
             val nextRoute = routes[nextIndex]
+
             inCallService?.setAudioRoute(nextRoute)
+
             _currentAudioRoute.value = nextRoute
         }
     }
@@ -183,7 +179,6 @@ class CallScreenViewModel : ViewModel() {
         return "%02d:%02d".format(minutes, seconds)
     }
 
-    @SuppressLint("QueryPermissionsNeeded")
     private fun lookupContactName(context: Context, phoneNumber: String): String? {
         return try {
             val uri = Uri.withAppendedPath(
@@ -201,6 +196,14 @@ class CallScreenViewModel : ViewModel() {
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    private fun getCallState(call: Call): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            call.details.state
+        } else {
+            call.state
         }
     }
 }
