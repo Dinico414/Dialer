@@ -52,6 +52,10 @@ class MyInCallService : InCallService() {
         }
         startActivity(intent)
     }
+    override fun onCallAudioStateChanged(audioState: CallAudioState) {
+        super.onCallAudioStateChanged(audioState)
+        currentAudioState = audioState
+    }
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
@@ -66,10 +70,5 @@ class MyInCallService : InCallService() {
                 OldCallScreen.currentCall = null
             }
         }
-    }
-
-    override fun onCallAudioStateChanged(audioState: CallAudioState) {
-        super.onCallAudioStateChanged(audioState)
-        currentAudioState = audioState
     }
 }

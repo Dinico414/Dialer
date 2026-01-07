@@ -1,4 +1,4 @@
-package com.xenonware.phone.ui.layouts.callscreen
+package com.xenonware.phone.viewmodel
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -25,14 +25,18 @@ class CallScreenViewModel : ViewModel() {
     var displayName by mutableStateOf("Unknown")
         private set
 
-    var durationMillis by mutableStateOf(0L)
+    var connectTimeMillis by mutableStateOf(0L)
+        private set
+
+    var durationTrigger by mutableStateOf(0)
+        private set
+
+    var currentAudioRoute by mutableStateOf(CallAudioState.ROUTE_EARPIECE)
         private set
 
     var isMuted by mutableStateOf(false)
         private set
 
-    var currentAudioRoute by mutableStateOf(CallAudioState.ROUTE_EARPIECE)
-        private set
 
     var isOnHold by mutableStateOf(false)
         private set
@@ -46,7 +50,6 @@ class CallScreenViewModel : ViewModel() {
     var previousActiveState by mutableStateOf<Int?>(null)
         private set
 
-    private var connectTimeMillis: Long = 0L
     private var currentCall: Call? = null
 
     private val inCallService: MyInCallService?
@@ -57,6 +60,7 @@ class CallScreenViewModel : ViewModel() {
 
         callState = call.state
         connectTimeMillis = call.details.connectTimeMillis
+        updateDurationTrigger()  // Initial trigger
 
         previousActiveState = when (call.state) {
             Call.STATE_RINGING -> Call.STATE_RINGING
@@ -72,8 +76,7 @@ class CallScreenViewModel : ViewModel() {
         }
 
         registerCallCallback(call)
-        startDurationTimer()
-        startAudioStatePolling()  // New: poll the static var
+        startAudioStatePolling()
     }
 
     private fun registerCallCallback(call: Call) {
@@ -95,27 +98,17 @@ class CallScreenViewModel : ViewModel() {
                     previousActiveState = Call.STATE_ACTIVE
                 }
 
-                startDurationTimer()
+                updateDurationTrigger()  // Critical: force timer restart on state change
                 showToastForState(newState)
             }
         }
         call.registerCallback(callback)
     }
 
-    private fun startDurationTimer() {
-        viewModelScope.launch {
-            if (callState == Call.STATE_ACTIVE && connectTimeMillis > 0) {
-                while (true) {
-                    durationMillis = System.currentTimeMillis() - connectTimeMillis
-                    delay(1000)
-                }
-            } else {
-                durationMillis = 0L
-            }
-        }
+    private fun updateDurationTrigger() {
+        durationTrigger += 1  // Increment to force produceState recomputation
     }
 
-    // Poll the static currentAudioState every 300ms – lightweight and reliable
     private fun startAudioStatePolling() {
         viewModelScope.launch {
             while (true) {
@@ -207,7 +200,7 @@ class CallScreenViewModel : ViewModel() {
                     cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup.DISPLAY_NAME))
                 } else null
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

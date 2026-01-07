@@ -70,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -97,6 +98,8 @@ import com.xenon.mylibrary.values.LargestPadding
 import com.xenonware.phone.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
+import com.xenonware.phone.viewmodel.CallScreenViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -112,21 +115,34 @@ fun CallScreenContent(
         call?.let { viewModel.initialize(it, context) }
     }
 
-    if (call == null || viewModel.callState == null) {
+    val state by viewModel.callState
+
+    if (call == null || state == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No active call", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurface)
         }
         return
     }
 
-    val state = viewModel.callState!!
     val cameFromRinging = viewModel.previousActiveState == Call.STATE_RINGING
+
+    // Live duration timer — uses durationTrigger to restart reliably
+    val duration by produceState(0L, viewModel.durationTrigger) {
+        if (state == Call.STATE_ACTIVE && viewModel.connectTimeMillis > 0) {
+            while (true) {
+                value = System.currentTimeMillis() - viewModel.connectTimeMillis
+                delay(1000)
+            }
+        } else {
+            value = 0L
+        }
+    }
 
     val statusText = when (state) {
         Call.STATE_RINGING -> "Incoming call..."
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
         Call.STATE_HOLDING -> "Call is on hold"
-        Call.STATE_ACTIVE -> viewModel.formatDuration(viewModel.durationMillis)
+        Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
             viewModel.callWasRejectedByUser -> "Call rejected"
             cameFromRinging && !viewModel.callWasRejectedByUser -> "Call missed"
