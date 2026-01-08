@@ -8,13 +8,10 @@ import android.telecom.Call
 import android.telecom.CallAudioState
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.xenonware.phone.service.MyInCallService
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 @Suppress("DEPRECATION")
@@ -69,7 +66,7 @@ class CallScreenViewModel : ViewModel() {
         }
 
         registerCallCallback(call)
-        startAudioStatePolling()
+
     }
 
     private fun registerCallCallback(call: Call) {
@@ -118,18 +115,6 @@ class CallScreenViewModel : ViewModel() {
             }
         }
         call.registerCallback(callback)
-    }
-
-    private fun startAudioStatePolling() {
-        viewModelScope.launch {
-            while (true) {
-                MyInCallService.currentAudioState?.let { audioState ->
-                    _isMuted.value = audioState.isMuted
-                    _currentAudioRoute.value = audioState.route
-                }
-                delay(300)
-            }
-        }
     }
 
     private fun showToastForState(state: Int) {

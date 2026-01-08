@@ -7,6 +7,9 @@ import android.telecom.InCallService
 import android.util.Log
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.xenonware.phone.CallScreenActivity as NewCallScreen
 import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallScreen
 
@@ -29,6 +32,9 @@ class MyInCallService : InCallService() {
         @Volatile
         var currentCall: Call? = null
             private set
+
+        private val _audioStateFlow = MutableStateFlow<CallAudioState?>(null)
+        val audioStateFlow: StateFlow<CallAudioState?> = _audioStateFlow.asStateFlow()
     }
 
     override fun onCreate() {
@@ -90,6 +96,7 @@ class MyInCallService : InCallService() {
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         super.onCallAudioStateChanged(audioState)
         currentAudioState = audioState
+        _audioStateFlow.value = audioState
 
         currentCall?.takeIf { it.state == Call.STATE_ACTIVE }?.let { call ->
             CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)

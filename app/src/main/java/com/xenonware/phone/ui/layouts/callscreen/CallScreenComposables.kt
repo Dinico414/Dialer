@@ -8,6 +8,8 @@ import android.content.pm.ActivityInfo
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.VideoProfile
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -20,6 +22,9 @@ import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -335,10 +340,11 @@ private fun CallControls(
     val shadowTint = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f)
 
     val isMuted by viewModel.isMuted.collectAsStateWithLifecycle()
-    val currentAudioRoute by viewModel.currentAudioRoute.collectAsStateWithLifecycle()
     val isOnHold by viewModel.isOnHold.collectAsStateWithLifecycle()
     val showKeypad by viewModel.showKeypad.collectAsStateWithLifecycle()
     val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
+
+    val audioState by MyInCallService.audioStateFlow.collectAsStateWithLifecycle()
 
     when (state) {
         Call.STATE_RINGING -> {
@@ -440,49 +446,56 @@ private fun CallControls(
                                 CircleShape
                             )
                     ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
-                            tint = if (isMuted) Color(0xFFFB4F43) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-
+                        Crossfade(targetState = isMuted) { muted ->
+                            Icon(
+                                imageVector = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                                contentDescription = if (muted) "Unmute" else "Mute",
+                                tint = if (muted) Color(0xFFFB4F43) else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
 
                     // Audio Route
-                    MyInCallService.currentAudioState?.let { audio ->
+                    audioState?.let { audio ->
                         if (Integer.bitCount(audio.supportedRouteMask) > 1) {
                             IconButton(
                                 onClick = { viewModel.cycleAudioRoute(audio.supportedRouteMask) },
                                 modifier = Modifier
                                     .size(controlButtonSize)
-                                    .shadow(
-                                        8.dp,
-                                        CircleShape,
-                                        ambientColor = shadowTint,
-                                        spotColor = shadowTint
-                                    )
+                                    .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
                                     .background(
-                                        if (currentAudioRoute == CallAudioState.ROUTE_EARPIECE) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.onSurface,
+                                        if (audio.route == CallAudioState.ROUTE_EARPIECE)
+                                            MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.onSurface,
                                         CircleShape
                                     )
                             ) {
-                                val icon = when (currentAudioRoute) {
-                                    CallAudioState.ROUTE_SPEAKER -> Icons.AutoMirrored.Rounded.VolumeUp
-                                    CallAudioState.ROUTE_WIRED_HEADSET -> Icons.Rounded.Headset
-                                    CallAudioState.ROUTE_BLUETOOTH -> Icons.Rounded.Bluetooth
-                                    else -> Icons.Rounded.Phone
+                                AnimatedContent(
+                                    targetState = audio.route,
+                                    transitionSpec = {
+                                        fadeIn(animationSpec = tween(220, delayMillis = 90)) togetherWith
+                                                fadeOut(animationSpec = tween(90))
+                                    },
+                                    label = "AudioRouteTransition"
+                                ) { targetRoute ->
+                                    val icon = when (targetRoute) {
+                                        CallAudioState.ROUTE_SPEAKER -> Icons.AutoMirrored.Rounded.VolumeUp
+                                        CallAudioState.ROUTE_WIRED_HEADSET -> Icons.Rounded.Headset
+                                        CallAudioState.ROUTE_BLUETOOTH -> Icons.Rounded.Bluetooth
+                                        else -> Icons.Rounded.Phone
+                                    }
+
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = "Audio output",
+                                        tint = if (targetRoute == CallAudioState.ROUTE_EARPIECE)
+                                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
+                                        modifier = Modifier.size(32.dp)
+                                    )
                                 }
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = "Audio output",
-                                    tint = if (currentAudioRoute == CallAudioState.ROUTE_EARPIECE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
-                                    modifier = Modifier.size(32.dp)
-                                )
                             }
                         }
                     }
-
                     // Hold
                     IconButton(
                         onClick = { viewModel.toggleHold() },
@@ -496,12 +509,14 @@ private fun CallControls(
                                 CircleShape
                             )
                     ) {
-                        Icon(
-                            imageVector = if (isOnHold) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                            contentDescription = if (isOnHold) "Resume" else "Hold",
-                            tint = if (isOnHold) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Crossfade(targetState = isOnHold) { held ->
+                            Icon(
+                                imageVector = if (held) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                                contentDescription = if (held) "Resume" else "Hold",
+                                tint = if (held) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
 
                     }
 
