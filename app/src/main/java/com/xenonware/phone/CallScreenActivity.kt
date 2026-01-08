@@ -33,10 +33,20 @@ class CallScreenActivity : ComponentActivity() {
 
     companion object {
         var currentCall: Call? = null
+        var isVisible = false
     }
 
     private var shouldFinishAfterDelay = false
 
+    override fun onResume() {
+        super.onResume()
+        isVisible = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isVisible = false
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

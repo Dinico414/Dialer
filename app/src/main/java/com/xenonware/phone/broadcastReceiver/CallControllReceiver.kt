@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.telecom.CallAudioState
+import android.telecom.VideoProfile
 import com.xenonware.phone.CallScreenActivity
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
@@ -13,6 +14,8 @@ import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallSc
 class CallControlReceiver : BroadcastReceiver() {
 
     companion object {
+        const val ACTION_ANSWER_CALL = "com.xenonware.phone.ACTION_ANSWER_CALL"
+        const val ACTION_REJECT_CALL = "com.xenonware.phone.ACTION_REJECT_CALL"
         const val ACTION_TOGGLE_MUTE = "com.xenonware.phone.ACTION_TOGGLE_MUTE"
         const val ACTION_CYCLE_AUDIO_ROUTE = "com.xenonware.phone.ACTION_CYCLE_AUDIO_ROUTE"
         const val ACTION_HANG_UP = "com.xenonware.phone.ACTION_HANG_UP"
@@ -22,6 +25,25 @@ class CallControlReceiver : BroadcastReceiver() {
         val service = MyInCallService.getInstance() ?: return
 
         when (intent.action) {
+            ACTION_ANSWER_CALL -> {
+                MyInCallService.currentCall?.answer(VideoProfile.STATE_AUDIO_ONLY)
+
+                val useNewLayout = intent.getBooleanExtra("use_new_layout", true)
+                val targetClass = if (useNewLayout)
+                    CallScreenActivity::class.java
+                else
+                    com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity::class.java
+
+                val launchIntent = Intent(context, targetClass).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                context.startActivity(launchIntent)
+            }
+
+            ACTION_REJECT_CALL -> {
+                MyInCallService.currentCall?.reject(false, null)
+            }
+
             ACTION_TOGGLE_MUTE -> {
                 val muted = MyInCallService.currentAudioState?.isMuted ?: false
                 service.setMuted(!muted)

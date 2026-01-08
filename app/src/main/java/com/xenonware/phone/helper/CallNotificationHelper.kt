@@ -21,7 +21,7 @@ object CallNotificationHelper {
     private const val ONGOING_CALL_CHANNEL_ID = "ongoing_call_channel"
     private const val ONGOING_CALL_NOTIFICATION_ID = 100
 
-    fun createNotificationChannel(context: Context) {
+    fun createOngoingNotificationChannel(context: Context) {
         val channel = NotificationChannel(
             ONGOING_CALL_CHANNEL_ID,
             "Ongoing Calls",
@@ -38,7 +38,7 @@ object CallNotificationHelper {
 
     @SuppressLint("FullScreenIntentPolicy")
     fun showOngoingCallNotification(context: Context, call: Call, useNewLayout: Boolean) {
-        createNotificationChannel(context)
+        createOngoingNotificationChannel(context)
 
         val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
         val person = Person.Builder().setName(handle).build()
@@ -80,7 +80,7 @@ object CallNotificationHelper {
         )
 
         val notificationBuilder = NotificationCompat.Builder(context, ONGOING_CALL_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_call_ongoing)
+            .setSmallIcon(R.drawable.ic_call)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -104,7 +104,7 @@ object CallNotificationHelper {
                         R.drawable.ic_bluetooth to "Bluetooth"
                     }
                     else -> {
-                        R.drawable.ic_speaker_off to "Earpiece"
+                        R.drawable.ic_earpiece to "Earpiece"
                     }
                 }
 
@@ -136,5 +136,85 @@ object CallNotificationHelper {
         }
         context.getSystemService(NotificationManager::class.java)
             .cancel(ONGOING_CALL_NOTIFICATION_ID)
+    }
+
+    private const val INCOMING_CALL_CHANNEL_ID = "incoming_call_channel"
+    private const val INCOMING_CALL_NOTIFICATION_ID = 101
+
+    fun createIncomingCallChannel(context: Context) {
+        val channel = NotificationChannel(
+            INCOMING_CALL_CHANNEL_ID,
+            "Incoming Calls",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            setSound(null, null)
+            enableVibration(false)
+            setBypassDnd(true)
+            description = "Incoming phone calls"
+        }
+        context.getSystemService(NotificationManager::class.java)
+            .createNotificationChannel(channel)
+    }
+
+    @SuppressLint("FullScreenIntentPolicy")
+    fun showIncomingCallNotification(context: Context, call: Call, useNewLayout: Boolean) {
+        createIncomingCallChannel(context)
+
+        val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
+        val person = Person.Builder().setName(handle).build()
+
+        val targetClass = if (useNewLayout) CallScreenActivity::class.java
+        else com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity::class.java
+
+        val contentIntent = Intent(context, targetClass).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context, 100, contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Answer action
+        val answerIntent = Intent(context, CallControlReceiver::class.java).apply {
+            action = CallControlReceiver.ACTION_ANSWER_CALL
+            putExtra("use_new_layout", useNewLayout)
+        }
+        val answerPI = PendingIntent.getBroadcast(
+            context, 101, answerIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Reject action
+        val rejectIntent = Intent(context, CallControlReceiver::class.java).apply {
+            action = CallControlReceiver.ACTION_REJECT_CALL
+            putExtra("use_new_layout", useNewLayout)
+        }
+        val rejectPI = PendingIntent.getBroadcast(
+            context, 102, rejectIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notificationBuilder = NotificationCompat.Builder(context, INCOMING_CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_call_incoming) // Use your own rounded icon here!
+            .setContentTitle("Incoming call")
+            .setContentText(handle)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX) // Better for heads-up
+            .setFullScreenIntent(contentPendingIntent, true)
+            .setOngoing(true)
+            .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, rejectPI, answerPI))
+        val notification = notificationBuilder.build()
+
+        if (context is MyInCallService) {
+            context.startForeground(INCOMING_CALL_NOTIFICATION_ID, notification)
+        } else {
+            context.getSystemService(NotificationManager::class.java)
+                .notify(INCOMING_CALL_NOTIFICATION_ID, notification)
+        }
+    }
+
+    fun dismissIncomingCallNotification(context: Context) {
+        context.getSystemService(NotificationManager::class.java)
+            .cancel(INCOMING_CALL_NOTIFICATION_ID)
     }
 }
