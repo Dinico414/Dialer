@@ -54,7 +54,7 @@ object CallNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Mute
+        // Mute action (always shown)
         val isMuted = MyInCallService.currentAudioState?.isMuted ?: false
         val muteIcon = if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
         val muteLabel = if (isMuted) "Unmute" else "Mute"
@@ -62,12 +62,13 @@ object CallNotificationHelper {
         val muteIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_TOGGLE_MUTE
         }
-        val mutePI = PendingIntent.getBroadcast(context, 2, muteIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val mutePI = PendingIntent.getBroadcast(
+            context, 2, muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
-        // Hang up
+        // Hang up action
         val callHandle = call.details.handle?.schemeSpecificPart ?: "Hang Up"
-
         val hangupIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_HANG_UP
             putExtra("call_handle", callHandle)
@@ -84,27 +85,39 @@ object CallNotificationHelper {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setFullScreenIntent(contentPendingIntent, true)
-            .addAction(muteIcon, muteLabel, mutePI) // Mute is always added
+            .addAction(muteIcon, muteLabel, mutePI)
             .setStyle(NotificationCompat.CallStyle.forOngoingCall(person, hangupPI))
 
-
-        // Speaker action — only add if multiple routes are supported
+        // Audio Route (Speaker/Headset/Bluetooth/Earpiece) action
         MyInCallService.currentAudioState?.let { audioState ->
             if (Integer.bitCount(audioState.supportedRouteMask) > 1) {
                 val currentRoute = audioState.route
-                val isSpeakerOn = currentRoute == CallAudioState.ROUTE_SPEAKER
-                val speakerIcon = if (isSpeakerOn) R.drawable.ic_speaker_on else R.drawable.ic_speaker_off
-                val speakerLabel = if (isSpeakerOn) "Speaker Off" else "Speaker"
+
+                val (speakerIcon, speakerLabel) = when (currentRoute) {
+                    CallAudioState.ROUTE_SPEAKER -> {
+                        R.drawable.ic_speaker_on to "Speaker Off"
+                    }
+                    CallAudioState.ROUTE_WIRED_HEADSET -> {
+                        R.drawable.ic_headset to "Wired Headset"
+                    }
+                    CallAudioState.ROUTE_BLUETOOTH -> {
+                        R.drawable.ic_bluetooth to "Bluetooth"
+                    }
+                    else -> {
+                        R.drawable.ic_speaker_off to "Earpiece"
+                    }
+                }
 
                 val speakerIntent = Intent(context, CallControlReceiver::class.java).apply {
                     action = CallControlReceiver.ACTION_CYCLE_AUDIO_ROUTE
                 }
-                val speakerPI = PendingIntent.getBroadcast(context, 3, speakerIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                val speakerPI = PendingIntent.getBroadcast(
+                    context, 3, speakerIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
 
                 notificationBuilder.addAction(speakerIcon, speakerLabel, speakerPI)
             }
-            // If only one route (usually earpiece), we don't add the speaker button
         }
 
         val notification = notificationBuilder.build()
@@ -116,6 +129,7 @@ object CallNotificationHelper {
                 .notify(ONGOING_CALL_NOTIFICATION_ID, notification)
         }
     }
+
     fun dismissOngoingCallNotification(context: Context) {
         if (context is MyInCallService) {
             context.stopForeground(STOP_FOREGROUND_REMOVE)
