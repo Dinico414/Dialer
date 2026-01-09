@@ -43,10 +43,7 @@ object CallNotificationHelper {
         val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
         val person = Person.Builder().setName(handle).build()
 
-        val targetClass = if (useNewLayout) CallScreenActivity::class.java
-        else com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity::class.java
-
-        val contentIntent = Intent(context, targetClass).apply {
+        val contentIntent = Intent(context, CallScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentPendingIntent = PendingIntent.getActivity(
@@ -163,10 +160,7 @@ object CallNotificationHelper {
         val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
         val person = Person.Builder().setName(handle).build()
 
-        val targetClass = if (useNewLayout) CallScreenActivity::class.java
-        else com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity::class.java
-
-        val contentIntent = Intent(context, targetClass).apply {
+        val contentIntent = Intent(context, CallScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentPendingIntent = PendingIntent.getActivity(
@@ -195,11 +189,11 @@ object CallNotificationHelper {
         )
 
         val notificationBuilder = NotificationCompat.Builder(context, INCOMING_CALL_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_call_incoming) // Use your own rounded icon here!
+            .setSmallIcon(R.drawable.ic_call_incoming)
             .setContentTitle("Incoming call")
             .setContentText(handle)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_MAX) // Better for heads-up
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setFullScreenIntent(contentPendingIntent, true)
             .setOngoing(true)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, rejectPI, answerPI))

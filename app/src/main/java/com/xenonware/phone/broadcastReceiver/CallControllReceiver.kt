@@ -9,7 +9,6 @@ import com.xenonware.phone.CallScreenActivity
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.service.MyInCallService
-import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallScreen
 
 class CallControlReceiver : BroadcastReceiver() {
 
@@ -28,13 +27,7 @@ class CallControlReceiver : BroadcastReceiver() {
             ACTION_ANSWER_CALL -> {
                 MyInCallService.currentCall?.answer(VideoProfile.STATE_AUDIO_ONLY)
 
-                val useNewLayout = intent.getBooleanExtra("use_new_layout", true)
-                val targetClass = if (useNewLayout)
-                    CallScreenActivity::class.java
-                else
-                    com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity::class.java
-
-                val launchIntent = Intent(context, targetClass).apply {
+                val launchIntent = Intent(context, CallScreenActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 context.startActivity(launchIntent)
@@ -78,7 +71,6 @@ class CallControlReceiver : BroadcastReceiver() {
             ACTION_HANG_UP -> {
                 // Get call identifier from intent extra
                 val callHandle = intent.getStringExtra("call_handle") ?: return
-                val useNewLayout = intent.getBooleanExtra("use_new_layout", false)
 
                 // Find the matching call in the service's current calls
                 val calls = service.calls
@@ -91,8 +83,7 @@ class CallControlReceiver : BroadcastReceiver() {
                     targetCall.disconnect()
 
                     // Bring call screen to front so user sees end animation
-                    val targetClass = if (useNewLayout) CallScreenActivity::class.java else OldCallScreen::class.java
-                    val activityIntent = Intent(context, targetClass).apply {
+                    val activityIntent = Intent(context, CallScreenActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     }
                     context.startActivity(activityIntent)

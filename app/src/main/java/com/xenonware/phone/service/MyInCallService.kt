@@ -5,6 +5,7 @@ import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.InCallService
 import android.util.Log
+import com.xenonware.phone.CallScreenActivity
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.helper.CallNotificationHelper.dismissIncomingCallNotification
@@ -12,8 +13,6 @@ import com.xenonware.phone.helper.CallNotificationHelper.showIncomingCallNotific
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.xenonware.phone.CallScreenActivity as NewCallScreen
-import com.xenonware.phone.ui.layouts.callscreen.CallScreenActivity as OldCallScreen
 
 class MyInCallService : InCallService() {
 
@@ -57,10 +56,10 @@ class MyInCallService : InCallService() {
 
         // Store references
         currentCall = call
-        if (useNewLayout) NewCallScreen.currentCall = call else OldCallScreen.currentCall = call
+        CallScreenActivity.currentCall = call
 
         // Launch activity (helps when app is in foreground)
-        val targetActivityClass = if (useNewLayout) NewCallScreen::class.java else OldCallScreen::class.java
+        val targetActivityClass = CallScreenActivity::class.java
         val intent = Intent(this, targetActivityClass).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
@@ -70,11 +69,13 @@ class MyInCallService : InCallService() {
             override fun onStateChanged(call: Call, state: Int) {
                 when (state) {
                     Call.STATE_RINGING -> {
-                        // Show incoming popup notification (even if activity was launched)
-                        showIncomingCallNotification(this@MyInCallService, call, useNewLayout)
+                        // Only show incoming notification if our CallScreenActivity is NOT visible
+                        val activityVisible = CallScreenActivity.isVisible
+                        if (!activityVisible) {
+                            showIncomingCallNotification(this@MyInCallService, call, useNewLayout)
+                        }
                     }
                     Call.STATE_ACTIVE -> {
-                        // Switch to ongoing call notification
                         dismissIncomingCallNotification(this@MyInCallService)
                         CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call, useNewLayout)
                     }
@@ -82,16 +83,19 @@ class MyInCallService : InCallService() {
                         dismissIncomingCallNotification(this@MyInCallService)
                         CallNotificationHelper.dismissOngoingCallNotification(this@MyInCallService)
                         currentCall = null
-                        NewCallScreen.currentCall = null
-                        OldCallScreen.currentCall = null
+                        CallScreenActivity.currentCall = null
                     }
                 }
             }
         })
 
-        // Handle initial state (might already be ringing or active)
         when (call.state) {
-            Call.STATE_RINGING -> showIncomingCallNotification(this, call, useNewLayout)
+            Call.STATE_RINGING -> {
+                val activityVisible = CallScreenActivity.isVisible
+                if (!activityVisible) {
+                    showIncomingCallNotification(this, call, useNewLayout)
+                }
+            }
             Call.STATE_ACTIVE -> CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)
         }
     }
@@ -112,8 +116,7 @@ class MyInCallService : InCallService() {
         super.onCallRemoved(call)
         if (currentCall == call) {
             currentCall = null
-            NewCallScreen.currentCall = null
-            OldCallScreen.currentCall = null
+            CallScreenActivity.currentCall = null
             CallNotificationHelper.dismissOngoingCallNotification(this)
         }
     }
