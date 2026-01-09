@@ -92,6 +92,10 @@ object CallNotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setFullScreenIntent(contentPendingIntent, true)
             .addAction(muteIcon, muteLabel, mutePI)
+            .setWhen(call.details.connectTimeMillis)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(false)
+            .setShowWhen(true)
             .setStyle(NotificationCompat.CallStyle.forOngoingCall(person, hangupPI))
 
         // Audio route action (speaker/headset/etc.)
@@ -199,6 +203,9 @@ object CallNotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setFullScreenIntent(contentPendingIntent, true)
             .setOngoing(true)
+            .setWhen(0)
+            .setShowWhen(false)
+            .setUsesChronometer(false)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, rejectPI, answerPI))
 
         val notification = notificationBuilder.build()

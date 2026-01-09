@@ -8,9 +8,15 @@ import com.xenonware.phone.CallScreenActivity
 import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.helper.CallNotificationHelper.dismissIncomingCallNotification
 import com.xenonware.phone.helper.CallNotificationHelper.showIncomingCallNotification
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MyInCallService : InCallService() {
 
@@ -30,6 +36,7 @@ class MyInCallService : InCallService() {
         private val _audioStateFlow = MutableStateFlow<CallAudioState?>(null)
         val audioStateFlow: StateFlow<CallAudioState?> = _audioStateFlow.asStateFlow()
     }
+    private var durationUpdaterJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -59,8 +66,16 @@ class MyInCallService : InCallService() {
                     Call.STATE_ACTIVE -> {
                         dismissIncomingCallNotification(this@MyInCallService)
                         CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call)
+                        durationUpdaterJob?.cancel()
+                        durationUpdaterJob = CoroutineScope(Dispatchers.Main).launch {
+                            while (isActive && call.state == Call.STATE_ACTIVE) {
+                                CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call)
+                                delay(1000)
+                            }
+                        }
                     }
                     Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
+                        durationUpdaterJob?.cancel()
                         dismissIncomingCallNotification(this@MyInCallService)
                         CallNotificationHelper.dismissOngoingCallNotification(this@MyInCallService)
                         currentCall = null
