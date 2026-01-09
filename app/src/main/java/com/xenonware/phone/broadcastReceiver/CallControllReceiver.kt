@@ -34,6 +34,7 @@ class CallControlReceiver : BroadcastReceiver() {
 
             ACTION_REJECT_CALL -> {
                 MyInCallService.currentCall?.reject(false, null)
+                CallScreenActivity.currentCall = null
             }
 
             ACTION_TOGGLE_MUTE -> {
@@ -66,26 +67,21 @@ class CallControlReceiver : BroadcastReceiver() {
             }
 
             ACTION_HANG_UP -> {
-                // Get call identifier from intent extra
                 val callHandle = intent.getStringExtra("call_handle") ?: return
 
-                // Find the matching call in the service's current calls
                 val calls = service.calls
                 val targetCall = calls.find {
                     it.details.handle?.schemeSpecificPart == callHandle
                 }
 
                 if (targetCall != null) {
-                    // Disconnect the call
                     targetCall.disconnect()
 
-                    // Bring call screen to front so user sees end animation
                     val activityIntent = Intent(context, CallScreenActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     }
                     context.startActivity(activityIntent)
                 }
-                // Notification will be dismissed automatically by onStateChanged
             }
         }
     }

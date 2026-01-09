@@ -112,9 +112,7 @@ class CallScreenActivity : ComponentActivity() {
             override fun onStateChanged(call: Call, state: Int) {
                 if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) && !shouldFinishAfterDelay) {
                     shouldFinishAfterDelay = true
-                    window.decorView.postDelayed({
-                        if (!isFinishing && !isDestroyed) finish()
-                    }, 2000)
+                    window.decorView.postDelayed({ finish() }, 2000)
                 }
             }
         })
