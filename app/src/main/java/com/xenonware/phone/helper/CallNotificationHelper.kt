@@ -37,7 +37,7 @@ object CallNotificationHelper {
     }
 
     @SuppressLint("FullScreenIntentPolicy")
-    fun showOngoingCallNotification(context: Context, call: Call, useNewLayout: Boolean) {
+    fun showOngoingCallNotification(context: Context, call: Call) {
         createOngoingNotificationChannel(context)
 
         val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
@@ -69,7 +69,6 @@ object CallNotificationHelper {
         val hangupIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_HANG_UP
             putExtra("call_handle", callHandle)
-            putExtra("use_new_layout", useNewLayout)
         }
         val hangupPI = PendingIntent.getBroadcast(
             context, 4, hangupIntent,
@@ -154,7 +153,7 @@ object CallNotificationHelper {
     }
 
     @SuppressLint("FullScreenIntentPolicy")
-    fun showIncomingCallNotification(context: Context, call: Call, useNewLayout: Boolean) {
+    fun showIncomingCallNotification(context: Context, call: Call) {
         createIncomingCallChannel(context)
 
         val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
@@ -171,7 +170,6 @@ object CallNotificationHelper {
         // Answer action
         val answerIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_ANSWER_CALL
-            putExtra("use_new_layout", useNewLayout)
         }
         val answerPI = PendingIntent.getBroadcast(
             context, 101, answerIntent,
@@ -181,7 +179,6 @@ object CallNotificationHelper {
         // Reject action
         val rejectIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_REJECT_CALL
-            putExtra("use_new_layout", useNewLayout)
         }
         val rejectPI = PendingIntent.getBroadcast(
             context, 102, rejectIntent,

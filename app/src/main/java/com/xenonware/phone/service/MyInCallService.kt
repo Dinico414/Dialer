@@ -6,7 +6,6 @@ import android.telecom.CallAudioState
 import android.telecom.InCallService
 import android.util.Log
 import com.xenonware.phone.CallScreenActivity
-import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.helper.CallNotificationHelper.dismissIncomingCallNotification
 import com.xenonware.phone.helper.CallNotificationHelper.showIncomingCallNotification
@@ -15,11 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class MyInCallService : InCallService() {
-
-    private val prefManager by lazy { SharedPreferenceManager(this) }
-
-    private val useNewLayout: Boolean
-        get() = prefManager.newLayoutEnabled
 
     companion object {
         @Volatile
@@ -54,30 +48,35 @@ class MyInCallService : InCallService() {
         super.onCallAdded(call)
         Log.d("MyInCallService", "Call added: $call")
 
-        // Store references
         currentCall = call
         CallScreenActivity.currentCall = call
 
-        // Launch activity (helps when app is in foreground)
-        val targetActivityClass = CallScreenActivity::class.java
-        val intent = Intent(this, targetActivityClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // NEW: Check if we were launched via full-screen intent
+        val wasLaunchedFromNotification = !CallScreenActivity.isVisible
+
+        // Only auto-launch activity if it wasn't already visible
+        if (wasLaunchedFromNotification) {
+            val intent = Intent(this, CallScreenActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+                // Optional: add extra to signal it came from notification
+                putExtra("launched_from_incoming_notification", true)
+            }
+            startActivity(intent)
         }
-        startActivity(intent)
 
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 when (state) {
                     Call.STATE_RINGING -> {
-                        // Only show incoming notification if our CallScreenActivity is NOT visible
-                        val activityVisible = CallScreenActivity.isVisible
-                        if (!activityVisible) {
-                            showIncomingCallNotification(this@MyInCallService, call, useNewLayout)
-                        }
+                        showIncomingCallNotification(this@MyInCallService, call)
                     }
                     Call.STATE_ACTIVE -> {
                         dismissIncomingCallNotification(this@MyInCallService)
-                        CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call, useNewLayout)
+                        CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call)
                     }
                     Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> {
                         dismissIncomingCallNotification(this@MyInCallService)
@@ -89,14 +88,15 @@ class MyInCallService : InCallService() {
             }
         })
 
-        when (call.state) {
-            Call.STATE_RINGING -> {
-                val activityVisible = CallScreenActivity.isVisible
-                if (!activityVisible) {
-                    showIncomingCallNotification(this, call, useNewLayout)
-                }
+        // Handle current state
+        if (call.state == Call.STATE_RINGING) {
+            showIncomingCallNotification(this, call)
+        }
+        if (!CallScreenActivity.isVisible) {
+            val intent = Intent(this, CallScreenActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
-            Call.STATE_ACTIVE -> CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)
+            startActivity(intent)
         }
     }
 
@@ -108,7 +108,7 @@ class MyInCallService : InCallService() {
         _audioStateFlow.value = audioState
 
         currentCall?.takeIf { it.state == Call.STATE_ACTIVE }?.let { call ->
-            CallNotificationHelper.showOngoingCallNotification(this, call, useNewLayout)
+            CallNotificationHelper.showOngoingCallNotification(this, call)
         }
     }
 

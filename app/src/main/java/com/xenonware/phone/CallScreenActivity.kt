@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenonware.phone.data.SharedPreferenceManager
+import com.xenonware.phone.helper.CallNotificationHelper
+import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.CallScreenLayout
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 import com.xenonware.phone.viewmodel.CallScreenViewModel
@@ -41,12 +43,33 @@ class CallScreenActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         isVisible = true
+        MyInCallService.currentCall?.let { call ->
+            if (call.state == Call.STATE_RINGING) {
+                CallNotificationHelper.showIncomingCallNotification(this, call)
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
         isVisible = false
+        MyInCallService.currentCall?.let { call ->
+            if (call.state == Call.STATE_RINGING) {
+                CallNotificationHelper.showIncomingCallNotification(applicationContext, call)
+            }
+        }
     }
+
+    override fun onStart() {
+        super.onStart()
+        isVisible = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isVisible = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

@@ -6,7 +6,6 @@ import android.content.Intent
 import android.telecom.CallAudioState
 import android.telecom.VideoProfile
 import com.xenonware.phone.CallScreenActivity
-import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.helper.CallNotificationHelper
 import com.xenonware.phone.service.MyInCallService
 
@@ -42,8 +41,7 @@ class CallControlReceiver : BroadcastReceiver() {
                 service.setMuted(!muted)
 
                 MyInCallService.currentCall?.let { call ->
-                    val useNewLayout = SharedPreferenceManager(context).newLayoutEnabled
-                    CallNotificationHelper.showOngoingCallNotification(context, call, useNewLayout)
+                    CallNotificationHelper.showOngoingCallNotification(context, call)
                 }
             }
 
@@ -63,8 +61,7 @@ class CallControlReceiver : BroadcastReceiver() {
                 }
 
                 MyInCallService.currentCall?.let { call ->
-                    val useNewLayout = SharedPreferenceManager(context).newLayoutEnabled
-                    CallNotificationHelper.showOngoingCallNotification(context, call, useNewLayout)
+                    CallNotificationHelper.showOngoingCallNotification(context, call)
                 }
             }
 
