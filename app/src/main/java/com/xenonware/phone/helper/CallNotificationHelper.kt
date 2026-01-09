@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.app.Service.STOP_FOREGROUND_REMOVE
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
 import androidx.core.app.NotificationCompat
@@ -40,8 +42,17 @@ object CallNotificationHelper {
     fun showOngoingCallNotification(context: Context, call: Call) {
         createOngoingNotificationChannel(context)
 
-        val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
-        val person = Person.Builder().setName(handle).build()
+        val rawHandle = call.details.handle?.schemeSpecificPart ?: "Unknown"
+
+        val displayName = when (rawHandle) {
+            "Private" -> "Private"
+            "Unknown" -> "Unknown"
+            else -> lookupContactName(context, rawHandle) ?: rawHandle
+        }
+
+        val person = Person.Builder()
+            .setName(displayName)
+            .build()
 
         val contentIntent = Intent(context, CallScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -51,7 +62,7 @@ object CallNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Mute action (always shown)
+        // Mute action
         val isMuted = MyInCallService.currentAudioState?.isMuted ?: false
         val muteIcon = if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
         val muteLabel = if (isMuted) "Unmute" else "Mute"
@@ -65,10 +76,9 @@ object CallNotificationHelper {
         )
 
         // Hang up action
-        val callHandle = call.details.handle?.schemeSpecificPart ?: "Hang Up"
         val hangupIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_HANG_UP
-            putExtra("call_handle", callHandle)
+            putExtra("call_handle", rawHandle)
         }
         val hangupPI = PendingIntent.getBroadcast(
             context, 4, hangupIntent,
@@ -84,24 +94,16 @@ object CallNotificationHelper {
             .addAction(muteIcon, muteLabel, mutePI)
             .setStyle(NotificationCompat.CallStyle.forOngoingCall(person, hangupPI))
 
-        // Audio Route (Speaker/Headset/Bluetooth/Earpiece) action
+        // Audio route action (speaker/headset/etc.)
         MyInCallService.currentAudioState?.let { audioState ->
             if (Integer.bitCount(audioState.supportedRouteMask) > 1) {
                 val currentRoute = audioState.route
 
                 val (speakerIcon, speakerLabel) = when (currentRoute) {
-                    CallAudioState.ROUTE_SPEAKER -> {
-                        R.drawable.ic_speaker_on to "Speaker Off"
-                    }
-                    CallAudioState.ROUTE_WIRED_HEADSET -> {
-                        R.drawable.ic_headset to "Wired Headset"
-                    }
-                    CallAudioState.ROUTE_BLUETOOTH -> {
-                        R.drawable.ic_bluetooth to "Bluetooth"
-                    }
-                    else -> {
-                        R.drawable.ic_earpiece to "Earpiece"
-                    }
+                    CallAudioState.ROUTE_SPEAKER -> R.drawable.ic_speaker_on to "Speaker Off"
+                    CallAudioState.ROUTE_WIRED_HEADSET -> R.drawable.ic_headset to "Wired Headset"
+                    CallAudioState.ROUTE_BLUETOOTH -> R.drawable.ic_bluetooth to "Bluetooth"
+                    else -> R.drawable.ic_earpiece to "Earpiece"  // Usually means switch to speaker next
                 }
 
                 val speakerIntent = Intent(context, CallControlReceiver::class.java).apply {
@@ -125,7 +127,6 @@ object CallNotificationHelper {
                 .notify(ONGOING_CALL_NOTIFICATION_ID, notification)
         }
     }
-
     fun dismissOngoingCallNotification(context: Context) {
         if (context is MyInCallService) {
             context.stopForeground(STOP_FOREGROUND_REMOVE)
@@ -156,8 +157,15 @@ object CallNotificationHelper {
     fun showIncomingCallNotification(context: Context, call: Call) {
         createIncomingCallChannel(context)
 
-        val handle = call.details.handle?.schemeSpecificPart ?: "Unknown"
-        val person = Person.Builder().setName(handle).build()
+        val rawHandle = call.details.handle?.schemeSpecificPart ?: "Unknown"
+
+        val callerName = lookupContactName(context, rawHandle) ?: rawHandle
+
+        val person = Person.Builder()
+            .setName(callerName)
+            .build()
+
+        val subtitleText = if (callerName != rawHandle && rawHandle != "Unknown") rawHandle else null
 
         val contentIntent = Intent(context, CallScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -167,7 +175,6 @@ object CallNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Answer action
         val answerIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_ANSWER_CALL
         }
@@ -176,7 +183,6 @@ object CallNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Reject action
         val rejectIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_REJECT_CALL
         }
@@ -188,12 +194,13 @@ object CallNotificationHelper {
         val notificationBuilder = NotificationCompat.Builder(context, INCOMING_CALL_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_call_incoming)
             .setContentTitle("Incoming call")
-            .setContentText(handle)
+            .setContentText(subtitleText)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setFullScreenIntent(contentPendingIntent, true)
             .setOngoing(true)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, rejectPI, answerPI))
+
         val notification = notificationBuilder.build()
 
         if (context is MyInCallService) {
@@ -201,6 +208,26 @@ object CallNotificationHelper {
         } else {
             context.getSystemService(NotificationManager::class.java)
                 .notify(INCOMING_CALL_NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun lookupContactName(context: Context, phoneNumber: String): String? {
+        return try {
+            val uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(phoneNumber)
+            )
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup.DISPLAY_NAME))
+                } else null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
