@@ -27,7 +27,8 @@ class CallControlReceiver : BroadcastReceiver() {
                 MyInCallService.currentCall?.answer(VideoProfile.STATE_AUDIO_ONLY)
 
                 val launchIntent = Intent(context, CallScreenActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 context.startActivity(launchIntent)
             }
@@ -68,20 +69,13 @@ class CallControlReceiver : BroadcastReceiver() {
 
             ACTION_HANG_UP -> {
                 val callHandle = intent.getStringExtra("call_handle") ?: return
+                val service = MyInCallService.getInstance() ?: return
 
-                val calls = service.calls
-                val targetCall = calls.find {
+                val targetCall = service.calls.find {
                     it.details.handle?.schemeSpecificPart == callHandle
                 }
 
-                if (targetCall != null) {
-                    targetCall.disconnect()
-
-                    val activityIntent = Intent(context, CallScreenActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    context.startActivity(activityIntent)
-                }
+                targetCall?.disconnect()
             }
         }
     }

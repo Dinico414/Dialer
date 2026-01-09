@@ -37,6 +37,13 @@ class CallScreenActivity : ComponentActivity() {
         var currentCall: Call? = null
         var isVisible = false
     }
+    private fun callFinish() {
+        if (isTaskRoot) {
+            finishAndRemoveTask()
+        } else {
+            finish()
+        }
+    }
 
     private var shouldFinishAfterDelay = false
 
@@ -112,7 +119,9 @@ class CallScreenActivity : ComponentActivity() {
             override fun onStateChanged(call: Call, state: Int) {
                 if ((state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) && !shouldFinishAfterDelay) {
                     shouldFinishAfterDelay = true
-                    window.decorView.postDelayed({ finish() }, 2000)
+                    window.decorView.postDelayed({
+                        callFinish()
+                    }, 2000)
                 }
             }
         })
