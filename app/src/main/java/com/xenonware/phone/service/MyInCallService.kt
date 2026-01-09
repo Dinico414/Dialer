@@ -1,5 +1,7 @@
 package com.xenonware.phone.service
 
+import android.content.Context
+import android.content.Intent
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.InCallService
@@ -57,15 +59,26 @@ class MyInCallService : InCallService() {
         currentCall = call
         CallScreenActivity.currentCall = call
 
+        val isOutgoing = call.details.callDirection == Call.Details.DIRECTION_OUTGOING
+
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 when (state) {
                     Call.STATE_RINGING -> {
                         showIncomingCallNotification(this@MyInCallService, call)
                     }
+                    Call.STATE_DIALING, Call.STATE_CONNECTING -> {
+                        if (isOutgoing) {
+                            applicationContext.launchCallScreen()
+                        }
+                    }
                     Call.STATE_ACTIVE -> {
                         dismissIncomingCallNotification(this@MyInCallService)
                         CallNotificationHelper.showOngoingCallNotification(this@MyInCallService, call)
+
+                        if (isOutgoing) {
+                            applicationContext.launchCallScreen()
+                        }
                         durationUpdaterJob?.cancel()
                         durationUpdaterJob = CoroutineScope(Dispatchers.Main).launch {
                             while (isActive && call.state == Call.STATE_ACTIVE) {
@@ -85,15 +98,30 @@ class MyInCallService : InCallService() {
             }
         })
 
-        // Handle current state
         when (call.state) {
-            Call.STATE_RINGING -> {
-                showIncomingCallNotification(this@MyInCallService, call)
+            Call.STATE_DIALING, Call.STATE_CONNECTING -> {
+                if (isOutgoing) applicationContext.launchCallScreen()
             }
-            Call.STATE_ACTIVE -> CallNotificationHelper.showOngoingCallNotification(this, call)
+            Call.STATE_ACTIVE -> {
+                CallNotificationHelper.showOngoingCallNotification(this, call)
+                if (isOutgoing) applicationContext.launchCallScreen()
+            }
+            Call.STATE_RINGING -> showIncomingCallNotification(this@MyInCallService, call)
         }
     }
-
+    private fun Context.launchCallScreen() {
+        val intent = Intent(this, CallScreenActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        }
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.w("CallScreen", "Could not auto-launch call screen", e)
+        }
+    }
     @Deprecated("Deprecated in Java")
     @Suppress("DEPRECATION")
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
