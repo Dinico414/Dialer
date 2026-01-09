@@ -294,7 +294,11 @@ fun CallScreenUi(
                         val isPressed by interactionSource.collectIsPressedAsState()
 
                         val targetTextColor =
-                            if (isPressed) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurface
+                            if (isPressed) lerp(
+                                start = MaterialTheme.colorScheme.onSurface,
+                                stop = Color(0xFFFFB300),
+                                fraction = 0.25f
+                            ) else MaterialTheme.colorScheme.onSurface
                         val animatedTextColor by animateColorAsState(
                             targetValue = targetTextColor, animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,

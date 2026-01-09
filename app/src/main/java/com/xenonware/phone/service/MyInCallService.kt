@@ -1,6 +1,5 @@
 package com.xenonware.phone.service
 
-import android.content.Intent
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.InCallService
@@ -51,23 +50,6 @@ class MyInCallService : InCallService() {
         currentCall = call
         CallScreenActivity.currentCall = call
 
-        // NEW: Check if we were launched via full-screen intent
-        val wasLaunchedFromNotification = !CallScreenActivity.isVisible
-
-        // Only auto-launch activity if it wasn't already visible
-        if (wasLaunchedFromNotification) {
-            val intent = Intent(this, CallScreenActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-                // Optional: add extra to signal it came from notification
-                putExtra("launched_from_incoming_notification", true)
-            }
-            startActivity(intent)
-        }
-
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 when (state) {
@@ -89,14 +71,11 @@ class MyInCallService : InCallService() {
         })
 
         // Handle current state
-        if (call.state == Call.STATE_RINGING) {
-            showIncomingCallNotification(this, call)
-        }
-        if (!CallScreenActivity.isVisible) {
-            val intent = Intent(this, CallScreenActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        when (call.state) {
+            Call.STATE_RINGING -> {
+                showIncomingCallNotification(this@MyInCallService, call)
             }
-            startActivity(intent)
+            Call.STATE_ACTIVE -> CallNotificationHelper.showOngoingCallNotification(this, call)
         }
     }
 
