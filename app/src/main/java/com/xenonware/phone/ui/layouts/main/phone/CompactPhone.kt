@@ -49,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
@@ -86,7 +85,9 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class,
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalHazeMaterialsApi::class,
     ExperimentalMaterial3ExpressiveApi::class
 )
 @Composable
@@ -96,7 +97,7 @@ fun CompactPhone(
     isLandscape: Boolean,
     layoutType: LayoutType,
     onOpenSettings: () -> Unit,
-    appSize: IntSize
+    appSize: IntSize,
 ) {
     val density = LocalDensity.current
 
@@ -163,9 +164,11 @@ fun CompactPhone(
                 PhoneScreen.Dialer -> {
                     if (pagerState.currentPage != 0) pagerState.animateScrollToPage(0)
                 }
+
                 PhoneScreen.Contacts -> {
                     if (pagerState.currentPage != 1) pagerState.animateScrollToPage(1)
                 }
+
                 else -> Unit
             }
         }
@@ -178,133 +181,124 @@ fun CompactPhone(
         val isCallHistoryOpen = currentScreen is PhoneScreen.CallHistory
         val areNavButtonsEnabled = !isSearchActive && !isCallHistoryOpen
 
-        Scaffold(
-            snackbarHost = {
-                SnackbarHost(hostState = snackbarHostState) { data ->
-                    Snackbar(snackbarData = data)
-                }
-            },
-            bottomBar = {
-                val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-                val navPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                val targetPadding = max(imePadding, navPadding) + LargePadding
+        Scaffold(snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(snackbarData = data)
+            }
+        }, bottomBar = {
+            val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+            val navPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val targetPadding = max(imePadding, navPadding) + LargePadding
 
-                val animatedPadding by animateDpAsState(
-                    targetValue = targetPadding,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessLow
-                    )
+            val animatedPadding by animateDpAsState(
+                targetValue = targetPadding, animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
                 )
+            )
 
-                FloatingToolbarContent(
-                    hazeState = hazeState,
-                    currentSearchQuery = searchQuery,
-                    onSearchQueryChanged = { searchQuery = it },
-                    lazyListState = lazyListState,
-                    allowToolbarScrollBehavior = true,
-                    selectedNoteIds = emptyList(),
-                    onClearSelection = {},
-                    isAddModeActive = false,
-                    isSearchActive = isSearchActive,
-                    onIsSearchActiveChange = { isSearchActive = it },
-                    defaultContent = { iconsAlphaDuration, showActionIconsExceptSearch ->
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            modifier = Modifier.fillMaxWidth()
+            FloatingToolbarContent(
+                hazeState = hazeState,
+                currentSearchQuery = searchQuery,
+                onSearchQueryChanged = { searchQuery = it },
+                lazyListState = lazyListState,
+                allowToolbarScrollBehavior = true,
+                selectedNoteIds = emptyList(),
+                onClearSelection = {},
+                isAddModeActive = false,
+                isSearchActive = isSearchActive,
+                onIsSearchActiveChange = { isSearchActive = it },
+                defaultContent = { iconsAlphaDuration, showActionIconsExceptSearch ->
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val iconAlphaTarget = if (isSearchActive || isCallHistoryOpen) 0.38f else 1f
+
+                        val navIconAlpha by animateFloatAsState(
+                            targetValue = iconAlphaTarget,
+                            animationSpec = tween(durationMillis = iconsAlphaDuration),
+                            label = "NavIconAlpha"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer(alpha = navIconAlpha)
+                                .clip(CircleShape)
+                                .background(colorScheme.surfaceBright)
                         ) {
-                            val iconAlphaTarget = if (isSearchActive || isCallHistoryOpen) 0.38f else 1f
-
-                            val navIconAlpha by animateFloatAsState(
-                                targetValue = iconAlphaTarget,
-                                animationSpec = tween(durationMillis = iconsAlphaDuration),
-                                label = "NavIconAlpha"
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .graphicsLayer(alpha = navIconAlpha)
-                                    .clip(CircleShape)
-                                    .background(colorScheme.surfaceBright)
-                            ) {
-                                Row {
-                                    FilledTonalIconButton(
-                                        onClick = { currentScreen = PhoneScreen.Dialer },
-                                        enabled = areNavButtonsEnabled,
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen)
-                                                colorScheme.tertiary
-                                            else
-                                                colorScheme.surfaceBright,
-                                            contentColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen)
-                                                colorScheme.onTertiary
-                                            else
-                                                colorScheme.onSurface,
-                                            disabledContainerColor = colorScheme.onSurface.copy(alpha = 0.6f),
-                                            disabledContentColor = colorScheme.surfaceBright.copy(alpha = 0.38f)
+                            Row {
+                                FilledTonalIconButton(
+                                    onClick = { currentScreen = PhoneScreen.Dialer },
+                                    enabled = areNavButtonsEnabled,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen) colorScheme.tertiary
+                                        else colorScheme.surfaceBright,
+                                        contentColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen) colorScheme.onTertiary
+                                        else colorScheme.onSurface,
+                                        disabledContainerColor = colorScheme.onSurface.copy(
+                                            alpha = 0.6f
+                                        ),
+                                        disabledContentColor = colorScheme.surfaceBright.copy(
+                                            alpha = 0.38f
                                         )
-                                    ) {
-                                        Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer")
-                                    }
+                                    )
+                                ) {
+                                    Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer")
+                                }
 
-                                    FilledTonalIconButton(
-                                        onClick = { currentScreen = PhoneScreen.Contacts },
-                                        enabled = areNavButtonsEnabled,
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen)
-                                                colorScheme.tertiary
-                                            else
-                                                colorScheme.surfaceBright,
-                                            contentColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen)
-                                                colorScheme.onTertiary
-                                            else
-                                                colorScheme.onSurface,
-                                            disabledContainerColor = colorScheme.surfaceBright.copy(alpha = 0.6f),
-                                            disabledContentColor = colorScheme.onSurface.copy(alpha = 0.38f)
-                                        )
-                                    ) {
-                                        Icon(Icons.Rounded.Person, contentDescription = "Contacts")
-                                    }
-                                }                            }
-
-                            val settingsIconAlpha by animateFloatAsState(
-                                targetValue = if (isSearchActive) 0f else 1f,
-                                animationSpec = tween(
-                                    durationMillis = iconsAlphaDuration,
-                                    delayMillis = if (isSearchActive) 100 else 0
-                                ),
-                                label = "SettingsIconAlpha"
-                            )
-
-                            IconButton(
-                                onClick = onOpenSettings,
-                                modifier = Modifier.graphicsLayer(alpha = settingsIconAlpha),
-                                enabled = !isSearchActive && showActionIconsExceptSearch
-                            ) {
-                                Icon(Icons.Rounded.Settings, contentDescription = "Settings")
+                                FilledTonalIconButton(
+                                    onClick = { currentScreen = PhoneScreen.Contacts },
+                                    enabled = areNavButtonsEnabled,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen) colorScheme.tertiary
+                                        else colorScheme.surfaceBright,
+                                        contentColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen) colorScheme.onTertiary
+                                        else colorScheme.onSurface,
+                                        disabledContainerColor = colorScheme.surfaceBright.copy(
+                                            alpha = 0.6f
+                                        ),
+                                        disabledContentColor = colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+                                ) {
+                                    Icon(Icons.Rounded.Person, contentDescription = "Contacts")
+                                }
                             }
                         }
-                    },
-                    onAddModeToggle = { },
-                    isSelectedColor = MaterialTheme.colorScheme.primary,
-                    selectionContentOverride = { },
-                    addModeContentOverride = { },
-                    contentOverride = null,
-                    fabOverride = null,
-                    isSpannedMode = deviceConfig.isSpannedMode,
-                    fabOnLeftInSpannedMode = deviceConfig.fabOnLeft,
-                    spannedModeHingeGap = deviceConfig.hingeGapDp,
-                    spannedModeFab = {
-                        SpannedModeFAB(
-                            hazeState = hazeState,
-                            onClick = deviceConfig.toggleFabSide,
-                            modifier = Modifier.padding(bottom = animatedPadding),
-                            isSheetOpen = false
+
+                        val settingsIconAlpha by animateFloatAsState(
+                            targetValue = if (isSearchActive) 0f else 1f, animationSpec = tween(
+                                durationMillis = iconsAlphaDuration,
+                                delayMillis = if (isSearchActive) 100 else 0
+                            ), label = "SettingsIconAlpha"
                         )
+
+                        IconButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.graphicsLayer(alpha = settingsIconAlpha),
+                            enabled = !isSearchActive && showActionIconsExceptSearch
+                        ) {
+                            Icon(Icons.Rounded.Settings, contentDescription = "Settings")
+                        }
                     }
-                )
-            }
-        ) { scaffoldPadding ->
+                },
+                onAddModeToggle = { },
+                isSelectedColor = MaterialTheme.colorScheme.primary,
+                selectionContentOverride = { },
+                addModeContentOverride = { },
+                contentOverride = null,
+                fabOverride = null,
+                isSpannedMode = deviceConfig.isSpannedMode,
+                fabOnLeftInSpannedMode = deviceConfig.fabOnLeft,
+                spannedModeHingeGap = deviceConfig.hingeGapDp,
+                spannedModeFab = {
+                    SpannedModeFAB(
+                        hazeState = hazeState,
+                        onClick = deviceConfig.toggleFabSide,
+                        modifier = Modifier.padding(bottom = animatedPadding),
+                        isSheetOpen = false
+                    )
+                })
+        }) { scaffoldPadding ->
             val context = LocalContext.current
             val googleAuthUiClient = remember {
                 GoogleAuthUiClient(
@@ -320,7 +314,11 @@ fun CompactPhone(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(hazeState),
-                titleText = stringResource(R.string.app_name),
+                titleText = when (currentScreen) {
+                    PhoneScreen.Dialer -> stringResource(R.string.phone)
+                    PhoneScreen.Contacts -> stringResource(R.string.contacts)
+                    PhoneScreen.CallHistory -> stringResource(R.string.call_history)
+                },
                 expandable = isAppBarExpandable,
                 navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
                 navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
@@ -330,8 +328,7 @@ fun CompactPhone(
                 navigationIconExtraContent = {
                     if (state.isSignInSuccessful) {
                         Box(contentAlignment = Alignment.Center) {
-                            @Suppress("KotlinConstantConditions")
-                            GoogleProfilBorder(
+                            @Suppress("KotlinConstantConditions") GoogleProfilBorder(
                                 isSignedIn = state.isSignInSuccessful,
                                 modifier = Modifier.size(32.dp),
                                 strokeWidth = 2.5.dp
@@ -357,21 +354,21 @@ fun CompactPhone(
                             when (page) {
                                 0 -> DialerScreen(
                                     modifier = Modifier.fillMaxSize(),
-                                    onShowCallLog = { currentScreen = PhoneScreen.CallHistory }
-                                )
+                                    onShowCallLog = { currentScreen = PhoneScreen.CallHistory })
+
                                 1 -> ContactsScreen(modifier = Modifier.fillMaxSize())
                             }
                         }
 
                         if (isCallHistoryOpen) {
                             CallHistoryScreen(
-                                modifier = Modifier.fillMaxSize().background(colorScheme.surfaceContainer),
-                                onBack = { currentScreen = PhoneScreen.Dialer }
-                            )
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(colorScheme.surfaceContainer),
+                                onBack = { currentScreen = PhoneScreen.Dialer })
                         }
                     }
-                }
-            )
+                })
         }
     }
 }

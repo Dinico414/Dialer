@@ -122,6 +122,9 @@
     <string name="xenon_ui_version">Xenon-UI Version</string>
     <string name="xenon_commons_version">Xenon-Commons Version</string>
     <string name="sign_out_description">Are you sure you want to sign out?</string>
+    <string name="phone">Phone</string>
+    <string name="contacts">Contacts</string>
+    <string name="call_history">Call History</string>
 
 
 </resources>

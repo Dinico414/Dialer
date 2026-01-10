@@ -70,9 +70,7 @@ fun DialerScreen(
     Column(
         modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Flexible spacer that pushes the dialpad to the bottom
         Spacer(modifier = Modifier.weight(1f))
-        // Phone number display near the top
         Text(
             text = phoneNumber.ifEmpty { "Enter number" },
             modifier = Modifier.padding(16.dp),
@@ -80,7 +78,6 @@ fun DialerScreen(
             color = if (phoneNumber.isEmpty()) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable
         )
-        // Dialpad pinned to the bottom of the screen
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
             if (phoneNumber.isNotEmpty()) {
@@ -105,7 +102,6 @@ fun Dialpad(
 ) {
     val extraBottomPadding = 64.dp + LargePadding * 2
 
-    // Safe bottom inset (navigation bar, gesture area, etc.)
     val safeBottomPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
