@@ -332,22 +332,18 @@ fun CompactPhone(
                 navigationIconSpacing = if (state.isSignInSuccessful) NoSpacing else 0.dp,
                 navigationIcon = {
                     when (currentScreen) {
-                        PhoneScreen.Dialer -> {}
-                        PhoneScreen.Contacts -> {}
                         PhoneScreen.CallHistory -> {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(R.string.navigate_back_description),
                                 modifier = Modifier.size(24.dp)
                             )
-                        }
+                        } else -> {}
                     }
                 },
                 onNavigationIconClick = {
-                    when (currentScreen) {
-                        PhoneScreen.Dialer -> {}
-                        PhoneScreen.Contacts -> {}
-                        PhoneScreen.CallHistory -> currentScreen = PhoneScreen.Dialer
+                    if (currentScreen == PhoneScreen.CallHistory) {
+                        currentScreen = PhoneScreen.Dialer
                     }
                 },
                 hasNavigationIconExtraContent = state.isSignInSuccessful,
