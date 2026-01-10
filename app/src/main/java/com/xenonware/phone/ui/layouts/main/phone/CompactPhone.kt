@@ -25,6 +25,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
@@ -70,6 +71,7 @@ import com.xenon.mylibrary.res.SpannedModeFAB
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.values.LargePadding
+import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.R
@@ -309,6 +311,11 @@ fun CompactPhone(
             val signInViewModel: SignInViewModel = viewModel()
             val state by signInViewModel.state.collectAsStateWithLifecycle()
             val userData = googleAuthUiClient.getSignedInUser()
+            val navIconPadding = when (currentScreen) {
+                PhoneScreen.Dialer -> 0.dp
+                PhoneScreen.Contacts -> 0.dp
+                PhoneScreen.CallHistory -> MediumPadding
+            }
 
             ActivityScreen(
                 modifier = Modifier
@@ -320,10 +327,29 @@ fun CompactPhone(
                     PhoneScreen.CallHistory -> stringResource(R.string.call_history)
                 },
                 expandable = isAppBarExpandable,
-                navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
-                navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
+                navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
+                navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
                 navigationIconSpacing = if (state.isSignInSuccessful) NoSpacing else 0.dp,
-                navigationIcon = {},
+                navigationIcon = {
+                    when (currentScreen) {
+                        PhoneScreen.Dialer -> {}
+                        PhoneScreen.Contacts -> {}
+                        PhoneScreen.CallHistory -> {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.navigate_back_description),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
+                onNavigationIconClick = {
+                    when (currentScreen) {
+                        PhoneScreen.Dialer -> {}
+                        PhoneScreen.Contacts -> {}
+                        PhoneScreen.CallHistory -> currentScreen = PhoneScreen.Dialer
+                    }
+                },
                 hasNavigationIconExtraContent = state.isSignInSuccessful,
                 navigationIconExtraContent = {
                     if (state.isSignInSuccessful) {
