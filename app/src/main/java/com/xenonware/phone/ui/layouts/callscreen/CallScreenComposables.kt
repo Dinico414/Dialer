@@ -51,7 +51,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -66,15 +65,19 @@ import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ripple
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -86,6 +89,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -103,9 +107,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
-import com.xenon.mylibrary.values.LargeCornerRadius
 import com.xenon.mylibrary.values.LargePadding
+import com.xenon.mylibrary.values.LargerCornerRadius
 import com.xenon.mylibrary.values.LargestPadding
+import com.xenon.mylibrary.values.NoCornerRadius
+import com.xenon.mylibrary.values.SmallElevation
 import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
@@ -117,7 +123,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun CallScreenUi(
-    call: Call?, isLandscape: Boolean, forceCompactMode: Boolean = false
+    call: Call?, isLandscape: Boolean, forceCompactMode: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: CallScreenViewModel = viewModel()
@@ -293,12 +299,11 @@ fun CallScreenUi(
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
 
-                        val targetTextColor =
-                            if (isPressed) lerp(
-                                start = MaterialTheme.colorScheme.onSurface,
-                                stop = Color(0xFFFFB300),
-                                fraction = 0.25f
-                            ) else MaterialTheme.colorScheme.onSurface
+                        val targetTextColor = if (isPressed) lerp(
+                            start = MaterialTheme.colorScheme.onSurface,
+                            stop = Color(0xFFFFB300),
+                            fraction = 0.25f
+                        ) else MaterialTheme.colorScheme.onSurface
                         val animatedTextColor by animateColorAsState(
                             targetValue = targetTextColor, animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -332,6 +337,7 @@ fun CallScreenUi(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CallControls(
     state: Int,
@@ -339,7 +345,7 @@ private fun CallControls(
     viewModel: CallScreenViewModel,
     isCompact: Boolean,
     controlButtonSize: androidx.compose.ui.unit.Dp,
-    endCallButtonWidth: androidx.compose.ui.unit.Dp
+    endCallButtonWidth: androidx.compose.ui.unit.Dp,
 ) {
     val shadowTint = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f)
 
@@ -467,20 +473,25 @@ private fun CallControls(
                                 onClick = { viewModel.cycleAudioRoute(audio.supportedRouteMask) },
                                 modifier = Modifier
                                     .size(controlButtonSize)
-                                    .shadow(8.dp, CircleShape, ambientColor = shadowTint, spotColor = shadowTint)
+                                    .shadow(
+                                        8.dp,
+                                        CircleShape,
+                                        ambientColor = shadowTint,
+                                        spotColor = shadowTint
+                                    )
                                     .background(
-                                        if (audio.route == CallAudioState.ROUTE_EARPIECE)
-                                            MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.onSurface,
+                                        if (audio.route == CallAudioState.ROUTE_EARPIECE) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.onSurface,
                                         CircleShape
                                     )
                             ) {
                                 AnimatedContent(
-                                    targetState = audio.route,
-                                    transitionSpec = {
-                                        fadeIn(animationSpec = tween(220, delayMillis = 90)) togetherWith
-                                                fadeOut(animationSpec = tween(90))
-                                    },
-                                    label = "AudioRouteTransition"
+                                    targetState = audio.route, transitionSpec = {
+                                        fadeIn(
+                                            animationSpec = tween(
+                                                220, delayMillis = 90
+                                            )
+                                        ) togetherWith fadeOut(animationSpec = tween(90))
+                                    }, label = "AudioRouteTransition"
                                 ) { targetRoute ->
                                     val icon = when (targetRoute) {
                                         CallAudioState.ROUTE_SPEAKER -> Icons.AutoMirrored.Rounded.VolumeUp
@@ -492,8 +503,7 @@ private fun CallControls(
                                     Icon(
                                         imageVector = icon,
                                         contentDescription = "Audio output",
-                                        tint = if (targetRoute == CallAudioState.ROUTE_EARPIECE)
-                                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
+                                        tint = if (targetRoute == CallAudioState.ROUTE_EARPIECE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -546,79 +556,52 @@ private fun CallControls(
                     }
                 }
 
+                val sheetState = rememberModalBottomSheetState(
+                    skipPartiallyExpanded = true,
+                )
+
                 if (showKeypad) {
-                    Box(
-                        modifier = Modifier
-                            .padding(
-                                horizontal = if (isCompact) 24.dp else 32.dp,
-                                vertical = LargePadding
-                            )
-                            .shadow(
-                                8.dp,
-                                RoundedCornerShape(LargeCornerRadius),
-                                ambientColor = shadowTint,
-                                spotColor = shadowTint
-                            )
-                            .background(
-                                MaterialTheme.colorScheme.surfaceContainerLowest,
-                                RoundedCornerShape(LargeCornerRadius)
-                            )
-                            .padding(16.dp)
+                    ModalBottomSheet(
+                        onDismissRequest = { viewModel.toggleKeypad() },
+                        sheetState = sheetState,
+                        dragHandle = { BottomSheetDefaults.DragHandle() },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        tonalElevation = SmallElevation,
+                        shape = RoundedCornerShape(
+                            LargerCornerRadius, LargerCornerRadius, NoCornerRadius, NoCornerRadius
+                        ),
                     ) {
-                        val keys = listOf(
-                            listOf("1", "2", "3"),
-                            listOf("4", "5", "6"),
-                            listOf("7", "8", "9"),
-                            listOf("*", "0", "#")
-                        )
-                        val letters = listOf(
-                            listOf(" ", "ABC", "DEF"),
-                            listOf("GHI", "JKL", "MNO"),
-                            listOf("PQRS", "TUV", "WXYZ"),
-                            listOf(" ", " ", " ")
-                        )
-
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            items(keys.flatten().indices.toList()) { index ->
-                                val row = index / 3
-                                val col = index % 3
-                                val key = keys[row][col]
-                                val subtitle = letters[row][col]
+                            val keys =
+                                listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+                            val letters = listOf(
+                                "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", ""
+                            )
 
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .size(if (isCompact) 70.dp else 80.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = ripple(radius = 40.dp),
-                                            onClick = {
-                                                call.playDtmfTone(key[0])
-                                                android.os.Handler(android.os.Looper.getMainLooper())
-                                                    .postDelayed({
-                                                        call.stopDtmfTone()
-                                                    }, 150)
-                                            })) {
-                                    Text(
-                                        text = key,
-                                        fontSize = if (isCompact) 32.sp else 36.sp,
-                                        fontFamily = QuicksandTitleVariable,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    if (subtitle.isNotBlank()) {
-                                        Text(
-                                            text = subtitle,
-                                            fontSize = 12.sp,
-                                            fontFamily = QuicksandTitleVariable,
-                                            fontWeight = FontWeight.Light,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                        )
-                                    }
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.padding(bottom = 32.dp)
+                            ) {
+                                items(12) { index ->
+                                    val key = keys[index]
+                                    val letter = letters[index]
+
+                                    KeyButton(
+                                        key = key,
+                                        subtitle = letter,
+                                        isCompact = isCompact,
+                                        onClick = {
+                                            call.playDtmfTone(key[0])
+                                            android.os.Handler(android.os.Looper.getMainLooper())
+                                                .postDelayed({ call.stopDtmfTone() }, 140)
+                                        })
                                 }
                             }
                         }
@@ -672,6 +655,40 @@ private fun CallControls(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun KeyButton(
+    key: String,
+    subtitle: String,
+    isCompact: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .size(if (isCompact) 76.dp else 88.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Text(
+            text = key,
+            fontSize = if (isCompact) 30.sp else 36.sp,
+            fontFamily = QuicksandTitleVariable,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = subtitle,
+            fontSize = 12.sp,
+            style = LocalTextStyle.current.copy(lineHeight = 12.sp),
+            modifier = Modifier.offset(y = (-2).dp),
+            fontFamily = QuicksandTitleVariable,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -785,51 +802,53 @@ private fun RingingSwipeControl(call: Call, onUserReject: () -> Unit) {
                 .align(Alignment.CenterEnd)
         )
 
-        Box(modifier = Modifier
-            .size(draggableSizeDp)
-            .offset {
-                IntOffset(
-                    offsetX.value.roundToInt(), currentVerticalOffset.roundToInt()
-                )
-            }
-            .background(MaterialTheme.colorScheme.onSurface, CircleShape)
-            .draggable(
-                state = draggableState,
-                orientation = Orientation.Horizontal,
-                onDragStopped = { velocity ->
-                    val positionThreshold = maxOffsetPx * 0.6f
-                    val velocityThreshold = 1000f
+        Box(
+            modifier = Modifier
+                .size(draggableSizeDp)
+                .offset {
+                    IntOffset(
+                        offsetX.value.roundToInt(), currentVerticalOffset.roundToInt()
+                    )
+                }
+                .background(MaterialTheme.colorScheme.onSurface, CircleShape)
+                .draggable(
+                    state = draggableState,
+                    orientation = Orientation.Horizontal,
+                    onDragStopped = { velocity ->
+                        val positionThreshold = maxOffsetPx * 0.6f
+                        val velocityThreshold = 1000f
 
-                    val swipedRight =
-                        offsetX.value > positionThreshold || velocity > velocityThreshold
-                    val swipedLeft =
-                        offsetX.value < -positionThreshold || velocity < -velocityThreshold
+                        val swipedRight =
+                            offsetX.value > positionThreshold || velocity > velocityThreshold
+                        val swipedLeft =
+                            offsetX.value < -positionThreshold || velocity < -velocityThreshold
 
-                    scope.launch {
-                        when {
-                            swipedRight -> {
-                                call.answer(VideoProfile.STATE_AUDIO_ONLY)
-                                offsetX.animateTo(
-                                    maxOffsetPx, tween(200, easing = FastOutSlowInEasing)
-                                )
-                            }
+                        scope.launch {
+                            when {
+                                swipedRight -> {
+                                    call.answer(VideoProfile.STATE_AUDIO_ONLY)
+                                    offsetX.animateTo(
+                                        maxOffsetPx, tween(200, easing = FastOutSlowInEasing)
+                                    )
+                                }
 
-                            swipedLeft -> {
-                                onUserReject()
-                                call.reject(false, null)
-                                offsetX.animateTo(
-                                    -maxOffsetPx, tween(200, easing = FastOutSlowInEasing)
-                                )
-                            }
+                                swipedLeft -> {
+                                    onUserReject()
+                                    call.reject(false, null)
+                                    offsetX.animateTo(
+                                        -maxOffsetPx, tween(200, easing = FastOutSlowInEasing)
+                                    )
+                                }
 
-                            else -> {
-                                offsetX.animateTo(
-                                    0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)
-                                )
+                                else -> {
+                                    offsetX.animateTo(
+                                        0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+                                    )
+                                }
                             }
                         }
-                    }
-                })) {
+                    })
+        ) {
             val progress = (offsetX.value / maxOffsetPx).coerceIn(-0.85f, 0.85f)
             val blendAmount = abs(progress)
             val targetColor = if (progress > 0) Color(0xFF4CAF50) else Color(0xFFFB4F43)
