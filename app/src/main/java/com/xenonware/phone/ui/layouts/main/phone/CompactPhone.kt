@@ -317,6 +317,8 @@ fun CompactPhone(
                 PhoneScreen.CallHistory -> MediumPadding
             }
 
+            val forceStartAlignTitle = currentScreen is PhoneScreen.CallHistory && !state.isSignInSuccessful
+
             ActivityScreen(
                 modifier = Modifier
                     .fillMaxSize()
@@ -330,37 +332,51 @@ fun CompactPhone(
                 navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
                 navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
                 navigationIconSpacing = if (state.isSignInSuccessful) NoSpacing else 0.dp,
+                onNavigationIconClick = if (forceStartAlignTitle) {
+                    { currentScreen = PhoneScreen.Dialer }
+                } else {
+                    null
+                },
+                hasNavigationIconExtraContent = false,
+                navigationIconExtraContent = {},
                 navigationIcon = {
-                    when (currentScreen) {
-                        PhoneScreen.CallHistory -> {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.navigate_back_description),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        } else -> {}
-                    }
-                },
-                onNavigationIconClick = {
-                    if (currentScreen == PhoneScreen.CallHistory) {
-                        currentScreen = PhoneScreen.Dialer
-                    }
-                },
-                hasNavigationIconExtraContent = state.isSignInSuccessful,
-                navigationIconExtraContent = {
-                    if (state.isSignInSuccessful) {
-                        Box(contentAlignment = Alignment.Center) {
-                            @Suppress("KotlinConstantConditions") GoogleProfilBorder(
-                                isSignedIn = state.isSignInSuccessful,
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 2.5.dp
-                            )
-                            GoogleProfilePicture(
-                                noAccIcon = painterResource(id = R.drawable.default_icon),
-                                profilePictureUrl = userData?.profilePictureUrl,
-                                contentDescription = stringResource(R.string.profile_picture),
-                                modifier = Modifier.size(26.dp)
-                            )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(
+                            if (currentScreen is PhoneScreen.CallHistory && state.isSignInSuccessful) NoSpacing else 0.dp
+                        )
+                    ) {
+                        if (currentScreen is PhoneScreen.CallHistory) {
+                            if (forceStartAlignTitle) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back_description),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            } else {
+                                IconButton(onClick = { currentScreen = PhoneScreen.Dialer }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = stringResource(R.string.navigate_back_description),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                        if (state.isSignInSuccessful) {
+                            Box(contentAlignment = Alignment.Center) {
+                                GoogleProfilBorder(
+                                    isSignedIn = state.isSignInSuccessful,
+                                    modifier = Modifier.size(32.dp),
+                                    strokeWidth = 2.5.dp
+                                )
+                                GoogleProfilePicture(
+                                    noAccIcon = painterResource(id = R.drawable.default_icon),
+                                    profilePictureUrl = userData?.profilePictureUrl,
+                                    contentDescription = stringResource(R.string.profile_picture),
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                         }
                     }
                 },
