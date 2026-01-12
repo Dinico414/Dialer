@@ -14,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
+import com.xenon.mylibrary.values.MediumCornerRadius
 
 @Composable
 fun DialerScreen(
@@ -76,7 +78,16 @@ fun DialerScreen(
     Column(
         modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp)
+                .clip(RoundedCornerShape(MediumCornerRadius))
+        ) {
+            //TODO placeholder for suggestion depending on call history or updated for enterd number (or "matching" names for example, 43453 could be Heike or 84676 could be Thore reminicend of 2=abc, 3 = def ...)
+        }
 
         Text(
             text = phoneNumber.ifEmpty { "Enter number" },
