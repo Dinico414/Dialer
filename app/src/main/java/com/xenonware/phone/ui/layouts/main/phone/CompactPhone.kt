@@ -3,7 +3,6 @@
 package com.xenonware.phone.ui.layouts.main.phone
 
 import android.content.Intent
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,7 +25,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
@@ -72,15 +70,12 @@ import com.xenon.mylibrary.res.SpannedModeFAB
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.values.LargePadding
-import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
-import com.xenonware.phone.SettingsActivity
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
-import com.xenonware.phone.ui.layouts.call_history.CompactHistoryScreen
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.viewmodel.LayoutType
@@ -128,25 +123,11 @@ fun CompactPhone(
         var showResizeValue by remember { mutableStateOf(false) }
         var resizeTimerKey by remember { mutableIntStateOf(0) }
 
-        val context = LocalContext.current
-        val googleAuthUiClient = remember {
-            GoogleAuthUiClient(
-                context = context.applicationContext,
-                oneTapClient = Identity.getSignInClient(context.applicationContext)
-            )
-        }
-        val userData = googleAuthUiClient.getSignedInUser()
-
         LaunchedEffect(resizeTimerKey) {
             if (showResizeValue) {
                 delay(2000)
                 showResizeValue = false
             }
-        }
-
-        val onResizeClick: () -> Unit = {
-            showResizeValue = true
-            resizeTimerKey++
         }
 
         // Pager: 0 = Dialer, 1 = Contacts
@@ -184,17 +165,7 @@ fun CompactPhone(
                 Snackbar(snackbarData = data)
             }
         }, bottomBar = {
-            val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-            val navPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val targetPadding = max(imePadding, navPadding) + LargePadding
-
-            val animatedPadding by animateDpAsState(
-                targetValue = targetPadding, animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
-                )
-            )
-
-            FloatingToolbarContent(
+                  FloatingToolbarContent(
                 hazeState = hazeState,
                 currentSearchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
@@ -280,7 +251,7 @@ fun CompactPhone(
                     }
                 },
                 onAddModeToggle = { },
-                isSelectedColor = MaterialTheme.colorScheme.primary,
+                isSelectedColor = colorScheme.primary,
                 selectionContentOverride = { },
                 addModeContentOverride = { },
                 contentOverride = null,
@@ -292,7 +263,6 @@ fun CompactPhone(
                     SpannedModeFAB(
                         hazeState = hazeState,
                         onClick = deviceConfig.toggleFabSide,
-                        modifier = Modifier.padding(bottom = animatedPadding),
                         isSheetOpen = false
                     )
                 })
