@@ -3,6 +3,7 @@ package com.xenonware.phone
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -11,12 +12,15 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.layouts.CallHistoryLayout
 import com.xenonware.phone.ui.theme.ScreenEnvironment
+import com.xenonware.phone.viewmodel.CallHistoryViewModel
 
 class CallHistoryActivity : ComponentActivity() {
 
+    private val viewModel: CallHistoryViewModel by viewModels()
+
     override fun onResume() {
         super.onResume()
-
+        viewModel.loadCallLogs(applicationContext)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +45,7 @@ class CallHistoryActivity : ComponentActivity() {
                         onNavigateBack = { finish() },
                         isLandscape = isLandscape,
                         layoutType = layoutType,
+                        viewModel = viewModel
                     )
                 }
             }

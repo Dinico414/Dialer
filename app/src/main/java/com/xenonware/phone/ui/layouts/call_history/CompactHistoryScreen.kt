@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,9 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
@@ -68,6 +68,7 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
+import com.xenonware.phone.viewmodel.CallHistoryViewModel
 import com.xenonware.phone.viewmodel.LayoutType
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -75,37 +76,48 @@ import java.util.Date
 import java.util.Locale
 
 data class CallLogEntry(
-    val nameOrNumber: String,
-    val phoneNumber: String,
-    val type: Int,
-    val date: Long
+    val nameOrNumber: String, val phoneNumber: String, val type: Int, val date: Long
 )
 
 data class CallGroup(
-    val title: String,
-    val entries: List<CallLogEntry>
+    val title: String, val entries: List<CallLogEntry>
 )
+
 
 @Composable
 fun CompactHistoryScreen(
     onNavigateBack: () -> Unit,
     layoutType: LayoutType,
     isLandscape: Boolean,
-    modifier: Modifier = Modifier,
+    viewModel: CallHistoryViewModel,
+    modifier: Modifier = Modifier
 ) {
-    var callLogs by remember { mutableStateOf<List<CallLogEntry>>(emptyList()) }
+    val callLogs by viewModel.callLogs.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            callLogs = loadCallLogEntries(context)
+            viewModel.loadCallLogs(context)
+        }
+    }
+
+    // Single source of truth for initial load / permission request
+    LaunchedEffect(Unit) {
+        if (hasPermission) {
+            viewModel.loadCallLogs(context)
+        } else {
+            permissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
         }
     }
 
     val configuration = LocalConfiguration.current
     val appHeight = configuration.screenHeightDp.dp
+
     val isAppBarExpandable = when (layoutType) {
         LayoutType.COVER -> false
         LayoutType.SMALL -> false
@@ -114,15 +126,9 @@ fun CompactHistoryScreen(
         LayoutType.EXPANDED -> true
     }
 
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
-    }
-
     ActivityScreen(
-        titleText = stringResource(id = R.string.call_history),
-
+        titleText = stringResource(R.string.call_history),
         expandable = isAppBarExpandable,
-
         navigationIconStartPadding = MediumPadding,
         navigationIconPadding = MediumPadding,
         navigationIconSpacing = NoSpacing,
@@ -137,86 +143,86 @@ fun CompactHistoryScreen(
         hasNavigationIconExtraContent = false,
         actions = {},
         content = { _ ->
-            Column(modifier = modifier.fillMaxSize()) {
-                if (callLogs.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No call history\nor permission denied",
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
+            Column(modifier = Modifier.fillMaxSize()) {
+                when {
+                    isLoading -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
                     }
-                } else {
-                    val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
 
-                    val listState = rememberLazyListState()
+                    callLogs.isEmpty() -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (hasPermission) "No call history yet" else "Permission required\nto view call history",
+                                fontSize = 18.sp,
+                                lineHeight = 28.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
 
+                    else -> {
+                        val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
+                        val listState = rememberLazyListState()
 
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            bottom = with(LocalDensity.current) {
-                                WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-                                        64.dp + LargePadding * 2
-                            }
-                        )
-                    ) {
-                        groupedCalls.forEach { group ->
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text = group.title,
-                                        fontSize = 20.sp,
-                                        fontFamily = QuicksandTitleVariable,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        LazyColumn(
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                bottom = with(LocalDensity.current) {
+                                    WindowInsets.navigationBars.asPaddingValues()
+                                        .calculateBottomPadding() + 64.dp + LargePadding * 2
+                                })
+                        ) {
+                            groupedCalls.forEach { group ->
+                                item(key = "header_${group.title}") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Text(
+                                            text = group.title,
+                                            fontSize = 20.sp,
+                                            fontFamily = QuicksandTitleVariable,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                items(
+                                    items = group.entries, key = { it.date }) { entry ->
+                                    val index = group.entries.indexOf(entry)
+                                    CallHistoryItemCard(
+                                        entry = entry,
+                                        isFirstInGroup = index == 0,
+                                        isLastInGroup = index == group.entries.lastIndex,
+                                        isSingle = group.entries.size == 1
                                     )
                                 }
-                            }
-
-                            items(group.entries.indices.toList()) { index ->
-                                val entry = group.entries[index]
-                                val isFirst = index == 0
-                                val isLast = index == group.entries.lastIndex
-                                val isSingle = group.entries.size == 1
-
-                                CallHistoryItemCard(
-                                    entry = entry,
-                                    isFirstInGroup = isFirst,
-                                    isLastInGroup = isLast,
-                                    isSingle = isSingle
-                                )
                             }
                         }
                     }
                 }
             }
         })
-
-
 }
 
 @Composable
 fun CallHistoryItemCard(
-    entry: CallLogEntry,
-    isFirstInGroup: Boolean,
-    isLastInGroup: Boolean,
-    isSingle: Boolean
+    entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -238,12 +244,14 @@ fun CallHistoryItemCard(
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
+
         isLastInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
+
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
 
@@ -303,10 +311,13 @@ fun CallHistoryItemCard(
                     try {
                         context.startActivity(intent)
                     } catch (e: Exception) {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${entry.phoneNumber}")))
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_DIAL, Uri.parse("tel:${entry.phoneNumber}")
+                            )
+                        )
                     }
-                },
-                modifier = Modifier
+                }, modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(24.dp))
             ) {
@@ -325,7 +336,11 @@ fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
 
     val now = Calendar.getInstance()
-    val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
+    val today = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(
+        Calendar.SECOND, 0
+    ); set(Calendar.MILLISECOND, 0)
+    }
     val yesterday = today.clone() as Calendar
     yesterday.add(Calendar.DAY_OF_MONTH, -1)
 
@@ -339,10 +354,16 @@ fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
         val title = when {
             cal.after(today) || cal == today -> "Today"
             cal.after(yesterday) || cal == yesterday -> "Yesterday"
-            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }) -> "Last Week"
-            cal.after(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }) -> "Last Month"
-            cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                    cal.get(Calendar.MONTH) == now.get(Calendar.MONTH) -> "This Month"
+            cal.after(
+                Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }) -> "Last Week"
+
+            cal.after(
+                Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }) -> "Last Month"
+
+            cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) && cal.get(Calendar.MONTH) == now.get(
+                Calendar.MONTH
+            ) -> "This Month"
+
             else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
         }
 
@@ -366,11 +387,7 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
     val logs = mutableListOf<CallLogEntry>()
 
     val cursor = context.contentResolver.query(
-        CallLog.Calls.CONTENT_URI,
-        null,
-        null,
-        null,
-        "${CallLog.Calls.DATE} DESC"
+        CallLog.Calls.CONTENT_URI, null, null, null, "${CallLog.Calls.DATE} DESC"
     )
 
     cursor?.use {
@@ -388,22 +405,24 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
             val displayName = when {
                 !name.isNullOrBlank() -> name.trim()
 
-                rawNumber.isNullOrBlank() ||
-                        rawNumber.equals("Private", ignoreCase = true) ||
-                        rawNumber.equals("Restricted", ignoreCase = true) ||
-                        rawNumber.equals("Unknown", ignoreCase = true) ||
-                        rawNumber.equals("Payphone", ignoreCase = true) ||
-                        rawNumber.equals("-1", ignoreCase = true) ||
-                        rawNumber.equals("-2", ignoreCase = true) ||
-                        rawNumber.equals("-3", ignoreCase = true) -> "Private"
+                rawNumber.isNullOrBlank() || rawNumber.equals(
+                    "Private", ignoreCase = true
+                ) || rawNumber.equals(
+                    "Restricted", ignoreCase = true
+                ) || rawNumber.equals("Unknown", ignoreCase = true) || rawNumber.equals(
+                    "Payphone", ignoreCase = true
+                ) || rawNumber.equals("-1", ignoreCase = true) || rawNumber.equals(
+                    "-2", ignoreCase = true
+                ) || rawNumber.equals("-3", ignoreCase = true) -> "Private"
 
                 else -> rawNumber.trim()
             }
 
-            val phoneNumberToDial = if (rawNumber.isNullOrBlank() ||
-                rawNumber.equals("Private", ignoreCase = true) ||
-                rawNumber.equals("Unknown", ignoreCase = true)) {
-                "" 
+            val phoneNumberToDial = if (rawNumber.isNullOrBlank() || rawNumber.equals(
+                    "Private", ignoreCase = true
+                ) || rawNumber.equals("Unknown", ignoreCase = true)
+            ) {
+                ""
             } else {
                 rawNumber
             }
