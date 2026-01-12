@@ -135,7 +135,7 @@ fun Dialpad(
     val targetTotalHeight =
         screenHeightDp * 0.70f - extraBottomPadding - safeTopPadding - safeBottomPadding - callButtonHeight - 82.dp
 
-    val spacing = 12.dp
+    val spacing = 8.dp
     val totalSpacing = spacing * 3
 
     val buttonHeight = (targetTotalHeight - totalSpacing) / 4
