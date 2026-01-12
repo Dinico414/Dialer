@@ -1,4 +1,4 @@
-package com.xenonware.phone.ui.layouts.main.call_history
+package com.xenonware.phone.ui.layouts.call_history
 
 import android.Manifest
 import android.content.Context
@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Close
@@ -50,16 +51,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.MediumCornerRadius
+import com.xenon.mylibrary.values.MediumPadding
+import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.R
+import com.xenonware.phone.viewmodel.LayoutType
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -78,9 +87,11 @@ data class CallGroup(
 )
 
 @Composable
-fun CallHistoryScreen(
+fun CompactHistoryScreen(
+    onNavigateBack: () -> Unit,
+    layoutType: LayoutType,
+    isLandscape: Boolean,
     modifier: Modifier = Modifier,
-    onBack: () -> Unit
 ) {
     var callLogs by remember { mutableStateOf<List<CallLogEntry>>(emptyList()) }
     val context = LocalContext.current
@@ -93,83 +104,111 @@ fun CallHistoryScreen(
         }
     }
 
+    val configuration = LocalConfiguration.current
+    val appHeight = configuration.screenHeightDp.dp
+    val isAppBarExpandable = when (layoutType) {
+        LayoutType.COVER -> false
+        LayoutType.SMALL -> false
+        LayoutType.COMPACT -> !isLandscape && appHeight >= 460.dp
+        LayoutType.MEDIUM -> true
+        LayoutType.EXPANDED -> true
+    }
+
     LaunchedEffect(Unit) {
         permissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Scrollable content starts here
-        if (callLogs.isEmpty()) {
-            // Show empty state (no divider needed)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No call history\nor permission denied",
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        } else {
-            val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
+    ActivityScreen(
+        titleText = stringResource(id = R.string.call_history),
 
-            // Create LazyListState to track scroll
-            val listState = rememberLazyListState()
+        expandable = isAppBarExpandable,
 
-            // Determine if we can scroll up (i.e., not at the top)
-
-            LazyColumn(
-                state = listState, // <-- Important: pass the state
-                verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(
-                    bottom = with(LocalDensity.current) {
-                        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-                                64.dp + LargePadding * 2
-                    }
-                )
-            ) {
-                groupedCalls.forEach { group ->
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = group.title,
-                                fontSize = 20.sp,
-                                fontFamily = QuicksandTitleVariable,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    items(group.entries.indices.toList()) { index ->
-                        val entry = group.entries[index]
-                        val isFirst = index == 0
-                        val isLast = index == group.entries.lastIndex
-                        val isSingle = group.entries.size == 1
-
-                        CallHistoryItemCard(
-                            entry = entry,
-                            isFirstInGroup = isFirst,
-                            isLastInGroup = isLast,
-                            isSingle = isSingle
+        navigationIconStartPadding = MediumPadding,
+        navigationIconPadding = MediumPadding,
+        navigationIconSpacing = NoSpacing,
+        navigationIcon = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = stringResource(R.string.navigate_back_description),
+                modifier = Modifier.size(24.dp)
+            )
+        },
+        onNavigationIconClick = onNavigateBack,
+        hasNavigationIconExtraContent = false,
+        actions = {},
+        content = { _ ->
+            Column(modifier = modifier.fillMaxSize()) {
+                if (callLogs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No call history\nor permission denied",
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
+                    }
+                } else {
+                    val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
+
+                    val listState = rememberLazyListState()
+
+
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            bottom = with(LocalDensity.current) {
+                                WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                                        64.dp + LargePadding * 2
+                            }
+                        )
+                    ) {
+                        groupedCalls.forEach { group ->
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = group.title,
+                                        fontSize = 20.sp,
+                                        fontFamily = QuicksandTitleVariable,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            items(group.entries.indices.toList()) { index ->
+                                val entry = group.entries[index]
+                                val isFirst = index == 0
+                                val isLast = index == group.entries.lastIndex
+                                val isSingle = group.entries.size == 1
+
+                                CallHistoryItemCard(
+                                    entry = entry,
+                                    isFirstInGroup = isFirst,
+                                    isLastInGroup = isLast,
+                                    isSingle = isSingle
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
+        })
+
+
 }
 
 @Composable
@@ -282,7 +321,7 @@ fun CallHistoryItemCard(
     }
 }
 
-private fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
+fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
 
     val now = Calendar.getInstance()
@@ -323,7 +362,7 @@ private fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
     return groups
 }
 
-private fun loadCallLogEntries(context: Context): List<CallLogEntry> {
+fun loadCallLogEntries(context: Context): List<CallLogEntry> {
     val logs = mutableListOf<CallLogEntry>()
 
     val cursor = context.contentResolver.query(

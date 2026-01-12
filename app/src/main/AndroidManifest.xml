@@ -101,6 +101,11 @@
             android:label="@string/settings"
             android:theme="@style/Theme.Xenon" />
 
+        <activity android:name=".CallHistoryActivity"
+            android:exported="true"
+            android:label="@string/call_history"
+            android:theme="@style/Theme.Xenon" />
+
         <activity
             android:name=".DevSettingsActivity"
             android:exported="true"

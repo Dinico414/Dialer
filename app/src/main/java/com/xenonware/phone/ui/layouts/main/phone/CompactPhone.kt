@@ -2,6 +2,7 @@
 
 package com.xenonware.phone.ui.layouts.main.phone
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -74,10 +75,12 @@ import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
+import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
+import com.xenonware.phone.SettingsActivity
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
-import com.xenonware.phone.ui.layouts.main.call_history.CallHistoryScreen
+import com.xenonware.phone.ui.layouts.call_history.CompactHistoryScreen
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.viewmodel.LayoutType
@@ -151,13 +154,12 @@ fun CompactPhone(
 
         // Sync pager with currentScreen (only when not in CallHistory)
         LaunchedEffect(pagerState.currentPage) {
-            if (currentScreen !is PhoneScreen.CallHistory) {
                 currentScreen = when (pagerState.currentPage) {
                     0 -> PhoneScreen.Dialer
                     1 -> PhoneScreen.Contacts
                     else -> PhoneScreen.Dialer
                 }
-            }
+
         }
 
         // Sync pager when switching via buttons (only Dialer/Contacts)
@@ -170,18 +172,12 @@ fun CompactPhone(
                 PhoneScreen.Contacts -> {
                     if (pagerState.currentPage != 1) pagerState.animateScrollToPage(1)
                 }
-
-                else -> Unit
             }
         }
 
         // Handle back gesture when in Call History
-        BackHandler(enabled = currentScreen is PhoneScreen.CallHistory) {
-            currentScreen = PhoneScreen.Dialer
-        }
 
-        val isCallHistoryOpen = currentScreen is PhoneScreen.CallHistory
-        val areNavButtonsEnabled = !isSearchActive && !isCallHistoryOpen
+        val areNavButtonsEnabled = !isSearchActive
 
         Scaffold(snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
@@ -214,7 +210,7 @@ fun CompactPhone(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val iconAlphaTarget = if (isSearchActive || isCallHistoryOpen) 0.38f else 1f
+                        val iconAlphaTarget = if (isSearchActive) 0.38f else 1f
 
                         val navIconAlpha by animateFloatAsState(
                             targetValue = iconAlphaTarget,
@@ -233,9 +229,9 @@ fun CompactPhone(
                                     onClick = { currentScreen = PhoneScreen.Dialer },
                                     enabled = areNavButtonsEnabled,
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen) colorScheme.tertiary
+                                        containerColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.tertiary
                                         else colorScheme.surfaceBright,
-                                        contentColor = if (currentScreen == PhoneScreen.Dialer && !isCallHistoryOpen) colorScheme.onTertiary
+                                        contentColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.onTertiary
                                         else colorScheme.onSurface,
                                         disabledContainerColor = colorScheme.onSurface.copy(
                                             alpha = 0.6f
@@ -252,9 +248,9 @@ fun CompactPhone(
                                     onClick = { currentScreen = PhoneScreen.Contacts },
                                     enabled = areNavButtonsEnabled,
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen) colorScheme.tertiary
+                                        containerColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.tertiary
                                         else colorScheme.surfaceBright,
-                                        contentColor = if (currentScreen == PhoneScreen.Contacts && !isCallHistoryOpen) colorScheme.onTertiary
+                                        contentColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.onTertiary
                                         else colorScheme.onSurface,
                                         disabledContainerColor = colorScheme.surfaceBright.copy(
                                             alpha = 0.6f
@@ -311,13 +307,8 @@ fun CompactPhone(
             val signInViewModel: SignInViewModel = viewModel()
             val state by signInViewModel.state.collectAsStateWithLifecycle()
             val userData = googleAuthUiClient.getSignedInUser()
-            val navIconPadding = when (currentScreen) {
-                PhoneScreen.Dialer -> 0.dp
-                PhoneScreen.Contacts -> 0.dp
-                PhoneScreen.CallHistory -> MediumPadding
-            }
+            val currentContext = LocalContext.current
 
-            val forceStartAlignTitle = currentScreen is PhoneScreen.CallHistory && !state.isSignInSuccessful
 
             ActivityScreen(
                 modifier = Modifier
@@ -326,60 +317,31 @@ fun CompactPhone(
                 titleText = when (currentScreen) {
                     PhoneScreen.Dialer -> stringResource(R.string.phone)
                     PhoneScreen.Contacts -> stringResource(R.string.contacts)
-                    PhoneScreen.CallHistory -> stringResource(R.string.call_history)
                 },
                 expandable = isAppBarExpandable,
-                navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
-                navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else navIconPadding,
+                navigationIconStartPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
+                navigationIconPadding = if (state.isSignInSuccessful) SmallPadding else 0.dp,
                 navigationIconSpacing = if (state.isSignInSuccessful) NoSpacing else 0.dp,
-                onNavigationIconClick = if (forceStartAlignTitle) {
-                    { currentScreen = PhoneScreen.Dialer }
-                } else {
-                    null
-                },
-                hasNavigationIconExtraContent = false,
-                navigationIconExtraContent = {},
-                navigationIcon = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(
-                            if (currentScreen is PhoneScreen.CallHistory && state.isSignInSuccessful) NoSpacing else 0.dp
-                        )
-                    ) {
-                        if (currentScreen is PhoneScreen.CallHistory) {
-                            if (forceStartAlignTitle) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = stringResource(R.string.navigate_back_description),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            } else {
-                                IconButton(onClick = { currentScreen = PhoneScreen.Dialer }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = stringResource(R.string.navigate_back_description),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                        }
-                        if (state.isSignInSuccessful) {
-                            Box(contentAlignment = Alignment.Center) {
-                                GoogleProfilBorder(
-                                    isSignedIn = state.isSignInSuccessful,
-                                    modifier = Modifier.size(32.dp),
-                                    strokeWidth = 2.5.dp
-                                )
-                                GoogleProfilePicture(
-                                    noAccIcon = painterResource(id = R.drawable.default_icon),
-                                    profilePictureUrl = userData?.profilePictureUrl,
-                                    contentDescription = stringResource(R.string.profile_picture),
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
+                hasNavigationIconExtraContent = state.isSignInSuccessful,
+                navigationIconExtraContent = {
+                    if (state.isSignInSuccessful) {
+                        Box(contentAlignment = Alignment.Center) {
+                            @Suppress("KotlinConstantConditions")
+                            GoogleProfilBorder(
+                                isSignedIn = state.isSignInSuccessful,
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 2.5.dp
+                            )
+                            GoogleProfilePicture(
+                                noAccIcon = painterResource(id = R.drawable.default_icon),
+                                profilePictureUrl = userData?.profilePictureUrl,
+                                contentDescription = stringResource(R.string.profile_picture),
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
                     }
                 },
+                navigationIcon = {},
                 actions = {},
                 content = {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -387,23 +349,17 @@ fun CompactPhone(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize(),
                             beyondViewportPageCount = 1,
-                            userScrollEnabled = !isCallHistoryOpen
                         ) { page ->
                             when (page) {
                                 0 -> DialerScreen(
                                     modifier = Modifier.fillMaxSize(),
-                                    onShowCallLog = { currentScreen = PhoneScreen.CallHistory })
+                                    onOpenHistory = {  val intent = Intent(currentContext,
+                                        CallHistoryActivity::class.java)
+                                        currentContext.startActivity(intent) }
+                                )
 
                                 1 -> ContactsScreen(modifier = Modifier.fillMaxSize())
                             }
-                        }
-
-                        if (isCallHistoryOpen) {
-                            CallHistoryScreen(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(colorScheme.surfaceContainer),
-                                onBack = { currentScreen = PhoneScreen.Dialer })
                         }
                     }
                 })
@@ -413,6 +369,5 @@ fun CompactPhone(
 
 sealed class PhoneScreen {
     object Dialer : PhoneScreen()
-    object CallHistory : PhoneScreen()
     object Contacts : PhoneScreen()
 }

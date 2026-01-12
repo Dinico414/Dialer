@@ -1,5 +1,6 @@
 package com.xenonware.phone.ui.layouts.main.phone
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.Dialpad
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,10 +37,10 @@ import com.xenon.mylibrary.res.GoogleProfilBorder
 import com.xenon.mylibrary.res.GoogleProfilePicture
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.values.LargePadding
+import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
-import com.xenonware.phone.ui.layouts.main.call_history.CallHistoryScreen
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.viewmodel.LayoutType
@@ -70,6 +70,8 @@ fun CoverPhone(
         val signInViewModel: SignInViewModel = viewModel()
         val state by signInViewModel.state.collectAsStateWithLifecycle()
         val userData = googleAuthUiClient.getSignedInUser()
+        val currentContext = LocalContext.current
+
         ActivityScreen(
             modifier = Modifier.fillMaxSize(),
             titleText = stringResource(R.string.app_name),
@@ -113,9 +115,10 @@ fun CoverPhone(
                         when (currentScreen) {
                             PhoneScreen.Dialer -> DialerScreen(
                                 modifier = Modifier.fillMaxSize(),
-                                onShowCallLog = { currentScreen = PhoneScreen.CallHistory }
+                                onOpenHistory = {  val intent = Intent(currentContext,
+                                    CallHistoryActivity::class.java)
+                                    currentContext.startActivity(intent)  }
                             )
-                            PhoneScreen.CallHistory -> CallHistoryScreen(modifier = Modifier.fillMaxSize(), onBack = { currentScreen = PhoneScreen.Dialer })
                             PhoneScreen.Contacts -> ContactsScreen(modifier = Modifier.fillMaxSize())
                         }
                     }
@@ -131,9 +134,7 @@ fun CoverPhone(
                         IconButton(onClick = { currentScreen = PhoneScreen.Dialer }) {
                             Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer", tint = Color.White)
                         }
-                        IconButton(onClick = { currentScreen = PhoneScreen.CallHistory }) {
-                            Icon(Icons.Rounded.History, contentDescription = "History", tint = Color.White)
-                        }
+
                         IconButton(onClick = { currentScreen = PhoneScreen.Contacts }) {
                             Icon(Icons.Rounded.Contacts, contentDescription = "Contacts", tint = Color.White)
                         }

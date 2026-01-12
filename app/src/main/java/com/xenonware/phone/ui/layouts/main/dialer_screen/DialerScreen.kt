@@ -62,7 +62,7 @@ import com.xenon.mylibrary.values.LargestPadding
 @Composable
 fun DialerScreen(
     modifier: Modifier = Modifier,
-    onShowCallLog: () -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     var phoneNumber by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -87,7 +87,7 @@ fun DialerScreen(
             if (phoneNumber.isNotEmpty()) {
                 safePlaceCall(context, phoneNumber)
             }
-        }, onShowCallLog = onShowCallLog
+        }, onOpenHistory = onOpenHistory
         )
     }
 }
@@ -98,7 +98,7 @@ fun Dialpad(
     onDeleteClick: () -> Unit,
     onClearAll: () -> Unit,
     onCallClick: () -> Unit,
-    onShowCallLog: () -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     val extraBottomPadding = 64.dp + LargePadding * 2
 
@@ -171,7 +171,7 @@ fun Dialpad(
             FilledTonalIconButton(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(CircleShape), onClick = onShowCallLog
+                    .clip(CircleShape), onClick = onOpenHistory
             ) {
                 Icon(
                     imageVector = Icons.Rounded.History,
