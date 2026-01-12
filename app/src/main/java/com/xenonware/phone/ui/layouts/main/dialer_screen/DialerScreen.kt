@@ -10,6 +10,7 @@ import android.telecom.TelecomManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,8 +54,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -71,12 +77,22 @@ fun DialerScreen(
         modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.weight(1f))
+
         Text(
             text = phoneNumber.ifEmpty { "Enter number" },
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.headlineMedium,
-            color = if (phoneNumber.isEmpty()) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onBackground,
-            fontFamily = QuicksandTitleVariable
+            modifier = Modifier
+                .padding(16.dp)
+                .height(50.dp)
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = MaterialTheme.typography.headlineLarge,
+            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
+            else colorScheme.onBackground,
+            fontFamily = QuicksandTitleVariable,
+
+            maxLines = 1,
+            overflow = TextOverflow.Clip
         )
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
@@ -100,22 +116,45 @@ fun Dialpad(
     onCallClick: () -> Unit,
     onOpenHistory: () -> Unit,
 ) {
-    val extraBottomPadding = 64.dp + LargePadding * 2
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
 
+    // Full screen height in dp
+    val screenHeightDp = configuration.screenHeightDp.dp
+
+    val extraBottomPadding = 64.dp + LargePadding * 2
     val safeBottomPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
 
+    val safeTopPadding =
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+
+    val callButtonHeight = 82.dp + LargestPadding
+
+    val targetTotalHeight =
+        screenHeightDp * 0.70f - extraBottomPadding - safeTopPadding - safeBottomPadding - callButtonHeight - 82.dp
+
+    val spacing = 12.dp
+    val totalSpacing = spacing * 3
+
+    val buttonHeight = (targetTotalHeight - totalSpacing) / 4
+
+    val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).toSp() }
+    val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).toSp() }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = safeBottomPadding + extraBottomPadding)
-            .padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally
+            .padding(
+                horizontal = 16.dp
+            )
+            .padding(bottom = extraBottomPadding + safeBottomPadding),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
-        val letters = listOf(
-            "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", ""
-        )
+        val letters =
+            listOf("", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -131,31 +170,28 @@ fun Dialpad(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier
-                        .height(70.dp)
+                        .height(buttonHeight)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceBright)
+                        .background(colorScheme.surfaceBright)
                         .combinedClickable(onClick = { onNumberClick(key) }, onLongClick = {
-                            if (key == "0") {
-                                onNumberClick("+")
-                            } else {
-                                onNumberClick(key)
-                            }
-                        })) {
+                            if (key == "0") onNumberClick("+") else onNumberClick(key)
+                        })
+                ) {
                     Text(
                         text = key,
-                        style = MaterialTheme.typography.headlineLarge,
+                        fontSize = digitTextSize,
                         fontFamily = QuicksandTitleVariable,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = colorScheme.onSurface
                     )
                     Text(
                         text = letter,
-                        fontSize = 12.sp,
-                        style = LocalTextStyle.current.copy(lineHeight = 12.sp),
-                        modifier = Modifier.offset(y = (-2).dp),
+                        fontSize = letterTextSize,
+                        style = LocalTextStyle.current.copy(lineHeight = letterTextSize),
                         fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.Light,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.ExtraLight,
+                        color = colorScheme.onSurfaceVariant,
+                        modifier = Modifier.offset(y = (-2).dp)
                     )
                 }
             }
@@ -182,7 +218,7 @@ fun Dialpad(
 
             FilledTonalIconButton(
                 onClick = onCallClick, colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = Color(0xFF4CAF50), contentColor = Color.White
+                    containerColor = Color(0xFF4CAF50), contentColor = colorScheme.onSurface
                 ), modifier = Modifier
                     .weight(1f)
                     .height(82.dp)
@@ -213,16 +249,17 @@ fun Dialpad(
 
             LaunchedEffect(interactionSource) {
                 var pressStartTime = 0L
-
                 interactionSource.interactions.collect { interaction ->
                     when (interaction) {
                         is PressInteraction.Press -> {
                             pressStartTime = System.currentTimeMillis()
                         }
+
                         is PressInteraction.Release,
-                        is PressInteraction.Cancel -> {
-                            val pressDuration = System.currentTimeMillis() - pressStartTime
-                            if (pressDuration >= 420L) {
+                        is PressInteraction.Cancel,
+                            -> {
+                            val duration = System.currentTimeMillis() - pressStartTime
+                            if (duration >= 420L) {
                                 onClearAll()
                             }
                             pressStartTime = 0L
