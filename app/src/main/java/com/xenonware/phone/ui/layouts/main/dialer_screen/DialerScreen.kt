@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
+import android.icu.text.SimpleDateFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -79,6 +80,8 @@ import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.Contact
 import com.xenonware.phone.viewmodel.PhoneViewModel
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DialerScreen(
@@ -88,12 +91,13 @@ fun DialerScreen(
 ) {
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
+    val allContacts by viewModel.contacts.collectAsState()
 
     var phoneNumber by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    val suggestions by remember(phoneNumber, recentCalls, favorites) {
-        derivedStateOf { buildSuggestions(phoneNumber, recentCalls, favorites) }
+    val suggestions by remember(phoneNumber, recentCalls, favorites, allContacts) {
+        derivedStateOf { buildSuggestions(phoneNumber, recentCalls, favorites, allContacts) }
     }
 
     Column(
@@ -246,91 +250,92 @@ data class SuggestionItem(
     val title: String,
     val subtitle: String,
     val number: String,
-    val type: SuggestionType = SuggestionType.RECENT,
+    val type: SuggestionType = SuggestionType.RECENT_CONTACT,
 )
 
-enum class SuggestionType { RECENT, FAVORITE }
+enum class SuggestionType { RECENT_CONTACT, FAVORITE }
 
 private fun buildSuggestions(
     query: String,
     recent: List<CallLogEntry>,
     favorites: List<Contact>,
+    allContacts: List<Contact>
 ): List<SuggestionItem> = buildList {
 
-    val trimmedQuery = query.trim()
-
-    if (trimmedQuery.isEmpty()) {
-        favorites
-            .take(12)
-            .forEach { contact ->
-                add(
-                    SuggestionItem(
-                        id = "contact_${contact.id}",
-                        title = contact.name.ifBlank { "Unnamed" },
-                        subtitle = contact.phone,
-                        number = contact.phone,
-                        type = SuggestionType.FAVORITE
-                    )
-                )
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) {
+        val recentContacts = recent
+            .mapNotNull { call ->
+                allContacts.find { it.phone == call.number }
             }
-        return@buildList
-    }
+            .distinctBy { it.id }
+            .take(10)
 
-    val isDigitsOnly = trimmedQuery.all { it.isDigit() || it in "+*#-" }
-
-    val numberMatches = favorites
-        .filter { contact ->
-            contact.phone.containsDigitsOrStartsWith(trimmedQuery)
-        }
-        .take(8)
-
-    val nameMatches = if (isDigitsOnly && trimmedQuery.none { it in "01*#" }) {
-        favorites
-            .filter { matchesT9(normalizeName(it.name), trimmedQuery) }
-            .take(8)
-    } else {
-        emptyList()
-    }
-
-    val prefixMatches = favorites
-        .filter { it.name.startsWith(trimmedQuery, ignoreCase = true) }
-        .take(8)
-
-    (numberMatches + nameMatches + prefixMatches)
-        .distinctBy { it.phone }
-        .sortedWith(
-            compareByDescending<Contact> { contact ->
-                when {
-                    contact.name.startsWith(trimmedQuery, ignoreCase = true) -> 4
-                    matchesT9(normalizeName(contact.name), trimmedQuery) -> 3
-                    contact.phone.contains(trimmedQuery) -> 2
-                    else -> 1
-                }
-            }
-                .thenBy { it.name.lowercase() }
-        )
-        .forEach { contact ->
+        recentContacts.forEach { contact ->
             add(
                 SuggestionItem(
-                    id = "contact_${contact.id}",
+                    id = "recent_contact_${contact.id}",
                     title = contact.name.ifBlank { contact.phone },
                     subtitle = contact.phone,
                     number = contact.phone,
-                    type = SuggestionType.FAVORITE   
+                    type = SuggestionType.RECENT_CONTACT
                 )
             )
         }
+        return@buildList
+
+    }
+
+    val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
+
+    val matchingContacts = allContacts
+        .filter { contact ->
+            contact.phone.isNotBlank() && (
+                    contact.phone.containsNumberQuery(trimmed) ||
+
+                            contact.name.startsWith(trimmed, ignoreCase = true) ||
+
+                            (isDigitInput && matchesT9(normalizeName(contact.name), trimmed))
+                    )
+        }
+        .distinctBy { it.phone }
+        .sortedWith(
+            compareByDescending<Contact> { c ->
+                val score = when {
+                    c.name.startsWith(trimmed, ignoreCase = true) -> 5
+                    matchesT9(normalizeName(c.name), trimmed) -> 4
+                    c.phone.startsWith(trimmed) -> 3
+                    c.phone.contains(trimmed) -> 2
+                    else -> 1
+                }
+                score
+            }
+                .thenBy { it.name.lowercase() }
+        )
+        .take(12)
+
+    matchingContacts.forEach { contact ->
+        val isFav = favorites.any { it.id == contact.id }
+        add(
+            SuggestionItem(
+                id = if (isFav) "fav_${contact.id}" else "contact_${contact.id}",
+                title = contact.name.ifBlank { contact.phone },
+                subtitle = contact.phone,
+                number = contact.phone,
+                type = if (isFav) SuggestionType.FAVORITE else SuggestionType.RECENT_CONTACT
+            )
+        )
+    }
 }
 
-private fun String.containsDigitsOrStartsWith(query: String): Boolean {
+private fun String.containsNumberQuery(query: String): Boolean {
     if (query.isEmpty()) return true
-    val cleanPhone = this.replace(Regex("[^+0-9*#-]"), "")
+    val cleanThis = this.replace(Regex("[^+0-9*#-]"), "")
     val cleanQuery = query.replace(Regex("[^+0-9*#-]"), "")
 
-    return cleanPhone.startsWith(cleanQuery) ||
-            cleanPhone.contains(cleanQuery)
+    return cleanThis.startsWith(cleanQuery) ||
+            cleanThis.contains(cleanQuery)
 }
-
 
 private fun normalizeName(name: String): String {
     return name.lowercase()
@@ -565,5 +570,18 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
         context.startActivity(intent)
     } catch (_: Exception) {
         Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun formatRelativeTime(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+
+    return when {
+        diff < 90_000L -> "just now"
+        diff < 3_600_000L -> "${diff / 60_000} min ago"
+        diff < 86_400_000L -> "${diff / 3_600_000} h ago"
+        diff < 604_800_000L -> "${diff / 86_400_000} days ago"
+        else -> SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date(timestamp))
     }
 }

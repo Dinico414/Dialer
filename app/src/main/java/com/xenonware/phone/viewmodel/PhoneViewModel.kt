@@ -25,9 +25,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    private val _filteredContacts = MutableStateFlow<List<Contact>>(emptyList())
-    val filteredContacts: StateFlow<List<Contact>> = _filteredContacts.asStateFlow()
-
     private val _recentCalls = MutableStateFlow<List<CallLogEntry>>(emptyList())
     val recentCalls: StateFlow<List<CallLogEntry>> = _recentCalls.asStateFlow()
 
@@ -35,7 +32,10 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     val favorites: StateFlow<List<Contact>> = _favorites.asStateFlow()
 
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
+    val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()   // ← important for dialer suggestions
+
     private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _showSetDefaultOverlay = MutableStateFlow(false)
     val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
@@ -81,7 +81,10 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
         val cleanPhone = phone.replace(Regex("[^+0-9*#]"), "")
         val cleanQuery = query.replace(Regex("[^+0-9*#]"), "")
-        return cleanPhone.endsWith(cleanQuery) || cleanPhone.contains(cleanQuery)
+
+        return cleanPhone.startsWith(cleanQuery) ||
+                cleanPhone.contains(cleanQuery) ||
+                cleanPhone.endsWith(cleanQuery)
     }
 
     private fun loadLocalData() {
@@ -92,36 +95,12 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) ==
             PackageManager.PERMISSION_GRANTED) {
-            val allContacts = loadContacts()
-            val contactsWithNumber = allContacts.filter { it.phone.isNotBlank() }
+            val loaded = loadContacts()
+            val withNumber = loaded.filter { it.phone.isNotBlank() }
 
-            _contacts.value = contactsWithNumber
-            _filteredContacts.value = contactsWithNumber
-
-            _favorites.value = contactsWithNumber.filter { it.isFavorite }
+            _contacts.value = withNumber
+            _favorites.value = withNumber.filter { it.isFavorite }
         }
-    }
-    private fun updateSearchResults(query: String) {
-        val trimmed = query.trim()
-
-        if (trimmed.isEmpty()) {
-            _filteredContacts.value = _contacts.value
-            return
-        }
-
-        val results = _contacts.value.filter { contact ->
-            contact.name.startsWith(trimmed, ignoreCase = true) ||
-                    matchesT9(contact.name, trimmed) ||
-                    matchesNumber(contact.phone, trimmed)
-        }.sortedWith(compareByDescending<Contact> { contact ->
-            when {
-                contact.name.startsWith(trimmed, ignoreCase = true) -> 3
-                matchesT9(contact.name, trimmed) -> 2
-                else -> 1
-            }
-        }.thenBy { it.name.lowercase() })
-
-        _filteredContacts.value = results
     }
 
     private fun loadCallLogs(): List<CallLogEntry> {
@@ -157,16 +136,16 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadContacts(): List<Contact> {
         val list = mutableListOf<Contact>()
-        val projection = arrayOf(
-            ContactsContract.Contacts._ID,
-            ContactsContract.Contacts.DISPLAY_NAME,
-            ContactsContract.Contacts.STARRED
-        )
 
         context.contentResolver.query(
             ContactsContract.Contacts.CONTENT_URI,
-            projection,
-            null,
+            arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME,
+                ContactsContract.Contacts.STARRED,
+                ContactsContract.Contacts.HAS_PHONE_NUMBER
+            ),
+            "${ContactsContract.Contacts.HAS_PHONE_NUMBER} > 0",
             null,
             "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
         )?.use { cursor ->
@@ -175,20 +154,23 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                 val name = cursor.getString(1) ?: ""
                 val starred = cursor.getInt(2) == 1
 
+                // Get first phone number (you can extend this later to support multiple)
                 var phone = ""
                 context.contentResolver.query(
                     ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                     arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
                     "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
                     arrayOf(id),
-                    null
+                    "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC"  // prefer primary number
                 )?.use { pCursor ->
                     if (pCursor.moveToFirst()) {
-                        phone = pCursor.getString(0) ?: ""
+                        phone = pCursor.getString(0)?.trim() ?: ""
                     }
                 }
 
-                list += Contact(id, name, phone, starred)
+                if (phone.isNotBlank()) {
+                    list += Contact(id, name, phone, starred)
+                }
             }
         }
         return list
@@ -229,7 +211,8 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
-        updateSearchResults(query)
+        // Note: you can keep updateSearchResults() if you want to use filteredContacts somewhere else,
+        // but for the dialer screen it's currently not necessary
     }
 
     fun checkDefaultDialerStatus() {
@@ -242,9 +225,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
             tm.defaultDialerPackage == context.packageName
         }
         _showSetDefaultOverlay.value = !isDefault
-    }
-    private fun saveLocalCalls() {
-        // TODO: Implement persistence if needed
     }
 
     fun onSignedIn() {
@@ -272,6 +252,4 @@ data class Contact(
     val name: String = "",
     val phone: String = "",
     val isFavorite: Boolean = false
-) {
-    val hasPhone: Boolean get() = phone.isNotBlank()
-}
+)
