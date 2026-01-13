@@ -112,8 +112,8 @@ import com.xenon.mylibrary.values.LargerCornerRadius
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.NoCornerRadius
 import com.xenon.mylibrary.values.SmallElevation
+import com.xenonware.phone.data.Contact
 import com.xenonware.phone.service.MyInCallService
-import com.xenonware.phone.ui.layouts.main.contacts.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
 import com.xenonware.phone.viewmodel.CallScreenViewModel
 import kotlinx.coroutines.delay

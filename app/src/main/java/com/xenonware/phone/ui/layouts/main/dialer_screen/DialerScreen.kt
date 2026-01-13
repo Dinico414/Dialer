@@ -77,9 +77,9 @@ import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.viewmodel.CallLogEntry
-import com.xenonware.phone.viewmodel.Contact
 import com.xenonware.phone.viewmodel.PhoneViewModel
 
 @Composable
@@ -198,7 +198,7 @@ private fun SuggestionRow(
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     isSingle: Boolean,
-    matchingContact: Contact?          // ← Passed from DialerScreen
+    matchingContact: Contact?
 ) {
     val shape = when {
         isSingle -> RoundedCornerShape(

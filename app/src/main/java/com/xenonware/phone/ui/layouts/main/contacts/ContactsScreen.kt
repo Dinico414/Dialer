@@ -81,8 +81,8 @@ import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.data.Contact
 
-data class Contact(val name: String, val phoneNumber: String? = null)
 data class ContactGroup(val letter: Char, val contacts: List<Contact>)
 
 @Composable
@@ -130,7 +130,6 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
                     })
             ) {
                 groupedContacts.forEach { group ->
-                    // Letter Header
                     item {
                         Box(
                             modifier = Modifier
@@ -149,20 +148,17 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
                         }
                     }
 
-                    // Individual contact cards with dynamic corner radius
                     items(group.contacts.indices.toList()) { index ->
                         val contact = group.contacts[index]
                         val isFirst = index == 0
                         val isLast = index == group.contacts.lastIndex
                         val isSingle = group.contacts.size == 1
-
                         ContactItemCard(
                             contact = contact,
                             isFirstInGroup = isFirst,
                             isLastInGroup = isLast,
                             isSingle = isSingle
                         )
-
                     }
                 }
             }
@@ -172,7 +168,7 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun ContactItemCard(
-    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
+    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
 ) {
     val context = LocalContext.current
 
@@ -195,10 +191,11 @@ fun ContactItemCard(
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
 
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright)
     ) {
         Row(
             modifier = Modifier
@@ -219,9 +216,7 @@ fun ContactItemCard(
                     color = colorScheme.onSurface
                 )
                 Text(
-                    text = contact.phoneNumber.toString(),
-                    fontSize = 14.sp,
-                    color = colorScheme.onSurfaceVariant
+                    text = contact.phone, fontSize = 14.sp, color = colorScheme.onSurfaceVariant
                 )
             }
 
@@ -231,7 +226,7 @@ fun ContactItemCard(
                         topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
                     ), onClick = {
                         val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = "smsto:${contact.phoneNumber}".toUri()
+                            data = "smsto:${contact.phone}".toUri()
                         }
                         context.startActivity(smsIntent)
                     }, modifier = Modifier
@@ -242,7 +237,6 @@ fun ContactItemCard(
                                 bottomStart = 24.dp,
                                 topEnd = 4.dp,
                                 bottomEnd = 4.dp
-
                             )
                         )
                         .background(colorScheme.surfaceContainerHigh)
@@ -261,7 +255,7 @@ fun ContactItemCard(
                     shape = RoundedCornerShape(
                         topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
                     ),
-                    onClick = { safePlaceCall(context, contact.phoneNumber.toString()) },
+                    onClick = { safePlaceCall(context, contact.phone) },
                     modifier = Modifier
                         .size(48.dp)
                         .clip(
@@ -394,8 +388,7 @@ fun RingingContactAvatar(
                 shape = currentMorphShape
                 clip = true
             }
-            .background(pastelBackground)
-        )
+            .background(pastelBackground))
         Text(
             text = contact.name.firstOrNull()?.uppercase() ?: "?",
             fontSize = (size.value * 0.42).sp,
@@ -428,24 +421,43 @@ class MorphPolygonShape(
 
 private fun loadContacts(context: Context): List<Contact> {
     val list = mutableListOf<Contact>()
-    val cursor = context.contentResolver.query(
-        ContactsContract.CommonDataKinds.Phone.CONTENT_URI, arrayOf(
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER
-        ), null, null, "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
-    )
-    cursor?.use {
-        val nameIdx = it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-        val numIdx = it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-        while (it.moveToNext()) {
-            val name = it.getString(nameIdx) ?: "Unknown"
-            val number = it.getString(numIdx) ?: ""
-            if (number.isNotBlank() && name.isNotBlank()) {
-                list.add(Contact(name.trim(), number))
+    context.contentResolver.query(
+        ContactsContract.Contacts.CONTENT_URI,
+        arrayOf(
+            ContactsContract.Contacts._ID,
+            ContactsContract.Contacts.DISPLAY_NAME,
+            ContactsContract.Contacts.STARRED
+        ),
+        "${ContactsContract.Contacts.HAS_PHONE_NUMBER} > 0",
+        null,
+        "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
+    )?.use { cursor ->
+        while (cursor.moveToNext()) {
+            val id = cursor.getString(0) ?: continue
+            val name = cursor.getString(1) ?: ""
+            val starred = cursor.getInt(2) == 1
+
+            var phone = ""
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                arrayOf(id),
+                null
+            )?.use { pCursor ->
+                if (pCursor.moveToFirst()) {
+                    phone = pCursor.getString(0)?.trim() ?: ""
+                }
+            }
+
+            if (phone.isNotBlank()) {
+                list += Contact(
+                    id = id, name = name.trim(), phone = phone, isFavorite = starred
+                )
             }
         }
     }
-    return list.distinctBy { it.phoneNumber }
+    return list.distinctBy { it.phone }
 }
 
 private fun safePlaceCall(context: Context, phoneNumber: String) {

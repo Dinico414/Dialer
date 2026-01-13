@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
+import com.xenonware.phone.data.Contact
 import com.xenonware.phone.data.SharedPreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -245,11 +246,4 @@ data class CallLogEntry(
     val timestamp: Long = 0L,
     val duration: Long = 0L,
     val isOffline: Boolean = false
-)
-
-data class Contact(
-    val id: String = "",
-    val name: String = "",
-    val phone: String = "",
-    val isFavorite: Boolean = false
 )
