@@ -25,6 +25,9 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
+    private val _filteredContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val filteredContacts: StateFlow<List<Contact>> = _filteredContacts.asStateFlow()
+
     private val _recentCalls = MutableStateFlow<List<CallLogEntry>>(emptyList())
     val recentCalls: StateFlow<List<CallLogEntry>> = _recentCalls.asStateFlow()
 
@@ -74,9 +77,11 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun matchesNumber(phone: String, query: String): Boolean {
-        val cleanPhone = phone.replace(Regex("[^+0-9]"), "")
-        val cleanQuery = query.replace(Regex("[^+0-9]"), "")
-        return cleanPhone.contains(cleanQuery, ignoreCase = true)
+        if (query.isEmpty()) return true
+
+        val cleanPhone = phone.replace(Regex("[^+0-9*#]"), "")
+        val cleanQuery = query.replace(Regex("[^+0-9*#]"), "")
+        return cleanPhone.endsWith(cleanQuery) || cleanPhone.contains(cleanQuery)
     }
 
     private fun loadLocalData() {
@@ -87,10 +92,36 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) ==
             PackageManager.PERMISSION_GRANTED) {
-            val loaded = loadContacts()
-            _contacts.value = loaded
-            _favorites.value = loaded.filter { it.isFavorite }
+            val allContacts = loadContacts()
+            val contactsWithNumber = allContacts.filter { it.phone.isNotBlank() }
+
+            _contacts.value = contactsWithNumber
+            _filteredContacts.value = contactsWithNumber
+
+            _favorites.value = contactsWithNumber.filter { it.isFavorite }
         }
+    }
+    private fun updateSearchResults(query: String) {
+        val trimmed = query.trim()
+
+        if (trimmed.isEmpty()) {
+            _filteredContacts.value = _contacts.value
+            return
+        }
+
+        val results = _contacts.value.filter { contact ->
+            contact.name.startsWith(trimmed, ignoreCase = true) ||
+                    matchesT9(contact.name, trimmed) ||
+                    matchesNumber(contact.phone, trimmed)
+        }.sortedWith(compareByDescending<Contact> { contact ->
+            when {
+                contact.name.startsWith(trimmed, ignoreCase = true) -> 3
+                matchesT9(contact.name, trimmed) -> 2
+                else -> 1
+            }
+        }.thenBy { it.name.lowercase() })
+
+        _filteredContacts.value = results
     }
 
     private fun loadCallLogs(): List<CallLogEntry> {
@@ -198,6 +229,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+        updateSearchResults(query)
     }
 
     fun checkDefaultDialerStatus() {
@@ -240,4 +272,6 @@ data class Contact(
     val name: String = "",
     val phone: String = "",
     val isFavorite: Boolean = false
-)
+) {
+    val hasPhone: Boolean get() = phone.isNotBlank()
+}

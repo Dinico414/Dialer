@@ -1,5 +1,6 @@
 package com.xenonware.phone.ui.layouts.main.dialer_screen
 
+import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
@@ -77,15 +79,12 @@ import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.Contact
 import com.xenonware.phone.viewmodel.PhoneViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun DialerScreen(
     modifier: Modifier = Modifier,
     onOpenHistory: () -> Unit,
-    viewModel: PhoneViewModel = viewModel()
+    viewModel: PhoneViewModel = viewModel(),
 ) {
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
@@ -114,7 +113,7 @@ fun DialerScreen(
                     Text(
                         text = "Recent calls & favorites will appear here",
                         modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -122,7 +121,7 @@ fun DialerScreen(
                     Text(
                         text = "No matching results",
                         modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
                 else -> {
@@ -161,9 +160,9 @@ fun DialerScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
             color = if (phoneNumber.isEmpty())
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                colorScheme.onBackground.copy(alpha = 0.6f)
             else
-                MaterialTheme.colorScheme.onBackground,
+                colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable,
             maxLines = 1,
             overflow = TextOverflow.Clip
@@ -189,7 +188,7 @@ fun DialerScreen(
 private fun SuggestionRow(
     item: SuggestionItem,
     onClick: () -> Unit,
-    isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
+    isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val shape = when {
         isSingle -> RoundedCornerShape(
@@ -247,7 +246,7 @@ data class SuggestionItem(
     val title: String,
     val subtitle: String,
     val number: String,
-    val type: SuggestionType = SuggestionType.RECENT
+    val type: SuggestionType = SuggestionType.RECENT,
 )
 
 enum class SuggestionType { RECENT, FAVORITE }
@@ -255,85 +254,81 @@ enum class SuggestionType { RECENT, FAVORITE }
 private fun buildSuggestions(
     query: String,
     recent: List<CallLogEntry>,
-    favorites: List<Contact>
+    favorites: List<Contact>,
 ): List<SuggestionItem> = buildList {
-    val isDigitsOnly = query.all { it.isDigit() }
 
-    if (query.isNotEmpty()) {
-        // Number prefix matches (both favorites and recents)
-        val numberMatches = (favorites + recent.map { Contact("", "", it.number, false) })
-            .filter { contact ->
-                val num = contact.phone
-                num.startsWith(query) ||
-                        num.removePrefix("+").startsWith(query) ||
-                        num.removePrefix("00").startsWith(query)
-            }
-            .distinctBy { it.phone }
-            .take(5)
-            .map { contact ->
-                val isFavorite = favorites.any { it.phone == contact.phone }
-                val title = if (contact.name.isNotBlank()) contact.name else contact.phone
-                val subtitle = if (contact.name.isNotBlank()) contact.phone else "Recent call"
+    val trimmedQuery = query.trim()
 
-                SuggestionItem(
-                    id = if (isFavorite) "fav_${contact.phone}" else "recent_num_${contact.phone}",
-                    title = title,
-                    subtitle = subtitle,
-                    number = contact.phone,
-                    type = if (isFavorite) SuggestionType.FAVORITE else SuggestionType.RECENT
+    if (trimmedQuery.isEmpty()) {
+        favorites
+            .take(12)
+            .forEach { contact ->
+                add(
+                    SuggestionItem(
+                        id = "contact_${contact.id}",
+                        title = contact.name.ifBlank { "Unnamed" },
+                        subtitle = contact.phone,
+                        number = contact.phone,
+                        type = SuggestionType.FAVORITE
+                    )
                 )
             }
-        addAll(numberMatches)
+        return@buildList
     }
 
-    // T9 name search (only favorites)
-    if (isDigitsOnly && query.isNotEmpty() && query.none { it in "01*#" }) {
-        val nameMatches = favorites
-            .filter { contact ->
-                val normalized = normalizeName(contact.name)
-                matchesT9(normalized, query)
-            }
+    val isDigitsOnly = trimmedQuery.all { it.isDigit() || it in "+*#-" }
+
+    val numberMatches = favorites
+        .filter { contact ->
+            contact.phone.containsDigitsOrStartsWith(trimmedQuery)
+        }
+        .take(8)
+
+    val nameMatches = if (isDigitsOnly && trimmedQuery.none { it in "01*#" }) {
+        favorites
+            .filter { matchesT9(normalizeName(it.name), trimmedQuery) }
             .take(8)
-            .map {
-                SuggestionItem(
-                    id = "fav_${it.id}_${it.phone}",  // or just "fav_${it.id}" if id is unique
-                    title = it.name,
-                    subtitle = it.phone,
-                    number = it.phone,
-                    type = SuggestionType.FAVORITE
-                )
-            }
-            .sortedBy { it.title }
-
-        addAll(nameMatches)
+    } else {
+        emptyList()
     }
 
-    // Empty query → show defaults
-    if (query.isEmpty()) {
-        favorites.take(6).forEach { contact ->
+    val prefixMatches = favorites
+        .filter { it.name.startsWith(trimmedQuery, ignoreCase = true) }
+        .take(8)
+
+    (numberMatches + nameMatches + prefixMatches)
+        .distinctBy { it.phone }
+        .sortedWith(
+            compareByDescending<Contact> { contact ->
+                when {
+                    contact.name.startsWith(trimmedQuery, ignoreCase = true) -> 4
+                    matchesT9(normalizeName(contact.name), trimmedQuery) -> 3
+                    contact.phone.contains(trimmedQuery) -> 2
+                    else -> 1
+                }
+            }
+                .thenBy { it.name.lowercase() }
+        )
+        .forEach { contact ->
             add(
                 SuggestionItem(
-                    id = "fav_${contact.id}_${contact.phone}",
-                    title = contact.name,
+                    id = "contact_${contact.id}",
+                    title = contact.name.ifBlank { contact.phone },
                     subtitle = contact.phone,
                     number = contact.phone,
-                    type = SuggestionType.FAVORITE
+                    type = SuggestionType.FAVORITE   
                 )
             )
         }
+}
 
-        recent.take(8).forEachIndexed { _, call ->
-            add(
-                SuggestionItem(
-                    id = "recent_${call.id}",
-                    title = call.number,
-                    subtitle = formatRelativeTime(call.timestamp),
-                    number = call.number,
-                    type = SuggestionType.RECENT
-                )
-            )
-        }
-    }
+private fun String.containsDigitsOrStartsWith(query: String): Boolean {
+    if (query.isEmpty()) return true
+    val cleanPhone = this.replace(Regex("[^+0-9*#-]"), "")
+    val cleanQuery = query.replace(Regex("[^+0-9*#-]"), "")
+
+    return cleanPhone.startsWith(cleanQuery) ||
+            cleanPhone.contains(cleanQuery)
 }
 
 
@@ -374,19 +369,7 @@ private val t9Map = mapOf(
     '9' to "wxyz"
 )
 
-private fun formatRelativeTime(timestamp: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-
-    return when {
-        diff < 90_000L -> "just now"
-        diff < 3_600_000L -> "${diff / 60_000} min ago"
-        diff < 86_400_000L -> "${diff / 3_600_000} h ago"
-        diff < 604_800_000L -> "${diff / 86_400_000} days ago"
-        else -> SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date(timestamp))
-    }
-}
-
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun Dialpad(
     onNumberClick: (String) -> Unit,
@@ -534,7 +517,8 @@ fun Dialpad(
                         }
 
                         is PressInteraction.Release,
-                        is PressInteraction.Cancel -> {
+                        is PressInteraction.Cancel,
+                            -> {
                             val duration = System.currentTimeMillis() - pressStartTime
                             if (duration >= 420L) {
                                 onClearAll()
@@ -548,9 +532,10 @@ fun Dialpad(
     }
 }
 
+@SuppressLint("ObsoleteSdkInt")
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-    val uri = Uri.parse("tel:$phoneNumber")
+    val uri = "tel:$phoneNumber".toUri()
 
     val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
