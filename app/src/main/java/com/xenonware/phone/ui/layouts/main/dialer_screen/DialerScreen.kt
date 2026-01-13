@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -76,6 +77,7 @@ import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.Contact
 import com.xenonware.phone.viewmodel.PhoneViewModel
@@ -138,12 +140,16 @@ fun DialerScreen(
                             val isLast = index == suggestions.lastIndex
                             val isSingle = suggestions.size == 1
 
+                            val matchingContact = remember(item.number) {
+                                allContacts.find { normalizePhone(it.phone) == normalizePhone(item.number) }
+                            }
                             SuggestionRow(
                                 item = item,
                                 onClick = { phoneNumber = item.number },
                                 isFirstInGroup = isFirst,
                                 isLastInGroup = isLast,
-                                isSingle = isSingle
+                                isSingle = isSingle,
+                                matchingContact = matchingContact
                             )
                         }
                     }
@@ -189,7 +195,10 @@ fun DialerScreen(
 private fun SuggestionRow(
     item: SuggestionItem,
     onClick: () -> Unit,
-    isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    isSingle: Boolean,
+    matchingContact: Contact?          // ← Passed from DialerScreen
 ) {
     val shape = when {
         isSingle -> RoundedCornerShape(
@@ -217,26 +226,59 @@ private fun SuggestionRow(
     }
 
     Row(
-
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .clip(shape).background(colorScheme.surfaceBright)
-            .padding(16.dp)
-        ,
+            .clip(shape)
+            .background(colorScheme.surfaceBright)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // Avatar section
+        if (matchingContact != null) {
+            ContactAvatar(
+                contact = matchingContact,
+                modifier = Modifier.size(48.dp)
+            )
+        } else {
+            // Fallback avatar for numbers without contact
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "#",
+                    fontSize = 22.sp,
+                    fontFamily = QuicksandTitleVariable,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        // Text content
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
                 text = item.title,
                 style = MaterialTheme.typography.titleMedium,
+                fontFamily = QuicksandTitleVariable,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+
             Text(
                 text = item.subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = colorScheme.onSurfaceVariant
+                color = colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
