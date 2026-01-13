@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
-import android.icu.text.SimpleDateFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -80,8 +79,6 @@ import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.Contact
 import com.xenonware.phone.viewmodel.PhoneViewModel
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun DialerScreen(
@@ -264,26 +261,42 @@ private fun buildSuggestions(
 
     val trimmed = query.trim()
     if (trimmed.isEmpty()) {
-        val recentContacts = recent
-            .mapNotNull { call ->
-                allContacts.find { it.phone == call.number }
-            }
-            .distinctBy { it.id }
-            .take(10)
+        val frequencyMap = mutableMapOf<String, Int>()
 
-        recentContacts.forEach { contact ->
+        recent.forEach { call ->
+            val matchingContact = allContacts.find { contact ->
+                normalizePhone(contact.phone) == normalizePhone(call.number)
+            }
+            if (matchingContact != null) {
+                frequencyMap[matchingContact.id] = (frequencyMap[matchingContact.id] ?: 0) + 1
+            }
+        }
+
+        val recentCalledContacts = allContacts
+            .filter { it.id in frequencyMap }
+            .sortedWith(
+                compareByDescending { contact ->
+                    val callCount = frequencyMap[contact.id] ?: 0
+                    val isFavorite = favorites.any { it.id == contact.id }
+                    callCount + if (isFavorite) 2.5 else 0.0
+                }
+            )
+            .take(12)
+
+        recentCalledContacts.forEach { contact ->
+            val isFav = favorites.any { it.id == contact.id }
             add(
                 SuggestionItem(
-                    id = "recent_contact_${contact.id}",
+                    id = if (isFav) "fav_${contact.id}" else "recent_contact_${contact.id}",
                     title = contact.name.ifBlank { contact.phone },
                     subtitle = contact.phone,
                     number = contact.phone,
-                    type = SuggestionType.RECENT_CONTACT
+                    type = if (isFav) SuggestionType.FAVORITE else SuggestionType.RECENT_CONTACT
                 )
             )
         }
-        return@buildList
 
+        return@buildList
     }
 
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
@@ -340,6 +353,14 @@ private fun String.containsNumberQuery(query: String): Boolean {
 private fun normalizeName(name: String): String {
     return name.lowercase()
         .replace(Regex("[^a-z]"), "")
+}
+
+private fun normalizePhone(number: String): String {
+    if (number.isBlank()) return ""
+    return number
+        .replace(Regex("[^+0-9]"), "")
+        .removePrefix("00")
+        .removePrefix("+")
 }
 
 private fun matchesT9(nameNormalized: String, digits: String): Boolean {
@@ -570,18 +591,5 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
         context.startActivity(intent)
     } catch (_: Exception) {
         Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
-    }
-}
-
-private fun formatRelativeTime(timestamp: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-
-    return when {
-        diff < 90_000L -> "just now"
-        diff < 3_600_000L -> "${diff / 60_000} min ago"
-        diff < 86_400_000L -> "${diff / 3_600_000} h ago"
-        diff < 604_800_000L -> "${diff / 86_400_000} days ago"
-        else -> SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(Date(timestamp))
     }
 }
