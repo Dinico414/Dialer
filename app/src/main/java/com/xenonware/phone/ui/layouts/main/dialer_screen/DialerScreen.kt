@@ -470,8 +470,9 @@ fun Dialpad(
     val buttonHeight = (targetTotalHeight - totalSpacing) / 4
 
     val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).toSp() }
-    val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).toSp() }
-
+    val letterTextSize = with(density) {
+        (buttonHeight.toPx() * 0.185f).coerceAtLeast(0f).toSp()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
