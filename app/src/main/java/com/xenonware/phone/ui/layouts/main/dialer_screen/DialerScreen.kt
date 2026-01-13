@@ -195,8 +195,8 @@ private fun SuggestionRow(
         isSingle -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
-            bottomStart = SmallestCornerRadius,
-            bottomEnd = SmallestCornerRadius
+            bottomStart = MediumCornerRadius,
+            bottomEnd = MediumCornerRadius
         )
 
         isFirstInGroup -> RoundedCornerShape(
