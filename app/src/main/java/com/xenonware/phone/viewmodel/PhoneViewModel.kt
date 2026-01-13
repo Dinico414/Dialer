@@ -3,8 +3,12 @@ package com.xenonware.phone.viewmodel
 import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.CallLog
+import android.provider.ContactsContract
 import android.telecom.TelecomManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
@@ -27,8 +31,8 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val _favorites = MutableStateFlow<List<Contact>>(emptyList())
     val favorites: StateFlow<List<Contact>> = _favorites.asStateFlow()
 
+    private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _showSetDefaultOverlay = MutableStateFlow(false)
     val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
@@ -36,51 +40,12 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val syncingCallIds = mutableSetOf<String>()
     private val offlineCallIds = mutableSetOf<String>()
 
+    private val t9Map = mapOf(
+        '2' to "abc", '3' to "def", '4' to "ghi", '5' to "jkl",
+        '6' to "mno", '7' to "pqrs", '8' to "tuv", '9' to "wxyz"
+    )
+
     init {
-        _recentCalls.value = listOf(
-            CallLogEntry(
-                id = "call1",
-                number = "+491701234567",
-                type = 2, // incoming
-                timestamp = System.currentTimeMillis() - 3_600_000,
-                duration = 120,
-                isOffline = false
-            ),
-            CallLogEntry(
-                id = "call2",
-                number = "089123456",
-                type = 1, // outgoing
-                timestamp = System.currentTimeMillis() - 86_400_000 * 2,
-                duration = 45,
-                isOffline = false
-            ),
-            CallLogEntry(
-                id = "call3",
-                number = "+49891234567",
-                type = 3, // missed
-                timestamp = System.currentTimeMillis() - 86_400_000 * 5,
-                duration = 0,
-                isOffline = false
-            ),
-            CallLogEntry(
-                id = "call4",
-                number = "+491609876543",
-                type = 2,
-                timestamp = System.currentTimeMillis() - 86_400_000 * 7,
-                duration = 180,
-                isOffline = false
-            )
-        )
-
-        _favorites.value = listOf(
-            Contact(id = "f1", name = "Mama", phone = "+491609876543", isFavorite = true),
-            Contact(id = "f2", name = "Thomas Müller", phone = "017612345678", isFavorite = true),
-            Contact(id = "f3", name = "Pizza Mario", phone = "0897654321", isFavorite = true),
-            Contact(id = "f4", name = "Anna", phone = "+491701234567", isFavorite = true),
-            Contact(id = "f5", name = "Chef", phone = "+4915123456789", isFavorite = true)
-        )
-        // ─────────────────────────────────────────────────────────────────────
-
         loadLocalData()
         checkDefaultDialerStatus()
 
@@ -89,8 +54,113 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun matchesT9(name: String, query: String): Boolean {
+        val normalized = name.lowercase().filter { it.isLetter() }
+        var index = 0
+        for (digit in query) {
+            val letters = t9Map[digit] ?: continue
+            var found = false
+            while (index < normalized.length) {
+                if (letters.contains(normalized[index])) {
+                    found = true
+                    index++
+                    break
+                }
+                index++
+            }
+            if (!found) return false
+        }
+        return true
+    }
+
+    private fun matchesNumber(phone: String, query: String): Boolean {
+        val cleanPhone = phone.replace(Regex("[^+0-9]"), "")
+        val cleanQuery = query.replace(Regex("[^+0-9]"), "")
+        return cleanPhone.contains(cleanQuery, ignoreCase = true)
+    }
+
     private fun loadLocalData() {
-        // TODO: Implement real local loading later (Room, SharedPrefs, etc.)
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG) ==
+            PackageManager.PERMISSION_GRANTED) {
+            _recentCalls.value = loadCallLogs()
+        }
+
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) ==
+            PackageManager.PERMISSION_GRANTED) {
+            val loaded = loadContacts()
+            _contacts.value = loaded
+            _favorites.value = loaded.filter { it.isFavorite }
+        }
+    }
+
+    private fun loadCallLogs(): List<CallLogEntry> {
+        val list = mutableListOf<CallLogEntry>()
+        val projection = arrayOf(
+            CallLog.Calls._ID,
+            CallLog.Calls.NUMBER,
+            CallLog.Calls.TYPE,
+            CallLog.Calls.DATE,
+            CallLog.Calls.DURATION
+        )
+
+        context.contentResolver.query(
+            CallLog.Calls.CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${CallLog.Calls.DATE} DESC"
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                list += CallLogEntry(
+                    id = cursor.getString(0) ?: "",
+                    number = cursor.getString(1) ?: "",
+                    type = cursor.getInt(2),
+                    timestamp = cursor.getLong(3),
+                    duration = cursor.getLong(4),
+                    isOffline = false
+                )
+            }
+        }
+        return list
+    }
+
+    private fun loadContacts(): List<Contact> {
+        val list = mutableListOf<Contact>()
+        val projection = arrayOf(
+            ContactsContract.Contacts._ID,
+            ContactsContract.Contacts.DISPLAY_NAME,
+            ContactsContract.Contacts.STARRED
+        )
+
+        context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: ""
+                val starred = cursor.getInt(2) == 1
+
+                var phone = ""
+                context.contentResolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                    "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                    arrayOf(id),
+                    null
+                )?.use { pCursor ->
+                    if (pCursor.moveToFirst()) {
+                        phone = pCursor.getString(0) ?: ""
+                    }
+                }
+
+                list += Contact(id, name, phone, starred)
+            }
+        }
+        return list
     }
 
     private fun startRealtimeSync(userId: String) {
@@ -104,7 +174,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                         DocumentChange.Type.ADDED -> {
                             if (!offlineCallIds.contains(call.id) && _recentCalls.value.none { it.id == call.id }) {
                                 _recentCalls.value = listOf(call.copy(isOffline = false)) + _recentCalls.value
-                                saveLocalCalls()
                             }
                         }
                         DocumentChange.Type.MODIFIED -> {
@@ -114,29 +183,17 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                                 if (index != -1) {
                                     current[index] = call.copy(isOffline = false)
                                     _recentCalls.value = current
-                                    saveLocalCalls()
                                 }
                             }
                         }
                         DocumentChange.Type.REMOVED -> {
                             if (!offlineCallIds.contains(call.id)) {
                                 _recentCalls.value = _recentCalls.value.filterNot { it.id == call.id }
-                                saveLocalCalls()
                             }
                         }
                     }
                 }
             }
-    }
-
-    private fun saveLocalCalls() {
-        // TODO: Implement persistence if needed
-    }
-
-    fun onSignedIn() {
-        val uid = auth.currentUser?.uid ?: return
-        startRealtimeSync(uid)
-        checkDefaultDialerStatus()
     }
 
     fun setSearchQuery(query: String) {
@@ -145,14 +202,23 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkDefaultDialerStatus() {
         val isDefault = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
-            roleManager.isRoleAvailable(RoleManager.ROLE_DIALER) && roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
+            val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+            rm.isRoleHeld(RoleManager.ROLE_DIALER)
         } else {
             @Suppress("DEPRECATION")
-            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            telecomManager.defaultDialerPackage == context.packageName
+            val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            tm.defaultDialerPackage == context.packageName
         }
         _showSetDefaultOverlay.value = !isDefault
+    }
+    private fun saveLocalCalls() {
+        // TODO: Implement persistence if needed
+    }
+
+    fun onSignedIn() {
+        val uid = auth.currentUser?.uid ?: return
+        startRealtimeSync(uid)
+        checkDefaultDialerStatus()
     }
 
     fun dismissSetDefaultOverlay() {

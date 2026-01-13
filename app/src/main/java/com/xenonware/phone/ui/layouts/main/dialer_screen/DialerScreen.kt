@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -107,14 +108,13 @@ fun DialerScreen(
                 .padding(horizontal = 16.dp)
                 .padding(top = 16.dp)
                 .clip(RoundedCornerShape(MediumCornerRadius))
-                .background(colorScheme.surfaceContainerHigh)
         ) {
             when {
                 suggestions.isEmpty() && phoneNumber.isEmpty() -> {
                     Text(
                         text = "Recent calls & favorites will appear here",
                         modifier = Modifier.align(Alignment.Center),
-                        color = colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -122,24 +122,25 @@ fun DialerScreen(
                     Text(
                         text = "No matching results",
                         modifier = Modifier.align(Alignment.Center),
-                        color = colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 else -> {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        items(
-                            count = suggestions.size,
-                            key = { index -> suggestions[index].number + suggestions[index].title }
-                        ) { index ->
+                        itemsIndexed(
+                            items = suggestions,
+                            key = { index, item -> "${item.type.name}_${index}_${item.number.takeLast(8)}" }
+                        ) { index, item ->
                             val isFirst = index == 0
                             val isLast = index == suggestions.lastIndex
                             val isSingle = suggestions.size == 1
 
                             SuggestionRow(
-                                item = suggestions[index],
-                                onClick = { phoneNumber = suggestions[index].number },
+                                item = item,
+                                onClick = { phoneNumber = item.number },
                                 isFirstInGroup = isFirst,
                                 isLastInGroup = isLast,
                                 isSingle = isSingle
@@ -160,9 +161,9 @@ fun DialerScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
             color = if (phoneNumber.isEmpty())
-                colorScheme.onBackground.copy(alpha = 0.6f)
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             else
-                colorScheme.onBackground,
+                MaterialTheme.colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable,
             maxLines = 1,
             overflow = TextOverflow.Clip
@@ -171,9 +172,7 @@ fun DialerScreen(
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit },
             onDeleteClick = {
-                if (phoneNumber.isNotEmpty()) {
-                    phoneNumber = phoneNumber.dropLast(1)
-                }
+                if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
             },
             onClearAll = { phoneNumber = "" },
             onCallClick = {
@@ -193,10 +192,16 @@ private fun SuggestionRow(
     isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
 ) {
     val shape = when {
-        isSingle -> RoundedCornerShape(MediumCornerRadius)
+        isSingle -> RoundedCornerShape(
+            topStart = SmallestCornerRadius,
+            topEnd = SmallestCornerRadius,
+            bottomStart = SmallestCornerRadius,
+            bottomEnd = SmallestCornerRadius
+        )
+
         isFirstInGroup -> RoundedCornerShape(
-            topStart = MediumCornerRadius,
-            topEnd = MediumCornerRadius,
+            topStart = SmallestCornerRadius,
+            topEnd = SmallestCornerRadius,
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
@@ -238,6 +243,7 @@ private fun SuggestionRow(
 }
 
 data class SuggestionItem(
+    val id: String,
     val title: String,
     val subtitle: String,
     val number: String,
@@ -254,7 +260,8 @@ private fun buildSuggestions(
     val isDigitsOnly = query.all { it.isDigit() }
 
     if (query.isNotEmpty()) {
-        val numberMatches = (favorites + recent.map { Contact("", "", it.number) })
+        // Number prefix matches (both favorites and recents)
+        val numberMatches = (favorites + recent.map { Contact("", "", it.number, false) })
             .filter { contact ->
                 val num = contact.phone
                 num.startsWith(query) ||
@@ -264,20 +271,22 @@ private fun buildSuggestions(
             .distinctBy { it.phone }
             .take(5)
             .map { contact ->
-                if (contact.name.isNotBlank()) SuggestionItem(
-                    title = contact.name,
-                    subtitle = contact.phone,
+                val isFavorite = favorites.any { it.phone == contact.phone }
+                val title = if (contact.name.isNotBlank()) contact.name else contact.phone
+                val subtitle = if (contact.name.isNotBlank()) contact.phone else "Recent call"
+
+                SuggestionItem(
+                    id = if (isFavorite) "fav_${contact.phone}" else "recent_num_${contact.phone}",
+                    title = title,
+                    subtitle = subtitle,
                     number = contact.phone,
-                    type = SuggestionType.FAVORITE
-                ) else SuggestionItem(
-                    title = contact.phone,
-                    subtitle = "Recent",
-                    number = contact.phone
+                    type = if (isFavorite) SuggestionType.FAVORITE else SuggestionType.RECENT
                 )
             }
         addAll(numberMatches)
     }
 
+    // T9 name search (only favorites)
     if (isDigitsOnly && query.isNotEmpty() && query.none { it in "01*#" }) {
         val nameMatches = favorites
             .filter { contact ->
@@ -287,6 +296,7 @@ private fun buildSuggestions(
             .take(8)
             .map {
                 SuggestionItem(
+                    id = "fav_${it.id}_${it.phone}",  // or just "fav_${it.id}" if id is unique
                     title = it.name,
                     subtitle = it.phone,
                     number = it.phone,
@@ -297,15 +307,36 @@ private fun buildSuggestions(
 
         addAll(nameMatches)
     }
+
+    // Empty query → show defaults
     if (query.isEmpty()) {
-        favorites.take(6).forEach {
-            add(SuggestionItem(it.name, it.phone, it.phone, SuggestionType.FAVORITE))
+        favorites.take(6).forEach { contact ->
+            add(
+                SuggestionItem(
+                    id = "fav_${contact.id}_${contact.phone}",
+                    title = contact.name,
+                    subtitle = contact.phone,
+                    number = contact.phone,
+                    type = SuggestionType.FAVORITE
+                )
+            )
         }
-        recent.take(8).forEach {
-            add(SuggestionItem(it.number, formatRelativeTime(it.timestamp), it.number))
+
+        recent.take(8).forEachIndexed { _, call ->
+            add(
+                SuggestionItem(
+                    id = "recent_${call.id}",
+                    title = call.number,
+                    subtitle = formatRelativeTime(call.timestamp),
+                    number = call.number,
+                    type = SuggestionType.RECENT
+                )
+            )
         }
     }
 }
+
+
 private fun normalizeName(name: String): String {
     return name.lowercase()
         .replace(Regex("[^a-z]"), "")
