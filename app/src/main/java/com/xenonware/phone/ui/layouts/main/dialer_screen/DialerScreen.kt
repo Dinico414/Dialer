@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
@@ -100,8 +101,7 @@ fun DialerScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
@@ -120,6 +120,7 @@ fun DialerScreen(
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
+
                 suggestions.isEmpty() -> {
                     Text(
                         text = "No matching results",
@@ -127,15 +128,20 @@ fun DialerScreen(
                         color = colorScheme.onSurfaceVariant
                     )
                 }
+
                 else -> {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(SmallSpacing),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         itemsIndexed(
-                            items = suggestions,
-                            key = { index, item -> "${item.type.name}_${index}_${item.number.takeLast(8)}" }
-                        ) { index, item ->
+                            items = suggestions, key = { index, item ->
+                                "${item.type.name}_${index}_${
+                                    item.number.takeLast(
+                                        8
+                                    )
+                                }"
+                            }) { index, item ->
                             val isFirst = index == 0
                             val isLast = index == suggestions.lastIndex
                             val isSingle = suggestions.size == 1
@@ -166,27 +172,21 @@ fun DialerScreen(
                 .horizontalScroll(rememberScrollState()),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
-            color = if (phoneNumber.isEmpty())
-                colorScheme.onBackground.copy(alpha = 0.6f)
-            else
-                colorScheme.onBackground,
+            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
+            else colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable,
             maxLines = 1,
             overflow = TextOverflow.Clip
         )
 
         Dialpad(
-            onNumberClick = { digit -> phoneNumber += digit },
-            onDeleteClick = {
-                if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
-            },
-            onClearAll = { phoneNumber = "" },
-            onCallClick = {
-                if (phoneNumber.isNotEmpty()) {
-                    safePlaceCall(context, phoneNumber)
-                }
-            },
-            onOpenHistory = onOpenHistory
+            onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
+            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
+        }, onClearAll = { phoneNumber = "" }, onCallClick = {
+            if (phoneNumber.isNotEmpty()) {
+                safePlaceCall(context, phoneNumber)
+            }
+        }, onOpenHistory = onOpenHistory
         )
     }
 }
@@ -198,7 +198,7 @@ private fun SuggestionRow(
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     isSingle: Boolean,
-    matchingContact: Contact?          
+    matchingContact: Contact?
 ) {
     val shape = when {
         isSingle -> RoundedCornerShape(
@@ -237,8 +237,7 @@ private fun SuggestionRow(
         // Avatar section
         if (matchingContact != null) {
             ContactAvatar(
-                contact = matchingContact,
-                modifier = Modifier.size(48.dp)
+                contact = matchingContact, modifier = Modifier.size(48.dp)
             )
         } else {
             // Fallback avatar for numbers without contact
@@ -295,10 +294,7 @@ data class SuggestionItem(
 enum class SuggestionType { RECENT_CONTACT, FAVORITE }
 
 private fun buildSuggestions(
-    query: String,
-    recent: List<CallLogEntry>,
-    favorites: List<Contact>,
-    allContacts: List<Contact>
+    query: String, recent: List<CallLogEntry>, favorites: List<Contact>, allContacts: List<Contact>
 ): List<SuggestionItem> = buildList {
 
     val trimmed = query.trim()
@@ -314,16 +310,12 @@ private fun buildSuggestions(
             }
         }
 
-        val recentCalledContacts = allContacts
-            .filter { it.id in frequencyMap }
-            .sortedWith(
+        val recentCalledContacts = allContacts.filter { it.id in frequencyMap }.sortedWith(
                 compareByDescending { contact ->
                     val callCount = frequencyMap[contact.id] ?: 0
                     val isFavorite = favorites.any { it.id == contact.id }
                     callCount + if (isFavorite) 2.5 else 0.0
-                }
-            )
-            .take(12)
+                }).take(12)
 
         recentCalledContacts.forEach { contact ->
             val isFav = favorites.any { it.id == contact.id }
@@ -343,31 +335,22 @@ private fun buildSuggestions(
 
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
 
-    val matchingContacts = allContacts
-        .filter { contact ->
-            contact.phone.isNotBlank() && (
-                    contact.phone.containsNumberQuery(trimmed) ||
+    val matchingContacts = allContacts.filter { contact ->
+            contact.phone.isNotBlank() && (contact.phone.containsNumberQuery(trimmed) ||
 
-                            contact.name.startsWith(trimmed, ignoreCase = true) ||
+                    contact.name.startsWith(trimmed, ignoreCase = true) ||
 
-                            (isDigitInput && matchesT9(normalizeName(contact.name), trimmed))
-                    )
-        }
-        .distinctBy { it.phone }
-        .sortedWith(
-            compareByDescending<Contact> { c ->
-                val score = when {
-                    c.name.startsWith(trimmed, ignoreCase = true) -> 5
-                    matchesT9(normalizeName(c.name), trimmed) -> 4
-                    c.phone.startsWith(trimmed) -> 3
-                    c.phone.contains(trimmed) -> 2
-                    else -> 1
-                }
-                score
+                    (isDigitInput && matchesT9(normalizeName(contact.name), trimmed)))
+        }.distinctBy { it.phone }.sortedWith(compareByDescending<Contact> { c ->
+            val score = when {
+                c.name.startsWith(trimmed, ignoreCase = true) -> 5
+                matchesT9(normalizeName(c.name), trimmed) -> 4
+                c.phone.startsWith(trimmed) -> 3
+                c.phone.contains(trimmed) -> 2
+                else -> 1
             }
-                .thenBy { it.name.lowercase() }
-        )
-        .take(12)
+            score
+        }.thenBy { it.name.lowercase() }).take(12)
 
     matchingContacts.forEach { contact ->
         val isFav = favorites.any { it.id == contact.id }
@@ -388,21 +371,16 @@ private fun String.containsNumberQuery(query: String): Boolean {
     val cleanThis = this.replace(Regex("[^+0-9*#-]"), "")
     val cleanQuery = query.replace(Regex("[^+0-9*#-]"), "")
 
-    return cleanThis.startsWith(cleanQuery) ||
-            cleanThis.contains(cleanQuery)
+    return cleanThis.startsWith(cleanQuery) || cleanThis.contains(cleanQuery)
 }
 
 private fun normalizeName(name: String): String {
-    return name.lowercase()
-        .replace(Regex("[^a-z]"), "")
+    return name.lowercase().replace(Regex("[^a-z]"), "")
 }
 
 private fun normalizePhone(number: String): String {
     if (number.isBlank()) return ""
-    return number
-        .replace(Regex("[^+0-9]"), "")
-        .removePrefix("00")
-        .removePrefix("+")
+    return number.replace(Regex("[^+0-9]"), "").removePrefix("00").removePrefix("+")
 }
 
 private fun matchesT9(nameNormalized: String, digits: String): Boolean {
@@ -426,6 +404,7 @@ private fun matchesT9(nameNormalized: String, digits: String): Boolean {
     }
     return true
 }
+
 private val t9Map = mapOf(
     '2' to "abc",
     '3' to "def",
@@ -446,12 +425,14 @@ fun Dialpad(
     onCallClick: () -> Unit,
     onOpenHistory: () -> Unit,
 ) {
+
+    val deviceConfig = LocalDeviceConfig.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
 
     val screenHeightDp = configuration.screenHeightDp.dp
 
-    val extraBottomPadding = 64.dp + LargePadding * 2
+    val toolbarPadding = 64.dp + LargePadding * 2
     val safeBottomPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
             .calculateBottomPadding()
@@ -460,9 +441,15 @@ fun Dialpad(
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
 
     val callButtonHeight = 82.dp + LargestPadding
+    val textFieldHeight = 50.dp + LargestPadding * 2
+    val duoFix = when {
+        !deviceConfig.isSurfaceDuo -> 0.dp
+        deviceConfig.isSurfaceDuo -> 48.dp
+        else -> 0.dp
+    }
 
     val targetTotalHeight =
-        screenHeightDp * 0.70f - extraBottomPadding - safeTopPadding - safeBottomPadding - callButtonHeight - 82.dp
+        screenHeightDp * 0.70f - safeTopPadding - safeBottomPadding - toolbarPadding - callButtonHeight - textFieldHeight + duoFix
 
     val spacing = 8.dp
     val totalSpacing = spacing * 3
@@ -479,7 +466,7 @@ fun Dialpad(
             .padding(
                 horizontal = 16.dp
             )
-            .padding(bottom = extraBottomPadding + safeBottomPadding),
+            .padding(bottom = toolbarPadding + safeBottomPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
