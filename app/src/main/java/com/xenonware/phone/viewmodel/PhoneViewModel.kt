@@ -33,7 +33,8 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     val favorites: StateFlow<List<Contact>> = _favorites.asStateFlow()
 
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
-    val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()   // ← important for dialer suggestions
+    val contacts: StateFlow<List<Contact>> =
+        _contacts.asStateFlow()  
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -41,13 +42,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val _showSetDefaultOverlay = MutableStateFlow(false)
     val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
 
-    private val syncingCallIds = mutableSetOf<String>()
     private val offlineCallIds = mutableSetOf<String>()
-
-    private val t9Map = mapOf(
-        '2' to "abc", '3' to "def", '4' to "ghi", '5' to "jkl",
-        '6' to "mno", '7' to "pqrs", '8' to "tuv", '9' to "wxyz"
-    )
 
     init {
         loadLocalData()
@@ -58,30 +53,17 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun matchesT9(name: String, query: String): Boolean {
-        val normalized = name.lowercase().filter { it.isLetter() }
-        var index = 0
-        for (digit in query) {
-            val letters = t9Map[digit] ?: continue
-            var found = false
-            while (index < normalized.length) {
-                if (letters.contains(normalized[index])) {
-                    found = true
-                    index++
-                    break
-                }
-                index++
-            }
-            if (!found) return false
-        }
-        return true
-    }
-
     private fun matchesNumber(phone: String, query: String): Boolean {
         if (query.isEmpty()) return true
 
-        val cleanPhone = phone.replace(Regex("[^+0-9*#]"), "")
-        val cleanQuery = query.replace(Regex("[^+0-9*#]"), "")
+        if (query.none { it.isDigit() || it in setOf('+', '*', '#', '-') }) {
+            return false
+        }
+
+        val cleanPhone = phone.replace(Regex("[^+0-9*#-]"), "")
+        val cleanQuery = query.replace(Regex("[^+0-9*#-]"), "")
+
+        if (cleanQuery.isEmpty()) return false
 
         return cleanPhone.startsWith(cleanQuery) ||
                 cleanPhone.contains(cleanQuery) ||
@@ -89,13 +71,19 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadLocalData() {
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG) ==
-            PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CALL_LOG
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
             _recentCalls.value = loadCallLogs()
         }
 
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) ==
-            PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
             val loaded = loadContacts()
             val withNumber = loaded.filter { it.phone.isNotBlank() }
 
@@ -115,11 +103,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         context.contentResolver.query(
-            CallLog.Calls.CONTENT_URI,
-            projection,
-            null,
-            null,
-            "${CallLog.Calls.DATE} DESC"
+            CallLog.Calls.CONTENT_URI, projection, null, null, "${CallLog.Calls.DATE} DESC"
         )?.use { cursor ->
             while (cursor.moveToNext()) {
                 list += CallLogEntry(
@@ -155,14 +139,13 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                 val name = cursor.getString(1) ?: ""
                 val starred = cursor.getInt(2) == 1
 
-                // Get first phone number (you can extend this later to support multiple)
                 var phone = ""
                 context.contentResolver.query(
                     ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                     arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
                     "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
                     arrayOf(id),
-                    "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC"  // prefer primary number
+                    "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC"
                 )?.use { pCursor ->
                     if (pCursor.moveToFirst()) {
                         phone = pCursor.getString(0)?.trim() ?: ""
@@ -187,9 +170,11 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                     when (change.type) {
                         DocumentChange.Type.ADDED -> {
                             if (!offlineCallIds.contains(call.id) && _recentCalls.value.none { it.id == call.id }) {
-                                _recentCalls.value = listOf(call.copy(isOffline = false)) + _recentCalls.value
+                                _recentCalls.value =
+                                    listOf(call.copy(isOffline = false)) + _recentCalls.value
                             }
                         }
+
                         DocumentChange.Type.MODIFIED -> {
                             if (!offlineCallIds.contains(call.id)) {
                                 val current = _recentCalls.value.toMutableList()
@@ -200,9 +185,11 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
                         }
+
                         DocumentChange.Type.REMOVED -> {
                             if (!offlineCallIds.contains(call.id)) {
-                                _recentCalls.value = _recentCalls.value.filterNot { it.id == call.id }
+                                _recentCalls.value =
+                                    _recentCalls.value.filterNot { it.id == call.id }
                             }
                         }
                     }
@@ -210,10 +197,32 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-        // Note: you can keep updateSearchResults() if you want to use filteredContacts somewhere else,
-        // but for the dialer screen it's currently not necessary
+    private val _filteredContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val filteredContacts: StateFlow<List<Contact>> = _filteredContacts.asStateFlow()
+
+    fun updateSearchQuery(query: String) {
+        val trimmed = query.trim()
+        _searchQuery.value = trimmed
+
+        if (trimmed.isEmpty()) {
+            _filteredContacts.value = _contacts.value
+            return
+        }
+
+        val queryNorm = trimmed.lowercase()
+
+        val filtered = _contacts.value.filter { contact ->
+            val name = contact.name?.trim()?.lowercase() ?: ""
+
+            val matchesName =
+                name.contains(queryNorm) ||
+                        name.startsWith(queryNorm) ||
+                        name.split(Regex("\\s+")).any { it.startsWith(queryNorm) }
+
+            matchesName || matchesNumber(contact.phone, trimmed)
+        }
+
+        _filteredContacts.value = filtered
     }
 
     fun checkDefaultDialerStatus() {
@@ -221,8 +230,8 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
             val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
             rm.isRoleHeld(RoleManager.ROLE_DIALER)
         } else {
-            @Suppress("DEPRECATION")
-            val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            @Suppress("DEPRECATION") val tm =
+                context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
             tm.defaultDialerPackage == context.packageName
         }
         _showSetDefaultOverlay.value = !isDefault
@@ -233,10 +242,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         startRealtimeSync(uid)
         checkDefaultDialerStatus()
     }
-
-    fun dismissSetDefaultOverlay() {
-        _showSetDefaultOverlay.value = false
-    }
 }
 
 data class CallLogEntry(
@@ -245,5 +250,5 @@ data class CallLogEntry(
     val type: Int = 0,
     val timestamp: Long = 0L,
     val duration: Long = 0L,
-    val isOffline: Boolean = false
+    val isOffline: Boolean = false,
 )

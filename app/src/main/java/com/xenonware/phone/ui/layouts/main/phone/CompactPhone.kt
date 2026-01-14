@@ -3,22 +3,14 @@
 package com.xenonware.phone.ui.layouts.main.phone
 
 import android.content.Intent
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -34,7 +26,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -58,7 +49,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.auth.api.identity.Identity
@@ -69,7 +59,6 @@ import com.xenon.mylibrary.res.GoogleProfilePicture
 import com.xenon.mylibrary.res.SpannedModeFAB
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.theme.LocalDeviceConfig
-import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
@@ -130,20 +119,17 @@ fun CompactPhone(
             }
         }
 
-        // Pager: 0 = Dialer, 1 = Contacts
         val pagerState = rememberPagerState(pageCount = { 2 })
 
-        // Sync pager with currentScreen (only when not in CallHistory)
         LaunchedEffect(pagerState.currentPage) {
-                currentScreen = when (pagerState.currentPage) {
-                    0 -> PhoneScreen.Dialer
-                    1 -> PhoneScreen.Contacts
-                    else -> PhoneScreen.Dialer
-                }
+            currentScreen = when (pagerState.currentPage) {
+                0 -> PhoneScreen.Dialer
+                1 -> PhoneScreen.Contacts
+                else -> PhoneScreen.Dialer
+            }
 
         }
 
-        // Sync pager when switching via buttons (only Dialer/Contacts)
         LaunchedEffect(currentScreen) {
             when (currentScreen) {
                 PhoneScreen.Dialer -> {
@@ -156,7 +142,19 @@ fun CompactPhone(
             }
         }
 
-        // Handle back gesture when in Call History
+        LaunchedEffect(searchQuery) {
+            if (searchQuery.isNotBlank() && currentScreen != PhoneScreen.Contacts) {
+                currentScreen = PhoneScreen.Contacts
+            }
+            viewModel.updateSearchQuery(searchQuery)
+        }
+
+        LaunchedEffect(isSearchActive) {
+            if (isSearchActive && currentScreen != PhoneScreen.Contacts) {
+                pagerState.animateScrollToPage(1)
+                currentScreen = PhoneScreen.Contacts
+            }
+        }
 
         val areNavButtonsEnabled = !isSearchActive
 
@@ -165,17 +163,26 @@ fun CompactPhone(
                 Snackbar(snackbarData = data)
             }
         }, bottomBar = {
-                  FloatingToolbarContent(
+            FloatingToolbarContent(
                 hazeState = hazeState,
                 currentSearchQuery = searchQuery,
-                onSearchQueryChanged = { searchQuery = it },
+                onSearchQueryChanged = { newValue ->
+                    searchQuery = newValue
+                    viewModel.updateSearchQuery(newValue)
+                },
                 lazyListState = lazyListState,
                 allowToolbarScrollBehavior = true,
                 selectedNoteIds = emptyList(),
                 onClearSelection = {},
                 isAddModeActive = false,
                 isSearchActive = isSearchActive,
-                onIsSearchActiveChange = { isSearchActive = it },
+                onIsSearchActiveChange = { newActive ->
+                    isSearchActive = newActive
+                    if (!newActive) {
+                        searchQuery = ""
+                        viewModel.updateSearchQuery("")
+                    }
+                },
                 defaultContent = { iconsAlphaDuration, showActionIconsExceptSearch ->
                     Row(
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -296,8 +303,7 @@ fun CompactPhone(
                 navigationIconExtraContent = {
                     if (state.isSignInSuccessful) {
                         Box(contentAlignment = Alignment.Center) {
-                            @Suppress("KotlinConstantConditions")
-                            GoogleProfilBorder(
+                            @Suppress("KotlinConstantConditions") GoogleProfilBorder(
                                 isSignedIn = state.isSignInSuccessful,
                                 modifier = Modifier.size(32.dp),
                                 strokeWidth = 2.5.dp
@@ -315,6 +321,7 @@ fun CompactPhone(
                 actions = {},
                 content = {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val filteredContacts by viewModel.filteredContacts.collectAsStateWithLifecycle()
                         HorizontalPager(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize(),
@@ -322,13 +329,23 @@ fun CompactPhone(
                         ) { page ->
                             when (page) {
                                 0 -> DialerScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    onOpenHistory = {  val intent = Intent(currentContext,
-                                        CallHistoryActivity::class.java)
-                                        currentContext.startActivity(intent) }
-                                )
+                                    modifier = Modifier.fillMaxSize(), onOpenHistory = {
+                                        val intent = Intent(
+                                            currentContext, CallHistoryActivity::class.java
+                                        )
+                                        currentContext.startActivity(intent)
+                                    })
 
-                                1 -> ContactsScreen(modifier = Modifier.fillMaxSize())
+                                1 -> ContactsScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contactsToShow = filteredContacts.toList(),
+                                    searchQuery = searchQuery
+                                )
+                            }
+                        }
+                        LaunchedEffect(currentScreen) {
+                            if (currentScreen != PhoneScreen.Contacts) {
+                                searchQuery = ""
                             }
                         }
                     }

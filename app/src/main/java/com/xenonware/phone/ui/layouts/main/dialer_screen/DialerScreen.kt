@@ -198,7 +198,7 @@ private fun SuggestionRow(
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     isSingle: Boolean,
-    matchingContact: Contact?
+    matchingContact: Contact?          
 ) {
     val shape = when {
         isSingle -> RoundedCornerShape(

@@ -1,13 +1,10 @@
 package com.xenonware.phone.ui.layouts.main.contacts
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -35,7 +32,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Message
@@ -47,11 +44,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,89 +80,72 @@ import com.xenonware.phone.data.Contact
 data class ContactGroup(val letter: Char, val contacts: List<Contact>)
 
 @Composable
-fun ContactsScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
-    var hasPermission by remember { mutableStateOf(false) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasPermission = isGranted
-        if (isGranted) contacts = loadContacts(context)
+fun ContactsScreen(
+    modifier: Modifier = Modifier,
+    contactsToShow: List<Contact>,
+    searchQuery: String = "",
+) {
+    if (contactsToShow.isEmpty()) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank()) "No matching contacts"
+                else "No contacts found", color = colorScheme.onSurfaceVariant, fontSize = 18.sp
+            )
+        }
+        return
     }
 
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+    val groupedContacts = remember(contactsToShow) {
+        contactsToShow.sortedBy { it.name }
+            .groupBy { it.name.firstOrNull()?.uppercaseChar() ?: '#' }
+            .map { (letter, list) -> ContactGroup(letter, list) }.sortedBy { it.letter }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        if (!hasPermission) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Contacts permission required", fontSize = 20.sp)
-            }
-        } else if (contacts.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No contacts found", fontSize = 20.sp)
-            }
-        } else {
-            val groupedContacts = remember(contacts) {
-                contacts.sortedBy { it.name }
-                    .groupBy { it.name.firstOrNull()?.uppercaseChar() ?: '#' }
-                    .map { (letter, list) ->
-                        ContactGroup(letter, list.sortedBy { it.name })
-                    }.sortedBy { it.letter }
-            }
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                modifier = Modifier.padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(
-                    bottom = with(LocalDensity.current) {
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                            .calculateBottomPadding() + 64.dp + LargestPadding * 2
-                    })
-            ) {
-                groupedContacts.forEach { group ->
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(colorScheme.surfaceContainer)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .padding(top = 8.dp)
-                        ) {
-                            Text(
-                                text = group.letter.toString(),
-                                fontSize = 20.sp,
-                                fontFamily = QuicksandTitleVariable,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    items(group.contacts.indices.toList()) { index ->
-                        val contact = group.contacts[index]
-                        val isFirst = index == 0
-                        val isLast = index == group.contacts.lastIndex
-                        val isSingle = group.contacts.size == 1
-                        ContactItemCard(
-                            contact = contact,
-                            isFirstInGroup = isFirst,
-                            isLastInGroup = isLast,
-                            isSingle = isSingle
-                        )
-                    }
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+        modifier = modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxSize(),
+        contentPadding = PaddingValues(
+            bottom = with(LocalDensity.current) {
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
+                    .calculateBottomPadding() + 64.dp + LargestPadding * 2
+            })) {
+        groupedContacts.forEach { group ->
+            item(key = "header_${group.letter}") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colorScheme.surfaceContainer)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = group.letter.toString(),
+                        fontSize = 20.sp,
+                        fontFamily = QuicksandTitleVariable,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurfaceVariant
+                    )
                 }
+            }
+
+            itemsIndexed(
+                items = group.contacts, key = { _, contact -> contact.id }) { index, contact ->
+                ContactItemCard(
+                    contact = contact,
+                    isFirstInGroup = index == 0,
+                    isLastInGroup = index == group.contacts.lastIndex,
+                    isSingle = group.contacts.size == 1
+                )
             }
         }
     }
 }
 
+
 @Composable
 fun ContactItemCard(
-    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
+    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
 

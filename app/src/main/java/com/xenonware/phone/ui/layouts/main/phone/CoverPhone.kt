@@ -119,7 +119,7 @@ fun CoverPhone(
                                     CallHistoryActivity::class.java)
                                     currentContext.startActivity(intent)  }
                             )
-                            PhoneScreen.Contacts -> ContactsScreen(modifier = Modifier.fillMaxSize())
+                            PhoneScreen.Contacts -> ContactsScreen(modifier = Modifier.fillMaxSize(), contactsToShow = viewModel.contacts.collectAsStateWithLifecycle().value, searchQuery = viewModel.searchQuery.value)
                         }
                     }
 
