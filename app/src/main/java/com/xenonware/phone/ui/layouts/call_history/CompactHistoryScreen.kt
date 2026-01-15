@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Voicemail
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -231,7 +232,9 @@ fun CallHistoryItemCard(
         CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
         CallLog.Calls.OUTGOING_TYPE -> Icons.Rounded.KeyboardArrowUp to Color(0xFF4CAF50)
         CallLog.Calls.MISSED_TYPE -> Icons.Rounded.Close to Color(0xFFF44336)
-        CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF9E9E9E)
+        CallLog.Calls.VOICEMAIL_TYPE -> Icons.Rounded.Voicemail to Color(0xFFFFC107)
+        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF9E9E9E)
+        CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.Close to Color(0xFF9E9E9E)
         CallLog.Calls.BLOCKED_TYPE -> Icons.Rounded.Block to Color(0xFF9E9E9E)
         else -> Icons.Rounded.Remove to Color(0xFF9E9E9E)
     }
@@ -296,6 +299,8 @@ fun CallHistoryItemCard(
                         CallLog.Calls.INCOMING_TYPE -> "Incoming"
                         CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
                         CallLog.Calls.MISSED_TYPE -> "Missed"
+                        CallLog.Calls.VOICEMAIL_TYPE -> "Voicemail"
+                        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> "Answered Externally"
                         CallLog.Calls.REJECTED_TYPE -> "Rejected"
                         CallLog.Calls.BLOCKED_TYPE -> "Blocked"
                         else -> "Unknown"
