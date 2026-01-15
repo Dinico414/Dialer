@@ -427,6 +427,7 @@ private val t9Map = mapOf(
     '9' to "wxyz"
 )
 
+@Suppress("KotlinConstantConditions", "KotlinConstantConditions")
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun Dialpad(

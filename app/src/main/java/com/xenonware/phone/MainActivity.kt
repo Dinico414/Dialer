@@ -59,7 +59,6 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        println("DIALER DEBUG → onCreate - intent: $intent")
         handleDialerIntent(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         sharedPreferenceManager = SharedPreferenceManager(applicationContext)
@@ -79,7 +78,6 @@ class MainActivity : ComponentActivity() {
             val currentContainerSize = LocalWindowInfo.current.containerSize
             val applyCoverTheme = sharedPreferenceManager.isCoverThemeApplied(currentContainerSize)
 
-            // REAL-TIME SYNC ON SIGN-IN
             LaunchedEffect(Unit) {
                 signInViewModel.signInEvent.collect { event ->
                     if (event is SignInEvent.SignedInSuccessfully) {

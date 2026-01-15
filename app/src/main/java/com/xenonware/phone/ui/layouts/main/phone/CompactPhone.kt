@@ -146,8 +146,10 @@ fun CompactPhone(
             when (currentScreen) {
                 PhoneScreen.Dialer -> {
                     if (pagerState.currentPage != 0) pagerState.animateScrollToPage(0)
+                    isSearchActive = false
+                    searchQuery = ""
+                    viewModel.updateSearchQuery("")
                 }
-
                 PhoneScreen.Contacts -> {
                     if (pagerState.currentPage != 1) pagerState.animateScrollToPage(1)
                 }
@@ -365,8 +367,6 @@ fun CompactPhone(
                 content = {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val filteredContacts by viewModel.filteredContacts.collectAsStateWithLifecycle()
-
-                        val pagerState = rememberPagerState { 2 }
                         @OptIn(ExperimentalFoundationApi::class)
                         HorizontalPager(
                             state = pagerState,
