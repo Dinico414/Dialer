@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -440,16 +441,19 @@ fun Dialpad(
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
 
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val callButtonHeight = 82.dp + LargestPadding
     val textFieldHeight = 50.dp + LargestPadding * 2
     val duoFix = when {
         !deviceConfig.isSurfaceDuo -> 0.dp
-        deviceConfig.isSurfaceDuo -> 48.dp
+        deviceConfig.isSurfaceDuo && !deviceConfig.isSpannedMode-> 48.dp
+        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && isLandscape -> 48.dp
+        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && !isLandscape -> 0.dp
         else -> 0.dp
     }
 
     val targetTotalHeight =
-        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight + duoFix
+        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight /*+ duoFix*/
 
     val spacing = 8.dp
     val totalSpacing = spacing * 3
