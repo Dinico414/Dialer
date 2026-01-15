@@ -4,15 +4,24 @@ package com.xenonware.phone.ui.layouts.main.phone
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -30,7 +39,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,8 +48,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -49,6 +57,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.auth.api.identity.Identity
@@ -59,6 +68,7 @@ import com.xenon.mylibrary.res.GoogleProfilePicture
 import com.xenon.mylibrary.res.SpannedModeFAB
 import com.xenon.mylibrary.theme.DeviceConfigProvider
 import com.xenon.mylibrary.theme.LocalDeviceConfig
+import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
@@ -106,7 +116,6 @@ fun CompactPhone(
         }
 
         val hazeState = rememberHazeState()
-        val snackbarHostState = remember { SnackbarHostState() }
         val lazyListState = rememberLazyListState()
 
         var currentScreen by remember { mutableStateOf<PhoneScreen>(PhoneScreen.Dialer) }
@@ -163,6 +172,26 @@ fun CompactPhone(
 
         Scaffold(
             bottomBar = {
+                val bottomPaddingNavigationBar =
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val imePaddingValues = WindowInsets.ime.asPaddingValues()
+                val imeHeight = imePaddingValues.calculateBottomPadding()
+                val targetBottomPadding =
+                    remember(imeHeight, bottomPaddingNavigationBar, imePaddingValues) {
+                        val calculatedPadding = if (imeHeight > bottomPaddingNavigationBar) {
+                            imeHeight + LargePadding
+                        } else {
+                            max(
+                                bottomPaddingNavigationBar, imePaddingValues.calculateTopPadding()
+                            ) + LargePadding
+                        }
+                        max(calculatedPadding, 0.dp)
+                    }
+                val animatedBottomPadding by animateDpAsState(
+                    targetValue = targetBottomPadding, animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
+                    ), label = "bottomPaddingAnimation"
+                )
                 FloatingToolbarContent(
                     hazeState = hazeState,
                     currentSearchQuery = searchQuery,
@@ -188,17 +217,25 @@ fun CompactPhone(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            val iconAlphaTarget = if (isSearchActive) 0.38f else 1f
+                            val iconAlphaTarget = if (isSearchActive) 0f else 1f
 
                             val navIconAlpha by animateFloatAsState(
-                                targetValue = iconAlphaTarget,
-                                animationSpec = tween(durationMillis = iconsAlphaDuration),
-                                label = "NavIconAlpha"
+                                targetValue = iconAlphaTarget, animationSpec = tween(
+                                    durationMillis = iconsAlphaDuration,
+                                    delayMillis = if (isSearchActive) 0 else 0
+                                ), label = "NavIconAlpha"
                             )
+                            val navBoxAlpha by animateFloatAsState(
+                                targetValue = iconAlphaTarget, animationSpec = tween(
+                                    durationMillis = iconsAlphaDuration,
+                                    delayMillis = if (isSearchActive) 100 else 0
+                                ), label = "NavBoxAlpha"
+                            )
+
 
                             Box(
                                 modifier = Modifier
-                                    .graphicsLayer(alpha = navIconAlpha)
+                                    .alpha(navBoxAlpha)
                                     .clip(CircleShape)
                                     .background(colorScheme.surfaceBright)
                             ) {
@@ -206,17 +243,19 @@ fun CompactPhone(
                                     FilledTonalIconButton(
                                         onClick = { currentScreen = PhoneScreen.Dialer },
                                         enabled = areNavButtonsEnabled,
+                                        modifier = Modifier.alpha(navIconAlpha),
                                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                                             containerColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.tertiary
                                             else colorScheme.surfaceBright,
                                             contentColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.onTertiary
                                             else colorScheme.onSurface,
-                                            disabledContainerColor = colorScheme.onSurface.copy(
+                                            disabledContainerColor = (if (currentScreen == PhoneScreen.Dialer) colorScheme.onSurface else colorScheme.surfaceBright).copy(
                                                 alpha = 0.6f
                                             ),
-                                            disabledContentColor = colorScheme.surfaceBright.copy(
+                                            disabledContentColor = (if (currentScreen == PhoneScreen.Dialer) colorScheme.surfaceBright else colorScheme.onSurface).copy(
                                                 alpha = 0.38f
                                             )
+
                                         )
                                     ) {
                                         Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer")
@@ -225,15 +264,18 @@ fun CompactPhone(
                                     FilledTonalIconButton(
                                         onClick = { currentScreen = PhoneScreen.Contacts },
                                         enabled = areNavButtonsEnabled,
+                                        modifier = Modifier.alpha(navIconAlpha),
                                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                                             containerColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.tertiary
                                             else colorScheme.surfaceBright,
                                             contentColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.onTertiary
                                             else colorScheme.onSurface,
-                                            disabledContainerColor = colorScheme.surfaceBright.copy(
+                                            disabledContainerColor = (if (currentScreen == PhoneScreen.Contacts) colorScheme.onSurface else colorScheme.surfaceBright).copy(
                                                 alpha = 0.6f
                                             ),
-                                            disabledContentColor = colorScheme.onSurface.copy(alpha = 0.38f)
+                                            disabledContentColor = (if (currentScreen == PhoneScreen.Contacts) colorScheme.surfaceBright else colorScheme.onSurface).copy(
+                                                alpha = 0.38f
+                                            )
                                         )
                                     ) {
                                         Icon(Icons.Rounded.Person, contentDescription = "Contacts")
@@ -242,15 +284,15 @@ fun CompactPhone(
                             }
 
                             val settingsIconAlpha by animateFloatAsState(
-                                targetValue = if (isSearchActive) 0f else 1f, animationSpec = tween(
+                                targetValue = iconAlphaTarget, animationSpec = tween(
                                     durationMillis = iconsAlphaDuration,
-                                    delayMillis = if (isSearchActive) 100 else 0
+                                    delayMillis = if (isSearchActive) 200 else 0
                                 ), label = "SettingsIconAlpha"
                             )
 
                             IconButton(
                                 onClick = onOpenSettings,
-                                modifier = Modifier.graphicsLayer(alpha = settingsIconAlpha),
+                                modifier = Modifier.alpha(settingsIconAlpha),
                                 enabled = !isSearchActive && showActionIconsExceptSearch
                             ) {
                                 Icon(Icons.Rounded.Settings, contentDescription = "Settings")
@@ -270,11 +312,11 @@ fun CompactPhone(
                         SpannedModeFAB(
                             hazeState = hazeState,
                             onClick = deviceConfig.toggleFabSide,
+                            modifier = Modifier.padding(bottom = animatedBottomPadding),
                             isSheetOpen = false
                         )
                     })
-            }
-        ) { scaffoldPadding ->
+            }) { scaffoldPadding ->
             val context = LocalContext.current
             val googleAuthUiClient = remember {
                 GoogleAuthUiClient(
@@ -323,6 +365,9 @@ fun CompactPhone(
                 content = {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val filteredContacts by viewModel.filteredContacts.collectAsStateWithLifecycle()
+
+                        val pagerState = rememberPagerState { 2 }
+                        @OptIn(ExperimentalFoundationApi::class)
                         HorizontalPager(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize(),
