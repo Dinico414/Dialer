@@ -8,8 +8,8 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="com.xenonware.phone.debug" />
-                  <option name="mobileSdkAppId" value="1:8027822132:android:2449c18f585d016bbe1261" />
+                  <option name="appId" value="com.xenonware.phone" />
+                  <option name="mobileSdkAppId" value="1:8027822132:android:5a6f16fcd2a18f90be1261" />
                   <option name="projectId" value="custom-2d30c" />
                   <option name="projectNumber" value="8027822132" />
                 </ConnectionSetting>

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,9 +118,16 @@ fun CoverPhone(
                                 modifier = Modifier.fillMaxSize(),
                                 onOpenHistory = {  val intent = Intent(currentContext,
                                     CallHistoryActivity::class.java)
-                                    currentContext.startActivity(intent)  }
+                                    currentContext.startActivity(intent)
+                                },
+                                contentPadding = it
                             )
-                            PhoneScreen.Contacts -> ContactsScreen(modifier = Modifier.fillMaxSize(), contactsToShow = viewModel.contacts.collectAsStateWithLifecycle().value, searchQuery = viewModel.searchQuery.value)
+                            PhoneScreen.Contacts -> ContactsScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                contactsToShow = viewModel.contacts.collectAsStateWithLifecycle().value,
+                                searchQuery = viewModel.searchQuery.collectAsState().value,
+                                contentPadding = it
+                            )
                         }
                     }
 

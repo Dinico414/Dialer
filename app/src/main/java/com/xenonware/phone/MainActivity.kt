@@ -3,7 +3,6 @@ package com.xenonware.phone
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -192,14 +191,10 @@ fun XenonApp(
         if (showOverlay) {
             SetDefaultDialerOverlay(
                 onSetDefault = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
-                        if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
-                            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
-                            roleRequestLauncher.launch(intent)
-                        }
-                    } else {
-                        Toast.makeText(context, "Please set as default in Settings > Apps", Toast.LENGTH_LONG).show()
+                    val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+                    if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+                        val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
+                        roleRequestLauncher.launch(intent)
                     }
                 },
 

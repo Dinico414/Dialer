@@ -18,6 +18,7 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -73,7 +74,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
-import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
@@ -88,6 +88,7 @@ fun DialerScreen(
     modifier: Modifier = Modifier,
     onOpenHistory: () -> Unit,
     viewModel: PhoneViewModel = viewModel(),
+    contentPadding: PaddingValues
 ) {
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
@@ -181,12 +182,14 @@ fun DialerScreen(
 
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
-            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
-        }, onClearAll = { phoneNumber = "" }, onCallClick = {
+            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
+            onClearAll = { phoneNumber = "" }, onCallClick = {
             if (phoneNumber.isNotEmpty()) {
                 safePlaceCall(context, phoneNumber)
-            }
-        }, onOpenHistory = onOpenHistory
+                }
+            },
+            onOpenHistory = onOpenHistory,
+            contentPadding = contentPadding
         )
     }
 }
@@ -424,18 +427,15 @@ fun Dialpad(
     onClearAll: () -> Unit,
     onCallClick: () -> Unit,
     onOpenHistory: () -> Unit,
+    contentPadding: PaddingValues
 ) {
-
     val deviceConfig = LocalDeviceConfig.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
 
     val screenHeightDp = configuration.screenHeightDp.dp
 
-    val toolbarPadding = 64.dp + LargePadding * 2
-    val safeBottomPadding =
-        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-            .calculateBottomPadding()
+    val bottomPadding = contentPadding.calculateBottomPadding()
 
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
@@ -449,7 +449,7 @@ fun Dialpad(
     }
 
     val targetTotalHeight =
-        screenHeightDp * 0.70f - safeTopPadding - safeBottomPadding - toolbarPadding - callButtonHeight - textFieldHeight + duoFix
+        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight + duoFix
 
     val spacing = 8.dp
     val totalSpacing = spacing * 3
@@ -466,7 +466,7 @@ fun Dialpad(
             .padding(
                 horizontal = 16.dp
             )
-            .padding(bottom = toolbarPadding + safeBottomPadding),
+            .padding(bottom = bottomPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
@@ -587,6 +587,7 @@ fun Dialpad(
         }
     }
 }
+
 
 @SuppressLint("ObsoleteSdkInt")
 private fun safePlaceCall(context: Context, phoneNumber: String) {

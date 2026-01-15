@@ -21,14 +21,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,7 +52,6 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -71,7 +65,6 @@ import androidx.graphics.shapes.circle
 import androidx.graphics.shapes.star
 import androidx.graphics.shapes.toPath
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
-import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
@@ -84,6 +77,7 @@ fun ContactsScreen(
     modifier: Modifier = Modifier,
     contactsToShow: List<Contact>,
     searchQuery: String = "",
+    contentPadding: PaddingValues
 ) {
     if (contactsToShow.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -107,10 +101,9 @@ fun ContactsScreen(
             .padding(horizontal = 16.dp)
             .fillMaxSize(),
         contentPadding = PaddingValues(
-            bottom = with(LocalDensity.current) {
-                WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                    .calculateBottomPadding() + 64.dp + LargestPadding * 2
-            })) {
+            bottom = contentPadding.calculateBottomPadding()
+
+        )) {
         groupedContacts.forEach { group ->
             item(key = "header_${group.letter}") {
                 Box(
