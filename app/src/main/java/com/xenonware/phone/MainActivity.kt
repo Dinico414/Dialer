@@ -59,6 +59,8 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        println("DIALER DEBUG → onCreate - intent: $intent")
+        handleDialerIntent(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         sharedPreferenceManager = SharedPreferenceManager(applicationContext)
 
@@ -102,6 +104,26 @@ class MainActivity : ComponentActivity() {
                         currentContext.startActivity(intent)
                     },
                 )
+            }
+        }
+    }
+
+    private fun handleDialerIntent(intent: Intent?) {
+        if (intent == null) return
+
+        val action = intent.action
+        val data = intent.data
+
+        if (action == Intent.ACTION_DIAL ||
+            action == Intent.ACTION_VIEW ||
+            action == Intent.ACTION_CALL) {
+
+            if (data?.scheme == "tel") {
+                val number = data.schemeSpecificPart?.trim()
+
+                if (!number.isNullOrBlank()) {
+                    viewModel.setIncomingPhoneNumber(number)
+                }
             }
         }
     }

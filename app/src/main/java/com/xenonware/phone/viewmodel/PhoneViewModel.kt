@@ -42,6 +42,9 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val _showSetDefaultOverlay = MutableStateFlow(false)
     val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
 
+    private val _incomingPhoneNumber = MutableStateFlow<String?>(null)
+    val incomingPhoneNumber: StateFlow<String?> = _incomingPhoneNumber.asStateFlow()
+
     private val offlineCallIds = mutableSetOf<String>()
 
     init {
@@ -51,6 +54,12 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         auth.currentUser?.uid?.let { uid ->
             startRealtimeSync(uid)
         }
+    }
+
+
+
+    fun setIncomingPhoneNumber(number: String) {
+        _incomingPhoneNumber.value = number
     }
 
     private fun matchesNumber(phone: String, query: String): Boolean {

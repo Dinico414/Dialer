@@ -91,6 +91,7 @@ fun DialerScreen(
     viewModel: PhoneViewModel = viewModel(),
     contentPadding: PaddingValues
 ) {
+    val incomingNumber by viewModel.incomingPhoneNumber.collectAsState()
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
     val allContacts by viewModel.contacts.collectAsState()
@@ -100,6 +101,12 @@ fun DialerScreen(
 
     val suggestions by remember(phoneNumber, recentCalls, favorites, allContacts) {
         derivedStateOf { buildSuggestions(phoneNumber, recentCalls, favorites, allContacts) }
+    }
+
+    LaunchedEffect(incomingNumber) {
+        if (incomingNumber != null && phoneNumber.isEmpty()) {
+            phoneNumber = incomingNumber ?: ""
+        }
     }
 
     Column(
