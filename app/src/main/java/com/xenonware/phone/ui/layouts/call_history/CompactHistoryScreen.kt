@@ -1,9 +1,9 @@
 package com.xenonware.phone.ui.layouts.call_history
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.CallLog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -77,21 +78,22 @@ import java.util.Date
 import java.util.Locale
 
 data class CallLogEntry(
-    val nameOrNumber: String, val phoneNumber: String, val type: Int, val date: Long
+    val nameOrNumber: String, val phoneNumber: String, val type: Int, val date: Long,
 )
 
 data class CallGroup(
-    val title: String, val entries: List<CallLogEntry>
+    val title: String, val entries: List<CallLogEntry>,
 )
 
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CompactHistoryScreen(
     onNavigateBack: () -> Unit,
     layoutType: LayoutType,
     isLandscape: Boolean,
     viewModel: CallHistoryViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val callLogs by viewModel.callLogs.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -223,7 +225,7 @@ fun CompactHistoryScreen(
 
 @Composable
 fun CallHistoryItemCard(
-    entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean
+    entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -312,13 +314,13 @@ fun CallHistoryItemCard(
 
             IconButton(
                 onClick = {
-                    val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${entry.phoneNumber}"))
+                    val intent = Intent(Intent.ACTION_CALL, "tel:${entry.phoneNumber}".toUri())
                     try {
                         context.startActivity(intent)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         context.startActivity(
                             Intent(
-                                Intent.ACTION_DIAL, Uri.parse("tel:${entry.phoneNumber}")
+                                Intent.ACTION_DIAL, "tel:${entry.phoneNumber}".toUri()
                             )
                         )
                     }
