@@ -2,7 +2,6 @@ package com.xenonware.phone.ui.layouts.main.contacts
 
 import android.content.Context
 import android.content.Intent
-import android.provider.ContactsContract
 import android.telecom.Call
 import android.widget.Toast
 import androidx.compose.animation.core.CubicBezierEasing
@@ -391,53 +390,13 @@ class MorphPolygonShape(
     }
 }
 
-private fun loadContacts(context: Context): List<Contact> {
-    val list = mutableListOf<Contact>()
-    context.contentResolver.query(
-        ContactsContract.Contacts.CONTENT_URI,
-        arrayOf(
-            ContactsContract.Contacts._ID,
-            ContactsContract.Contacts.DISPLAY_NAME,
-            ContactsContract.Contacts.STARRED
-        ),
-        "${ContactsContract.Contacts.HAS_PHONE_NUMBER} > 0",
-        null,
-        "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
-    )?.use { cursor ->
-        while (cursor.moveToNext()) {
-            val id = cursor.getString(0) ?: continue
-            val name = cursor.getString(1) ?: ""
-            val starred = cursor.getInt(2) == 1
-
-            var phone = ""
-            context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
-                "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-                arrayOf(id),
-                null
-            )?.use { pCursor ->
-                if (pCursor.moveToFirst()) {
-                    phone = pCursor.getString(0)?.trim() ?: ""
-                }
-            }
-
-            if (phone.isNotBlank()) {
-                list += Contact(
-                    id = id, name = name.trim(), phone = phone, isFavorite = starred
-                )
-            }
-        }
-    }
-    return list.distinctBy { it.phone }
-}
-
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val uri = "tel:$phoneNumber".toUri()
     val intent = Intent(Intent.ACTION_CALL, uri)
+    val callFailedString = context.getString(R.string.call_failed)
     try {
         context.startActivity(intent)
     } catch (_: Exception) {
-        Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
     }
 }
