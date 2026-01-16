@@ -129,4 +129,43 @@
     <string name="call_history">Anrufverlauf</string>
     <string name="enter_phone_number">Enter number</string>
 
+    <string name="call_failed">Anruf konnte nicht getätigt werden</string>
+    <string name="permission_denied">Berechtigung verweigert</string>
+    <string name="no_match">Keine passenden Ergebnisse</string>
+    <string name="no_suggestions">Anrufvorschläge werden hier angezeigt</string>
+    <string name="private_label">Private</string>
+    <string name="unknown">Unbekannt</string>
+    <string name="mute_label">Stummen</string>
+    <string name="unmute_label">Entstummen</string>
+    <string name="speaker_label">Lautsprecher</string>
+    <string name="wired_headset_label">Kabelkopfhörer</string>
+    <string name="bluetooth_label">Bluetooth</string>
+    <string name="earpiece_label">Hörer</string>
+    <string name="incoming_call_label">Eingehende Anrufe</string>
+    <string name="set_as_default">Als Standardtelefon festlegen</string>
+    <string name="set_as_default_description">Um direkt Anrufen und alle Funktionen nutzen zu können, musst du diese App als Standardtelefon festlegen.</string>
+    <string name="incoming">Eingehend</string>
+    <string name="outgoing">Ausgehend</string>
+    <string name="missed">Verpasst</string>
+    <string name="voicemail">Mailbox</string>
+    <string name="answered_externally">Extern angenommen</string>
+    <string name="rejected">Abgelehnt</string>
+    <string name="blocked">Blockiert</string>
+    <string name="today">Heute</string>
+    <string name="yesterday">Gestern</string>
+    <string name="last_week">Letzte Woche</string>
+    <string name="last_month">Letzter Monat</string>
+    <string name="restricted">Eingeschränkt</string>
+    <string name="payphone">Münztelefon</string>
+    <string name="no_calls_yet">Noch keine Anrufe</string>
+    <string name="permission_required">Berechtigung erforderlich\nfür Anrufverlauf</string>
+    <string name="incoming_call__label">Eingehende Anrufe...</string>
+    <string name="calling__label">Wählen...</string>
+    <string name="on_hold_label">Anruf pausiert</string>
+    <string name="rejected_call_label">Anruf abgelehnt</string>
+    <string name="missed_call_label">Anruf verpasst</string>
+    <string name="ended_call_label">Anruf beendet</string>
+    <string name="unknown_call_state_label">Unbekannter Zustand</string>
+    <string name="no_contacts_found">Keine passenden Kontakte</string>
+
 </resources>
