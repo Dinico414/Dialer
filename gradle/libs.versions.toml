@@ -34,12 +34,12 @@ googleid = "1.1.1"
 firebaseDatabase = "22.0.1"
 firebaseFirestore = "26.0.2"
 uiGraphics = "1.10.1"
+foundation = "1.10.1"
 
 
 xenonCommons = "2.3.6"
 #noinspection UnusedVersionCatalogEntry
 xenonUi = "3.1"
-foundation = "1.10.1"
 
 
 
