@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Phone-d</string>
+    <string name="app_name">Phone</string>
     <string name="settings">Settings</string>
 
     <string name="theme">Theme</string>
@@ -125,6 +125,7 @@
     <string name="phone">Phone</string>
     <string name="contacts">Contacts</string>
     <string name="call_history">Call History</string>
+    <string name="enter_phone_number">Enter number</string>
 
 
 </resources>
