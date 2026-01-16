@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -124,7 +123,7 @@ fun CoverHistoryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (hasPermission) "No call history yet" else "Permission required\nto view call history",
+                                text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(R.string.permission_required),
                                 fontSize = 18.sp,
                                 lineHeight = 28.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -134,14 +133,20 @@ fun CoverHistoryScreen(
                     }
 
                     else -> {
-                        val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
+                        val groupedCalls = groupCallLogsByDate(
+                            entries = callLogs,
+                            todayStr = stringResource(R.string.today),
+                            yesterdayStr = stringResource(R.string.yesterday),
+                            lastWeekStr = stringResource(R.string.last_week),
+                            lastMonthStr = stringResource(R.string.last_month)
+                        )
                         val listState = rememberLazyListState()
 
                         LazyColumn(
                             state = listState,
                             verticalArrangement = Arrangement.spacedBy(SmallSpacing),
                             modifier = Modifier
-                                .padding(horizontal = 12.dp)  // possibly smaller horizontal padding on cover
+                                .padding(horizontal = 12.dp)
                                 .fillMaxSize(),
                             contentPadding = PaddingValues(
                                 bottom = with(LocalDensity.current) {

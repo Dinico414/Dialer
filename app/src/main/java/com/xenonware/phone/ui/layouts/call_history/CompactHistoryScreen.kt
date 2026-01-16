@@ -109,7 +109,6 @@ fun CompactHistoryScreen(
         }
     }
 
-    // Single source of truth for initial load / permission request
     LaunchedEffect(Unit) {
         if (hasPermission) {
             viewModel.loadCallLogs(context)
@@ -162,7 +161,7 @@ fun CompactHistoryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (hasPermission) "No call history yet" else "Permission required\nto view call history",
+                                text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(R.string.permission_required),
                                 fontSize = 18.sp,
                                 lineHeight = 28.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -172,7 +171,13 @@ fun CompactHistoryScreen(
                     }
 
                     else -> {
-                        val groupedCalls = remember(callLogs) { groupCallLogsByDate(callLogs) }
+                        val groupedCalls = groupCallLogsByDate(
+                            entries = callLogs,
+                            todayStr = stringResource(R.string.today),
+                            yesterdayStr = stringResource(R.string.yesterday),
+                            lastWeekStr = stringResource(R.string.last_week),
+                            lastMonthStr = stringResource(R.string.last_month)
+                        )
                         val listState = rememberLazyListState()
 
                         LazyColumn(
@@ -298,14 +303,14 @@ fun CallHistoryItemCard(
                 )
                 Text(
                     text = when (entry.type) {
-                        CallLog.Calls.INCOMING_TYPE -> "Incoming"
-                        CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
-                        CallLog.Calls.MISSED_TYPE -> "Missed"
-                        CallLog.Calls.VOICEMAIL_TYPE -> "Voicemail"
-                        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> "Answered Externally"
-                        CallLog.Calls.REJECTED_TYPE -> "Rejected"
-                        CallLog.Calls.BLOCKED_TYPE -> "Blocked"
-                        else -> "Unknown"
+                        CallLog.Calls.INCOMING_TYPE -> stringResource(id = R.string.incoming)
+                        CallLog.Calls.OUTGOING_TYPE -> stringResource(id = R.string.outgoing)
+                        CallLog.Calls.MISSED_TYPE -> stringResource(id = R.string.missed)
+                        CallLog.Calls.VOICEMAIL_TYPE -> stringResource(id = R.string.voicemail)
+                        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> stringResource(id = R.string.answered_externally)
+                        CallLog.Calls.REJECTED_TYPE -> stringResource(id = R.string.rejected)
+                        CallLog.Calls.BLOCKED_TYPE -> stringResource(id = R.string.blocked)
+                        else -> stringResource(id = R.string.unknown)
                     } + " • ${dateFormat.format(Date(entry.date))}",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -339,38 +344,42 @@ fun CallHistoryItemCard(
     }
 }
 
-fun groupCallLogsByDate(entries: List<CallLogEntry>): List<CallGroup> {
+fun groupCallLogsByDate(
+    entries: List<CallLogEntry>,
+    todayStr: String,
+    yesterdayStr: String,
+    lastWeekStr: String,
+    lastMonthStr: String
+): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
 
     val now = Calendar.getInstance()
     val today = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(
-        Calendar.SECOND, 0
-    ); set(Calendar.MILLISECOND, 0)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }
     val yesterday = today.clone() as Calendar
     yesterday.add(Calendar.DAY_OF_MONTH, -1)
+
+    val last7days = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }
+    val last30days = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }
 
     val groups = mutableListOf<CallGroup>()
     val currentGroup = mutableListOf<CallLogEntry>()
     var currentTitle: String? = null
 
-    for (entry in entries) {
+    for (entry in entries.sortedByDescending { it.date }) {
         val cal = Calendar.getInstance().apply { timeInMillis = entry.date }
 
         val title = when {
-            cal.after(today) || cal == today -> "Today"
-            cal.after(yesterday) || cal == yesterday -> "Yesterday"
-            cal.after(
-                Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }) -> "Last Week"
-
-            cal.after(
-                Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }) -> "Last Month"
-
-            cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) && cal.get(Calendar.MONTH) == now.get(
-                Calendar.MONTH
-            ) -> "This Month"
-
+            cal.timeInMillis >= today.timeInMillis -> todayStr
+            cal.timeInMillis >= yesterday.timeInMillis -> yesterdayStr
+            cal.timeInMillis >= last7days.timeInMillis -> lastWeekStr
+            cal.timeInMillis >= last30days.timeInMillis -> lastMonthStr
+            cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                    cal.get(Calendar.MONTH) == now.get(Calendar.MONTH) -> "This Month"
             else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
         }
 
@@ -409,25 +418,30 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
             val type = it.getInt(typeIndex)
             val date = it.getLong(dateIndex)
 
+            val privateString = context.getString(R.string.private_label)
+            val unknownString = context.getString(R.string.unknown)
+            val restrictedString = context.getString(R.string.restricted)
+            val payphoneString = context.getString(R.string.payphone)
+
             val displayName = when {
                 !name.isNullOrBlank() -> name.trim()
 
                 rawNumber.isNullOrBlank() || rawNumber.equals(
-                    "Private", ignoreCase = true
+                    privateString, ignoreCase = true
                 ) || rawNumber.equals(
-                    "Restricted", ignoreCase = true
-                ) || rawNumber.equals("Unknown", ignoreCase = true) || rawNumber.equals(
-                    "Payphone", ignoreCase = true
+                    restrictedString, ignoreCase = true
+                ) || rawNumber.equals(unknownString, ignoreCase = true) || rawNumber.equals(
+                    payphoneString, ignoreCase = true
                 ) || rawNumber.equals("-1", ignoreCase = true) || rawNumber.equals(
                     "-2", ignoreCase = true
-                ) || rawNumber.equals("-3", ignoreCase = true) -> "Private"
+                ) || rawNumber.equals("-3", ignoreCase = true) -> privateString
 
                 else -> rawNumber.trim()
             }
 
             val phoneNumberToDial = if (rawNumber.isNullOrBlank() || rawNumber.equals(
-                    "Private", ignoreCase = true
-                ) || rawNumber.equals("Unknown", ignoreCase = true)
+                    privateString, ignoreCase = true
+                ) || rawNumber.equals(unknownString, ignoreCase = true)
             ) {
                 ""
             } else {

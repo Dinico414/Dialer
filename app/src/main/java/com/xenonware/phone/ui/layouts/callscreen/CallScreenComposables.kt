@@ -100,6 +100,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -112,6 +113,7 @@ import com.xenon.mylibrary.values.LargerCornerRadius
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.NoCornerRadius
 import com.xenon.mylibrary.values.SmallElevation
+import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
@@ -147,9 +149,6 @@ fun CallScreenUi(
 
     val stateNullable by viewModel.callState.collectAsStateWithLifecycle()
     val state = stateNullable ?: run {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No active call", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurface)
-        }
         return
     }
 
@@ -172,17 +171,17 @@ fun CallScreenUi(
     }
 
     val statusText = when (state) {
-        Call.STATE_RINGING -> "Incoming call..."
-        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> "Calling..."
-        Call.STATE_HOLDING -> "Call is on hold"
+        Call.STATE_RINGING -> stringResource(R.string.incoming_call__label)
+        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> stringResource(R.string.calling__label)
+        Call.STATE_HOLDING -> stringResource(R.string.on_hold_label)
         Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
-            callWasRejectedByUser -> "Call rejected"
-            cameFromRinging && !callWasRejectedByUser -> "Call missed"
-            else -> "Call ended"
+            callWasRejectedByUser -> stringResource(R.string.rejected_call_label)
+                cameFromRinging && !callWasRejectedByUser -> stringResource(R.string.missed_call_label)
+            else -> stringResource(R.string.ended_call_label)
         }
 
-        else -> "Unknown state"
+        else -> stringResource(R.string.unknown_call_state_label)
     }
 
     val isCompact = forceCompactMode || isLandscape
@@ -432,7 +431,7 @@ private fun CallControls(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.CallEnd,
-                            contentDescription = "Ending call...",
+                            contentDescription = "Ending call",
                             modifier = Modifier.size(40.dp)
                         )
                     }

@@ -43,10 +43,12 @@ object CallNotificationHelper {
         createOngoingNotificationChannel(context)
 
         val rawHandle = call.details.handle?.schemeSpecificPart ?: "Unknown"
+        val privateString = context.getString(R.string.private_label)
+        val unknownString = context.getString(R.string.unknown)
 
         val displayName = when (rawHandle) {
-            "Private" -> "Private"
-            "Unknown" -> "Unknown"
+            "Private" -> privateString
+            "Unknown" -> unknownString
             else -> lookupContactName(context, rawHandle) ?: rawHandle
         }
 
@@ -65,7 +67,9 @@ object CallNotificationHelper {
         // Mute action
         val isMuted = MyInCallService.currentAudioState?.isMuted ?: false
         val muteIcon = if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
-        val muteLabel = if (isMuted) "Unmute" else "Mute"
+        val muteString = context.getString(R.string.mute_label)
+        val unmuteString = context.getString(R.string.unmute_label)
+        val muteLabel = if (isMuted) unmuteString else muteString
 
         val muteIntent = Intent(context, CallControlReceiver::class.java).apply {
             action = CallControlReceiver.ACTION_TOGGLE_MUTE
@@ -102,12 +106,16 @@ object CallNotificationHelper {
         MyInCallService.currentAudioState?.let { audioState ->
             if (Integer.bitCount(audioState.supportedRouteMask) > 1) {
                 val currentRoute = audioState.route
+                val speakerString = context.getString(R.string.speaker_label)
+                val wiredHeadsetString = context.getString(R.string.wired_headset_label)
+                val bluethoothString = context.getString(R.string.bluetooth_label)
+                val earpieceString = context.getString(R.string.earpiece_label)
 
                 val (speakerIcon, speakerLabel) = when (currentRoute) {
-                    CallAudioState.ROUTE_SPEAKER -> R.drawable.ic_speaker_on to "Speaker Off"
-                    CallAudioState.ROUTE_WIRED_HEADSET -> R.drawable.ic_headset to "Wired Headset"
-                    CallAudioState.ROUTE_BLUETOOTH -> R.drawable.ic_bluetooth to "Bluetooth"
-                    else -> R.drawable.ic_earpiece to "Earpiece"  // Usually means switch to speaker next
+                    CallAudioState.ROUTE_SPEAKER -> R.drawable.ic_speaker_on to speakerString
+                    CallAudioState.ROUTE_WIRED_HEADSET -> R.drawable.ic_headset to wiredHeadsetString
+                    CallAudioState.ROUTE_BLUETOOTH -> R.drawable.ic_bluetooth to bluethoothString
+                    else -> R.drawable.ic_earpiece to earpieceString
                 }
 
                 val speakerIntent = Intent(context, CallControlReceiver::class.java).apply {
@@ -160,8 +168,9 @@ object CallNotificationHelper {
     @SuppressLint("FullScreenIntentPolicy")
     fun showIncomingCallNotification(context: Context, call: Call) {
         createIncomingCallChannel(context)
+        val unknownString = context.getString(R.string.unknown)
 
-        val rawHandle = call.details.handle?.schemeSpecificPart ?: "Unknown"
+        val rawHandle = call.details.handle?.schemeSpecificPart ?: unknownString
 
         val callerName = lookupContactName(context, rawHandle) ?: rawHandle
 
@@ -169,7 +178,7 @@ object CallNotificationHelper {
             .setName(callerName)
             .build()
 
-        val subtitleText = if (callerName != rawHandle && rawHandle != "Unknown") rawHandle else null
+        val subtitleText = if (callerName != rawHandle && rawHandle != unknownString) rawHandle else null
 
         val contentIntent = Intent(context, CallScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -194,10 +203,11 @@ object CallNotificationHelper {
             context, 102, rejectIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val incomingCallString = context.getString(R.string.incoming_call_label)
 
         val notificationBuilder = NotificationCompat.Builder(context, INCOMING_CALL_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_call_incoming)
-            .setContentTitle("Incoming call")
+            .setContentTitle(incomingCallString)
             .setContentText(subtitleText)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)

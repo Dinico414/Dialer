@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight.Companion.SemiBold
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,8 +41,7 @@ fun SetDefaultDialerOverlay(
             modifier = Modifier
                 .padding(32.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(LargerCornerRadius)),
-            shape = MaterialTheme.shapes.large
+                .clip(RoundedCornerShape(LargerCornerRadius)), shape = MaterialTheme.shapes.large
         ) {
             Column(
                 modifier = Modifier.padding(32.dp),
@@ -49,7 +49,7 @@ fun SetDefaultDialerOverlay(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Set as Default Dialer",
+                    text = stringResource(id = com.xenonware.phone.R.string.set_as_default),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = QuicksandTitleVariable,
@@ -57,17 +57,18 @@ fun SetDefaultDialerOverlay(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "To place calls directly and access full features, please set this app as your default dialer app.",
+                    text = stringResource(id = com.xenonware.phone.R.string.set_as_default_description),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
-                    onClick = onSetDefault,
-                    modifier = Modifier.fillMaxWidth()
+                    onClick = onSetDefault, modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Set as Default")
+                    Text(
+                        text = stringResource(id = com.xenonware.phone.R.string.set_as_default),
+                    )
                 }
             }
         }

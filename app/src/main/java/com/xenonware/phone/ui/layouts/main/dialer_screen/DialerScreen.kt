@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,6 +80,7 @@ import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.viewmodel.CallLogEntry
@@ -123,7 +125,7 @@ fun DialerScreen(
             when {
                 suggestions.isEmpty() && phoneNumber.isEmpty() -> {
                     Text(
-                        text = "Recent calls & favorites will appear here",
+                        text = stringResource(id = R.string.no_suggestions),
                         modifier = Modifier.align(Alignment.Center),
                         color = colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyLarge
@@ -132,7 +134,7 @@ fun DialerScreen(
 
                 suggestions.isEmpty() -> {
                     Text(
-                        text = "No matching results",
+                        text = stringResource(id = R.string.no_match),
                         modifier = Modifier.align(Alignment.Center),
                         color = colorScheme.onSurfaceVariant
                     )
@@ -173,7 +175,7 @@ fun DialerScreen(
         }
 
         Text(
-            text = phoneNumber.ifEmpty { "Enter number" },
+            text = phoneNumber.ifEmpty { stringResource(id = R.string.enter_phone_number) },
             modifier = Modifier
                 .padding(16.dp)
                 .height(50.dp)
@@ -605,6 +607,8 @@ fun Dialpad(
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
     val uri = "tel:$phoneNumber".toUri()
+    val permissionDeniedString = context.getString(R.string.permission_denied)
+
 
     val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
@@ -620,7 +624,7 @@ private fun safePlaceCall(context: Context, phoneNumber: String) {
         try {
             telecomManager.placeCall(uri, extras)
         } catch (_: SecurityException) {
-            Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, permissionDeniedString, Toast.LENGTH_SHORT).show()
             fallbackCallIntent(context, uri)
         }
     } else {
@@ -630,9 +634,10 @@ private fun safePlaceCall(context: Context, phoneNumber: String) {
 
 private fun fallbackCallIntent(context: Context, uri: Uri) {
     val intent = Intent(Intent.ACTION_CALL, uri)
+    val callFailedString = context.getString(R.string.call_failed)
     try {
         context.startActivity(intent)
     } catch (_: Exception) {
-        Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
     }
 }

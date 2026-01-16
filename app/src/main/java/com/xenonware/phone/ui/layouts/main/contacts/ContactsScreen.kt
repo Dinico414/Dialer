@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -68,6 +69,7 @@ import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 
 data class ContactGroup(val letter: Char, val contacts: List<Contact>)
@@ -82,8 +84,8 @@ fun ContactsScreen(
     if (contactsToShow.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank()) "No matching contacts"
-                else "No contacts found", color = colorScheme.onSurfaceVariant, fontSize = 18.sp
+                text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank()) stringResource(R.string.no_contacts_found)
+                else stringResource(R.string.no_contacts_found), color = colorScheme.onSurfaceVariant, fontSize = 18.sp
             )
         }
         return
