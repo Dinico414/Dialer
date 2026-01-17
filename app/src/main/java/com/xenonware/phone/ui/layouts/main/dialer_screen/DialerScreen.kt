@@ -2,6 +2,8 @@ package com.xenonware.phone.ui.layouts.main.dialer_screen
 
 import android.annotation.SuppressLint
 import android.app.role.RoleManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -13,6 +15,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -64,11 +67,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -175,21 +180,45 @@ fun DialerScreen(
         }
 
         Text(
-            text = phoneNumber.ifEmpty { stringResource(id = R.string.enter_phone_number) },
+            text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
             modifier = Modifier
                 .padding(16.dp)
                 .height(50.dp)
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                .horizontalScroll(rememberScrollState())
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            if (phoneNumber.isEmpty()) {
+                                val clipText = clipboard.primaryClip
+                                    ?.getItemAt(0)
+                                    ?.text
+                                    ?.toString()
+                                    ?.trim()
+                                    ?: ""
+
+                                if (clipText.isNotBlank() && clipText.all { it.isDigit() || it in "+*#-" }) {
+                                    phoneNumber = clipText
+                                }
+                            }
+                            else {
+                                val clip = ClipData.newPlainText("Phone number", phoneNumber)
+                                clipboard.setPrimaryClip(clip)
+                            }
+                        }
+                    )
+                },
+            textAlign = TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
-            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
-            else colorScheme.onBackground,
+            color = if (phoneNumber.isEmpty())
+                colorScheme.onBackground.copy(alpha = 0.6f)
+            else
+                colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable,
             maxLines = 1,
             overflow = TextOverflow.Clip
         )
-
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
             if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
