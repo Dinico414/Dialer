@@ -14,7 +14,6 @@ import android.os.Bundle
 import android.telecom.TelecomManager
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -55,6 +54,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -262,60 +262,64 @@ private fun SuggestionRow(
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
 
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .clip(shape)
-            .background(colorScheme.surfaceBright)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(shape),
+        shape = shape,
+        color = colorScheme.surfaceBright,
+        onClick = onClick
     ) {
-        // Avatar section
-        if (matchingContact != null) {
-            ContactAvatar(
-                contact = matchingContact, modifier = Modifier.size(48.dp)
-            )
-        } else {
-            // Fallback avatar for numbers without contact
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            if (matchingContact != null) {
+                ContactAvatar(
+                    contact = matchingContact, modifier = Modifier.size(48.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "#",
+                        fontSize = 22.sp,
+                        fontFamily = QuicksandTitleVariable,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = "#",
-                    fontSize = 22.sp,
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
                     fontFamily = QuicksandTitleVariable,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurfaceVariant
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = item.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        // Text content
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = QuicksandTitleVariable,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = item.subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }
@@ -590,12 +594,10 @@ fun Dialpad(
             FilledTonalIconButton(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(CircleShape),
-                onClick = {
+                    .clip(CircleShape), onClick = {
                     onDeleteClick()
                     vibrateFeedback(context)
-                },
-                interactionSource = interactionSource
+                }, interactionSource = interactionSource
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.Backspace,
@@ -629,7 +631,7 @@ fun Dialpad(
                             if (pressStart != null && !hasVibratedForThisPress) {
                                 val held = System.currentTimeMillis() - pressStart!!
                                 if (held < 420L) {
-                                    vibrateFeedback(context, 20L, 70)  
+                                    vibrateFeedback(context, 20L, 70)
                                 }
                             }
                             pressStart = null
