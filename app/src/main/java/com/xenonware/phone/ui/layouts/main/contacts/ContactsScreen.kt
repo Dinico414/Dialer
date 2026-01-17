@@ -223,7 +223,6 @@ fun ContactsScreen(
                     .align(Alignment.BottomCenter)
                     .padding(
                         bottom = contentPadding.calculateBottomPadding(),
-                        end = 16.dp
                     )
                     .scale(buttonScale)
                     .clip(CircleShape)
