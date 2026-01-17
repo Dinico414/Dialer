@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xenonware.phone.ui.layouts.main.dialer_screen
 
 import android.annotation.SuppressLint
@@ -6,7 +8,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -79,7 +80,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumCornerRadius
@@ -90,6 +90,8 @@ import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.PhoneViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun DialerScreen(
@@ -189,46 +191,39 @@ fun DialerScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onLongPress = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            vibrateFeedback(context)
+                            val clipboard =
+                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             if (phoneNumber.isEmpty()) {
-                                val clipText = clipboard.primaryClip
-                                    ?.getItemAt(0)
-                                    ?.text
-                                    ?.toString()
-                                    ?.trim()
-                                    ?: ""
+                                val clipText =
+                                    clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+                                        ?: ""
 
                                 if (clipText.isNotBlank() && clipText.all { it.isDigit() || it in "+*#-" }) {
                                     phoneNumber = clipText
                                 }
-                            }
-                            else {
+                            } else {
                                 val clip = ClipData.newPlainText("Phone number", phoneNumber)
                                 clipboard.setPrimaryClip(clip)
                             }
-                        }
-                    )
+                        })
                 },
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
-            color = if (phoneNumber.isEmpty())
-                colorScheme.onBackground.copy(alpha = 0.6f)
-            else
-                colorScheme.onBackground,
+            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
+            else colorScheme.onBackground,
             fontFamily = QuicksandTitleVariable,
             maxLines = 1,
             overflow = TextOverflow.Clip
         )
         Dialpad(
             onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
-            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
-            onClearAll = { phoneNumber = "" }, onCallClick = {
+            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
+        }, onClearAll = { phoneNumber = "" }, onCallClick = {
             if (phoneNumber.isNotEmpty()) {
                 safePlaceCall(context, phoneNumber)
-                }
-            },
-            onOpenHistory = onOpenHistory,
-            contentPadding = contentPadding
+            }
+        }, onOpenHistory = onOpenHistory, contentPadding = contentPadding
         )
     }
 }
@@ -353,11 +348,11 @@ private fun buildSuggestions(
         }
 
         val recentCalledContacts = allContacts.filter { it.id in frequencyMap }.sortedWith(
-                compareByDescending { contact ->
-                    val callCount = frequencyMap[contact.id] ?: 0
-                    val isFavorite = favorites.any { it.id == contact.id }
-                    callCount + if (isFavorite) 2.5 else 0.0
-                }).take(12)
+            compareByDescending { contact ->
+                val callCount = frequencyMap[contact.id] ?: 0
+                val isFavorite = favorites.any { it.id == contact.id }
+                callCount + if (isFavorite) 2.5 else 0.0
+            }).take(12)
 
         recentCalledContacts.forEach { contact ->
             val isFav = favorites.any { it.id == contact.id }
@@ -378,21 +373,21 @@ private fun buildSuggestions(
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
 
     val matchingContacts = allContacts.filter { contact ->
-            contact.phone.isNotBlank() && (contact.phone.containsNumberQuery(trimmed) ||
+        contact.phone.isNotBlank() && (contact.phone.containsNumberQuery(trimmed) ||
 
-                    contact.name.startsWith(trimmed, ignoreCase = true) ||
+                contact.name.startsWith(trimmed, ignoreCase = true) ||
 
-                    (isDigitInput && matchesT9(normalizeName(contact.name), trimmed)))
-        }.distinctBy { it.phone }.sortedWith(compareByDescending<Contact> { c ->
-            val score = when {
-                c.name.startsWith(trimmed, ignoreCase = true) -> 5
-                matchesT9(normalizeName(c.name), trimmed) -> 4
-                c.phone.startsWith(trimmed) -> 3
-                c.phone.contains(trimmed) -> 2
-                else -> 1
-            }
-            score
-        }.thenBy { it.name.lowercase() }).take(12)
+                (isDigitInput && matchesT9(normalizeName(contact.name), trimmed)))
+    }.distinctBy { it.phone }.sortedWith(compareByDescending<Contact> { c ->
+        val score = when {
+            c.name.startsWith(trimmed, ignoreCase = true) -> 5
+            matchesT9(normalizeName(c.name), trimmed) -> 4
+            c.phone.startsWith(trimmed) -> 3
+            c.phone.contains(trimmed) -> 2
+            else -> 1
+        }
+        score
+    }.thenBy { it.name.lowercase() }).take(12)
 
     matchingContacts.forEach { contact ->
         val isFav = favorites.any { it.id == contact.id }
@@ -458,7 +453,6 @@ private val t9Map = mapOf(
     '9' to "wxyz"
 )
 
-@Suppress("KotlinConstantConditions", "KotlinConstantConditions")
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun Dialpad(
@@ -469,9 +463,10 @@ fun Dialpad(
     onOpenHistory: () -> Unit,
     contentPadding: PaddingValues
 ) {
-    val deviceConfig = LocalDeviceConfig.current
+//    val deviceConfig = LocalDeviceConfig.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
+    val context = LocalContext.current
 
     val screenHeightDp = configuration.screenHeightDp.dp
 
@@ -480,16 +475,16 @@ fun Dialpad(
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
 
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+//    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val callButtonHeight = 82.dp + LargestPadding
     val textFieldHeight = 50.dp + LargestPadding * 2
-    val duoFix = when {
-        !deviceConfig.isSurfaceDuo -> 0.dp
-        deviceConfig.isSurfaceDuo && !deviceConfig.isSpannedMode-> 48.dp
-        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && isLandscape -> 48.dp
-        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && !isLandscape -> 0.dp
-        else -> 0.dp
-    }
+//    val duoFix = when {
+//        !deviceConfig.isSurfaceDuo -> 0.dp
+//        deviceConfig.isSurfaceDuo && !deviceConfig.isSpannedMode-> 48.dp
+//        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && isLandscape -> 48.dp
+//        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && !isLandscape -> 0.dp
+//        else -> 0.dp
+//    }
 
     val targetTotalHeight =
         screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight /*+ duoFix*/
@@ -509,8 +504,7 @@ fun Dialpad(
             .padding(
                 horizontal = 16.dp
             )
-            .padding(bottom = bottomPadding),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(bottom = bottomPadding), horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
         val letters =
@@ -597,7 +591,10 @@ fun Dialpad(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape),
-                onClick = onDeleteClick,
+                onClick = {
+                    onDeleteClick()
+                    vibrateFeedback(context)
+                },
                 interactionSource = interactionSource
             ) {
                 Icon(
@@ -608,21 +605,40 @@ fun Dialpad(
             }
 
             LaunchedEffect(interactionSource) {
-                var pressStartTime = 0L
+                var hasVibratedForThisPress = false
+                var pressStart: Long? = null
+
                 interactionSource.interactions.collect { interaction ->
                     when (interaction) {
                         is PressInteraction.Press -> {
-                            pressStartTime = System.currentTimeMillis()
+                            pressStart = System.currentTimeMillis()
+                            hasVibratedForThisPress = false
+
+                            launch {
+                                delay(420L)
+
+                                if (pressStart != null && !hasVibratedForThisPress) {
+                                    vibrateFeedback(context, 45L, 110)
+                                    onClearAll()
+                                    hasVibratedForThisPress = true
+                                }
+                            }
                         }
 
-                        is PressInteraction.Release,
-                        is PressInteraction.Cancel,
-                            -> {
-                            val duration = System.currentTimeMillis() - pressStartTime
-                            if (duration >= 420L) {
-                                onClearAll()
+                        is PressInteraction.Release -> {
+                            if (pressStart != null && !hasVibratedForThisPress) {
+                                val held = System.currentTimeMillis() - pressStart!!
+                                if (held < 420L) {
+                                    vibrateFeedback(context, 20L, 70)  
+                                }
                             }
-                            pressStartTime = 0L
+                            pressStart = null
+                            hasVibratedForThisPress = false
+                        }
+
+                        is PressInteraction.Cancel -> {
+                            pressStart = null
+                            hasVibratedForThisPress = false
                         }
                     }
                 }
@@ -669,4 +685,11 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
     } catch (_: Exception) {
         Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
     }
+}
+
+private fun vibrateFeedback(context: Context, durationMs: Long = 35L, amplitude: Int = 90) {
+    val vibrator =
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator ?: return
+
+    vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
 }
