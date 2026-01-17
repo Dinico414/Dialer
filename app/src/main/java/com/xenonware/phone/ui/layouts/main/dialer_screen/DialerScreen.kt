@@ -631,7 +631,7 @@ fun Dialpad(
                             if (pressStart != null && !hasVibratedForThisPress) {
                                 val held = System.currentTimeMillis() - pressStart!!
                                 if (held < 420L) {
-                                    vibrateFeedback(context, 20L, 70)
+                                    vibrateFeedback(context, 5L, 5)
                                 }
                             }
                             pressStart = null
