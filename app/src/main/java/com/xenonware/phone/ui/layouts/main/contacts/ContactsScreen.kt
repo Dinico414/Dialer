@@ -4,15 +4,23 @@ import android.content.Context
 import android.content.Intent
 import android.telecom.Call
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,18 +39,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Message
 import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -50,9 +65,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -139,9 +156,14 @@ fun ContactsScreen(
 
 @Composable
 fun ContactItemCard(
-    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
+    contact: Contact,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    isSingle: Boolean,
 ) {
     val context = LocalContext.current
+
+    var isExpanded by remember { mutableStateOf(false) }
 
     val shape = when {
         isSingle -> RoundedCornerShape(MediumCornerRadius)
@@ -151,105 +173,151 @@ fun ContactItemCard(
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
-
         isLastInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
-
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
-
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ContactAvatar(contact = contact)
+        Column {
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ContactAvatar(contact = contact)
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = contact.name,
-                    fontFamily = QuicksandTitleVariable,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = contact.phone, fontSize = 14.sp, color = colorScheme.onSurfaceVariant
-                )
-            }
+                Spacer(modifier = Modifier.width(16.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                IconButton(
-                    shape = RoundedCornerShape(
-                        topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
-                    ), onClick = {
-                        val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = "smsto:${contact.phone}".toUri()
-                        }
-                        context.startActivity(smsIntent)
-                    }, modifier = Modifier
-                        .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 24.dp,
-                                bottomStart = 24.dp,
-                                topEnd = 4.dp,
-                                bottomEnd = 4.dp
-                            )
-                        )
-                        .background(colorScheme.surfaceContainerHigh)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Message,
-                        contentDescription = "Send SMS",
-                        tint = Color(0xFFFFB300),
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(24.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = contact.name,
+                        fontFamily = QuicksandTitleVariable,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = contact.phone,
+                        fontSize = 14.sp,
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
 
                 IconButton(
-                    shape = RoundedCornerShape(
-                        topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
-                    ),
-                    onClick = { safePlaceCall(context, contact.phone) },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 4.dp,
-                                bottomStart = 4.dp,
-                                topEnd = 24.dp,
-                                bottomEnd = 24.dp
-                            )
-                        )
-                        .background(colorScheme.surfaceContainerHigh)
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(48.dp)
                 ) {
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isExpanded) 180f else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    )
                     Icon(
-                        imageVector = Icons.Rounded.Call,
-                        contentDescription = "Call",
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand actions",
+                        tint = colorScheme.onSurface,
+                        modifier = Modifier.size(28.dp).rotate(rotation)
+                    )
+                }
+            }
+
+            // Second row - actions (visible only when expanded)
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp, top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // SMS Button
+                    ActionButton(
+                        icon = Icons.AutoMirrored.Rounded.Message,
+                        tint = Color(0xFFFFB300),
+                        contentDescription = "Send SMS",
+                        onClick = {
+                            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = "smsto:${contact.phone}".toUri()
+                            }
+                            context.startActivity(smsIntent)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Call Button
+                    ActionButton(
+                        icon = Icons.Rounded.Call,
                         tint = Color(0xFF4CAF50),
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .size(24.dp)
+                        contentDescription = "Call",
+                        onClick = { safePlaceCall(context, contact.phone) },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Info Button (placeholder - implement later)
+                    ActionButton(
+                        icon = Icons.Rounded.Info,
+                        tint = colorScheme.primary,
+                        contentDescription = "Contact Info",
+                        onClick = {
+                            // TODO: Open contact detail / edit screen
+                            // Toast.makeText(context, "Info coming soon", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    icon: ImageVector,
+    tint: Color,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = tint
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = contentDescription.split(" ").last(), // "SMS" / "Call" / "Info"
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
