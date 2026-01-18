@@ -105,12 +105,41 @@ fun DialerScreen(
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
     val allContacts by viewModel.contacts.collectAsState()
+    val indexedContacts by viewModel._indexedContacts.collectAsState()
 
     var phoneNumber by remember { mutableStateOf("") }
+    var debouncedQuery by remember { mutableStateOf("") }
+
     val context = LocalContext.current
 
-    val suggestions by remember(phoneNumber, recentCalls, favorites, allContacts) {
-        derivedStateOf { buildSuggestions(phoneNumber, recentCalls, favorites, allContacts) }
+    LaunchedEffect(phoneNumber) {
+        delay(280)
+        debouncedQuery = phoneNumber.trim()
+    }
+
+    val currentSuggestions by remember(debouncedQuery, recentCalls, favorites, indexedContacts) {
+        derivedStateOf {
+            buildSuggestions(
+                query = debouncedQuery,
+                recent = recentCalls,
+                favorites = favorites,
+                indexedContacts = indexedContacts
+            )
+        }
+    }
+
+    var cachedSuggestions by remember { mutableStateOf<List<SuggestionItem>>(emptyList()) }
+
+    LaunchedEffect(currentSuggestions) {
+        if (currentSuggestions.isNotEmpty()) {
+            cachedSuggestions = currentSuggestions
+        }
+    }
+
+    val suggestionsToShow = when {
+        currentSuggestions.isNotEmpty() -> currentSuggestions
+        debouncedQuery.isEmpty() -> emptyList()
+        else -> cachedSuggestions
     }
 
     LaunchedEffect(incomingNumber) {
@@ -120,7 +149,8 @@ fun DialerScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
@@ -131,7 +161,7 @@ fun DialerScreen(
                 .clip(RoundedCornerShape(MediumCornerRadius))
         ) {
             when {
-                suggestions.isEmpty() && phoneNumber.isEmpty() -> {
+                suggestionsToShow.isEmpty() && debouncedQuery.isEmpty() -> {
                     Text(
                         text = stringResource(id = R.string.no_suggestions),
                         modifier = Modifier.align(Alignment.Center),
@@ -140,7 +170,7 @@ fun DialerScreen(
                     )
                 }
 
-                suggestions.isEmpty() -> {
+                suggestionsToShow.isEmpty() -> {
                     Text(
                         text = stringResource(id = R.string.no_match),
                         modifier = Modifier.align(Alignment.Center),
@@ -154,20 +184,19 @@ fun DialerScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         itemsIndexed(
-                            items = suggestions, key = { index, item ->
-                                "${item.type.name}_${index}_${
-                                    item.number.takeLast(
-                                        8
-                                    )
-                                }"
-                            }) { index, item ->
+                            items = suggestionsToShow,
+                            key = { _, item -> item.id }
+                        ) { index, item ->
                             val isFirst = index == 0
-                            val isLast = index == suggestions.lastIndex
-                            val isSingle = suggestions.size == 1
+                            val isLast = index == suggestionsToShow.lastIndex
+                            val isSingle = suggestionsToShow.size == 1
 
                             val matchingContact = remember(item.number) {
-                                allContacts.find { normalizePhone(it.phone) == normalizePhone(item.number) }
+                                allContacts.find {
+                                    PhoneViewModel.normalizePhone(it.phone) == PhoneViewModel.normalizePhone(item.number)
+                                }
                             }
+
                             SuggestionRow(
                                 item = item,
                                 onClick = { phoneNumber = item.number },
@@ -193,13 +222,9 @@ fun DialerScreen(
                     detectTapGestures(
                         onLongPress = {
                             vibrateFeedback(context)
-                            val clipboard =
-                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             if (phoneNumber.isEmpty()) {
-                                val clipText =
-                                    clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
-                                        ?: ""
-
+                                val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
                                 if (clipText.isNotBlank() && clipText.all { it.isDigit() || it in "+*#-" }) {
                                     phoneNumber = clipText
                                 }
@@ -207,7 +232,8 @@ fun DialerScreen(
                                 val clip = ClipData.newPlainText("Phone number", phoneNumber)
                                 clipboard.setPrimaryClip(clip)
                             }
-                        })
+                        }
+                    )
                 },
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.headlineLarge,
@@ -217,14 +243,20 @@ fun DialerScreen(
             maxLines = 1,
             overflow = TextOverflow.Clip
         )
+
         Dialpad(
-            onNumberClick = { digit -> phoneNumber += digit }, onDeleteClick = {
-            if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
-        }, onClearAll = { phoneNumber = "" }, onCallClick = {
-            if (phoneNumber.isNotEmpty()) {
-                safePlaceCall(context, phoneNumber)
-            }
-        }, onOpenHistory = onOpenHistory, contentPadding = contentPadding
+            onNumberClick = { digit -> phoneNumber += digit },
+            onDeleteClick = {
+                if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
+            },
+            onClearAll = { phoneNumber = "" },
+            onCallClick = {
+                if (phoneNumber.isNotEmpty()) {
+                    safePlaceCall(context, phoneNumber)
+                }
+            },
+            onOpenHistory = onOpenHistory,
+            contentPadding = contentPadding
         )
     }
 }
@@ -336,7 +368,10 @@ data class SuggestionItem(
 enum class SuggestionType { RECENT_CONTACT, FAVORITE }
 
 private fun buildSuggestions(
-    query: String, recent: List<CallLogEntry>, favorites: List<Contact>, allContacts: List<Contact>
+    query: String,
+    recent: List<CallLogEntry>,
+    favorites: List<Contact>,
+    indexedContacts: List<PhoneViewModel.IndexedContact>
 ): List<SuggestionItem> = buildList {
 
     val trimmed = query.trim()
@@ -344,22 +379,27 @@ private fun buildSuggestions(
         val frequencyMap = mutableMapOf<String, Int>()
 
         recent.forEach { call ->
-            val matchingContact = allContacts.find { contact ->
-                normalizePhone(contact.phone) == normalizePhone(call.number)
+            val matchingContact = indexedContacts.find {
+                it.normalizedPhone == PhoneViewModel.normalizePhone(call.number)
             }
             if (matchingContact != null) {
-                frequencyMap[matchingContact.id] = (frequencyMap[matchingContact.id] ?: 0) + 1
+                frequencyMap[matchingContact.contact.id] = (frequencyMap[matchingContact.contact.id] ?: 0) + 1
             }
         }
 
-        val recentCalledContacts = allContacts.filter { it.id in frequencyMap }.sortedWith(
-            compareByDescending { contact ->
-                val callCount = frequencyMap[contact.id] ?: 0
-                val isFavorite = favorites.any { it.id == contact.id }
-                callCount + if (isFavorite) 2.5 else 0.0
-            }).take(12)
+        val recentCalledContacts = indexedContacts
+            .filter { it.contact.id in frequencyMap }
+            .sortedWith(
+                compareByDescending { indexed ->
+                    val callCount = frequencyMap[indexed.contact.id] ?: 0
+                    val isFavorite = favorites.any { it.id == indexed.contact.id }
+                    callCount + if (isFavorite) 2.5 else 0.0
+                }
+            )
+            .take(12)
 
-        recentCalledContacts.forEach { contact ->
+        recentCalledContacts.forEach { indexed ->
+            val contact = indexed.contact
             val isFav = favorites.any { it.id == contact.id }
             add(
                 SuggestionItem(
@@ -371,30 +411,38 @@ private fun buildSuggestions(
                 )
             )
         }
-
         return@buildList
     }
 
+    val cleanQuery = trimmed.replace(Regex("[^+0-9*#-]"), "")
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
 
-    val matchingContacts = allContacts.filter { contact ->
-        contact.phone.isNotBlank() && (contact.phone.containsNumberQuery(trimmed) ||
+    val matching = indexedContacts.asSequence()
+        .filter { indexed ->
+            indexed.normalizedPhone.startsWith(cleanQuery) ||
+                    indexed.normalizedPhone.contains(cleanQuery) ||
+                    (isDigitInput && matchesT9Fast(indexed.t9Keys, cleanQuery))
+        }
+        .map { it.contact }
+        .take(20)
+        .toList()
 
-                contact.name.startsWith(trimmed, ignoreCase = true) ||
-
-                (isDigitInput && matchesT9(normalizeName(contact.name), trimmed)))
-    }.distinctBy { it.phone }.sortedWith(compareByDescending<Contact> { c ->
+    val sorted = matching.sortedWith(compareByDescending<Contact> { c ->
         val score = when {
             c.name.startsWith(trimmed, ignoreCase = true) -> 5
-            matchesT9(normalizeName(c.name), trimmed) -> 4
+            matchesT9Fast(
+                indexedContacts.first { it.contact.id == c.id }.t9Keys,
+                cleanQuery
+            ) -> 4
             c.phone.startsWith(trimmed) -> 3
             c.phone.contains(trimmed) -> 2
             else -> 1
         }
         score
-    }.thenBy { it.name.lowercase() }).take(12)
+    }.thenBy { it.name.lowercase() })
+        .take(12)
 
-    matchingContacts.forEach { contact ->
+    sorted.forEach { contact ->
         val isFav = favorites.any { it.id == contact.id }
         add(
             SuggestionItem(
@@ -408,55 +456,25 @@ private fun buildSuggestions(
     }
 }
 
-private fun String.containsNumberQuery(query: String): Boolean {
+private fun matchesT9Fast(t9Keys: String, query: String): Boolean {
     if (query.isEmpty()) return true
-    val cleanThis = this.replace(Regex("[^+0-9*#-]"), "")
-    val cleanQuery = query.replace(Regex("[^+0-9*#-]"), "")
+    if (t9Keys.length < query.length) return false
 
-    return cleanThis.startsWith(cleanQuery) || cleanThis.contains(cleanQuery)
-}
-
-private fun normalizeName(name: String): String {
-    return name.lowercase().replace(Regex("[^a-z]"), "")
-}
-
-private fun normalizePhone(number: String): String {
-    if (number.isBlank()) return ""
-    return number.replace(Regex("[^+0-9]"), "").removePrefix("00").removePrefix("+")
-}
-
-private fun matchesT9(nameNormalized: String, digits: String): Boolean {
-    if (digits.isEmpty()) return true
-
-    var nameIndex = 0
-    for (digit in digits) {
-        val possibleLetters = t9Map[digit] ?: continue
+    var i = 0
+    for (digit in query) {
         var found = false
-
-        while (nameIndex < nameNormalized.length) {
-            if (possibleLetters.contains(nameNormalized[nameIndex])) {
+        while (i < t9Keys.length) {
+            if (t9Keys[i] == digit) {
                 found = true
-                nameIndex++
+                i++
                 break
             }
-            nameIndex++
+            i++
         }
-
         if (!found) return false
     }
     return true
 }
-
-private val t9Map = mapOf(
-    '2' to "abc",
-    '3' to "def",
-    '4' to "ghi",
-    '5' to "jkl",
-    '6' to "mno",
-    '7' to "pqrs",
-    '8' to "tuv",
-    '9' to "wxyz"
-)
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -468,7 +486,6 @@ fun Dialpad(
     onOpenHistory: () -> Unit,
     contentPadding: PaddingValues
 ) {
-//    val deviceConfig = LocalDeviceConfig.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -480,19 +497,11 @@ fun Dialpad(
     val safeTopPadding =
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
 
-//    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val callButtonHeight = 82.dp + LargestPadding
     val textFieldHeight = 50.dp + LargestPadding * 2
-//    val duoFix = when {
-//        !deviceConfig.isSurfaceDuo -> 0.dp
-//        deviceConfig.isSurfaceDuo && !deviceConfig.isSpannedMode-> 48.dp
-//        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && isLandscape -> 48.dp
-//        deviceConfig.isSurfaceDuo && deviceConfig.isSpannedMode && !isLandscape -> 0.dp
-//        else -> 0.dp
-//    }
 
     val targetTotalHeight =
-        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight /*+ duoFix*/
+        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight
 
     val spacing = 8.dp
     val totalSpacing = spacing * 3
@@ -506,9 +515,7 @@ fun Dialpad(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = 16.dp
-            )
+            .padding(horizontal = 16.dp)
             .padding(bottom = bottomPadding), horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
@@ -572,7 +579,8 @@ fun Dialpad(
                         )
                     }
                 }
-            }        }
+            }
+        }
 
         Spacer(modifier = Modifier.height(LargestPadding))
 
@@ -668,13 +676,11 @@ fun Dialpad(
     }
 }
 
-
 @SuppressLint("ObsoleteSdkInt")
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
     val uri = "tel:$phoneNumber".toUri()
     val permissionDeniedString = context.getString(R.string.permission_denied)
-
 
     val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
@@ -709,8 +715,6 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
 }
 
 private fun vibrateFeedback(context: Context, durationMs: Long = 35L, amplitude: Int = 90) {
-    val vibrator =
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator ?: return
-
+    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator ?: return
     vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
 }
