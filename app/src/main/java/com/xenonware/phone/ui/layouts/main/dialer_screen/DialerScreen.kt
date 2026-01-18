@@ -48,6 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Voicemail
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -524,36 +525,54 @@ fun Dialpad(
                 val key = keys[index]
                 val letter = letters[index]
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+                Box(
                     modifier = Modifier
                         .height(buttonHeight)
                         .clip(CircleShape)
                         .background(colorScheme.surfaceBright)
-                        .combinedClickable(onClick = { onNumberClick(key) }, onLongClick = {
-                            if (key == "0") onNumberClick("+") else onNumberClick(key)
-                        })
+                        .combinedClickable(
+                            onClick = { onNumberClick(key) },
+                            onLongClick = {
+                                if (key == "0") onNumberClick("+") else onNumberClick(key)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = key,
-                        fontSize = digitTextSize,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = letter,
-                        fontSize = letterTextSize,
-                        style = LocalTextStyle.current.copy(lineHeight = letterTextSize),
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.ExtraLight,
-                        color = colorScheme.onSurfaceVariant,
-                        modifier = Modifier.offset(y = (-2).dp)
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = key,
+                            fontSize = digitTextSize,
+                            fontFamily = QuicksandTitleVariable,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = letter,
+                            fontSize = letterTextSize,
+                            style = LocalTextStyle.current.copy(lineHeight = letterTextSize),
+                            fontFamily = QuicksandTitleVariable,
+                            fontWeight = FontWeight.ExtraLight,
+                            color = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.offset(y = (-2).dp)
+                        )
+                    }
+
+                    if (key == "1") {
+                        Icon(
+                            imageVector = Icons.Rounded.Voicemail,
+                            contentDescription = "Voicemail",
+                            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 5.dp)
+                        )
+                    }
                 }
-            }
-        }
+            }        }
 
         Spacer(modifier = Modifier.height(LargestPadding))
 
