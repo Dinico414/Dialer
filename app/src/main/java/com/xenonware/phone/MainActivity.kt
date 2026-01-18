@@ -133,10 +133,8 @@ class MainActivity : ComponentActivity() {
             val user = googleAuthUiClient.getSignedInUser()
             val isSignedIn = user != null
 
-            // Sync login state
             sharedPreferenceManager.isUserLoggedIn = isSignedIn
             signInViewModel.updateSignInState(isSignedIn)
-
 
             if (isSignedIn) {
                 viewModel.onSignedIn()
