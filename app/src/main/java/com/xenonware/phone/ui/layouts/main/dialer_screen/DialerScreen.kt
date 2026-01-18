@@ -592,7 +592,10 @@ fun Dialpad(
             FilledTonalIconButton(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(CircleShape), onClick = onOpenHistory
+                    .clip(CircleShape), onClick = onOpenHistory,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colorScheme.primary,
+                    contentColor = colorScheme.onPrimary)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.History,
