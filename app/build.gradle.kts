@@ -53,9 +53,7 @@ android {
     }
     applicationVariants.all {
         outputs.all {
-            val outputFileName = if (buildType.name == "release") {
-                "Phone.apk"
-            } else if (buildType.name == "debug") {
+            val outputFileName = if (buildType.name == "debug") {
                 "Phone-${buildType.name}.apk"
             } else {
                 "Phone.apk"
