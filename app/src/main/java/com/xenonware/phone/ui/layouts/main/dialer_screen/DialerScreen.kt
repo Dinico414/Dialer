@@ -48,7 +48,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Voicemail
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -74,6 +73,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -513,6 +514,8 @@ fun Dialpad(
     val letterTextSize = with(density) {
         (buttonHeight.toPx() * 0.185f).coerceAtLeast(0f).toSp()
     }
+    val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).toSp() }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -521,7 +524,7 @@ fun Dialpad(
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
         val letters =
-            listOf("", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
+            listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -559,24 +562,12 @@ fun Dialpad(
                         )
                         Text(
                             text = letter,
-                            fontSize = letterTextSize,
-                            style = LocalTextStyle.current.copy(lineHeight = letterTextSize),
-                            fontFamily = QuicksandTitleVariable,
-                            fontWeight = FontWeight.ExtraLight,
+                            fontSize = if (key == "1" || key == "0") iconSize else letterTextSize,
+                            style = LocalTextStyle.current.copy(lineHeight = if (key == "1" || key == "0") iconSize else letterTextSize),
+                            fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable,
+                            fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight,
                             color = colorScheme.onSurfaceVariant,
                             modifier = Modifier.offset(y = (-2).dp)
-                        )
-                    }
-
-                    if (key == "1") {
-                        Icon(
-                            imageVector = Icons.Rounded.Voicemail,
-                            contentDescription = "Voicemail",
-                            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier
-                                .size(24.dp)
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 5.dp)
                         )
                     }
                 }
