@@ -41,45 +41,8 @@ class CallScreenActivity : ComponentActivity() {
         var currentCall: Call? = null
         var isVisible = false
     }
-    private fun callFinish() {
-        if (isTaskRoot) {
-            finishAndRemoveTask()
-        } else {
-            finish()
-        }
-    }
 
     private var shouldFinishAfterDelay = false
-
-    override fun onResume() {
-        super.onResume()
-        isVisible = true
-        MyInCallService.currentCall?.let { call ->
-            if (call.state == Call.STATE_RINGING) {
-                CallNotificationHelper.showIncomingCallNotification(this, call)
-            }
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        isVisible = false
-        MyInCallService.currentCall?.let { call ->
-            if (call.state == Call.STATE_RINGING) {
-                CallNotificationHelper.showIncomingCallNotification(applicationContext, call)
-            }
-        }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        isVisible = true
-    }
-
-    override fun onStop() {
-        super.onStop()
-        isVisible = false
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,6 +94,36 @@ class CallScreenActivity : ComponentActivity() {
         })
     }
 
+    override fun onResume() {
+        super.onResume()
+        isVisible = true
+        MyInCallService.currentCall?.let { call ->
+            if (call.state == Call.STATE_RINGING) {
+                CallNotificationHelper.showIncomingCallNotification(this, call)
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isVisible = false
+        MyInCallService.currentCall?.let { call ->
+            if (call.state == Call.STATE_RINGING) {
+                CallNotificationHelper.showIncomingCallNotification(applicationContext, call)
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        isVisible = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isVisible = false
+    }
+
     override fun attachBaseContext(newBase: Context) {
         var context = newBase
         val prefs = SharedPreferenceManager(newBase)
@@ -144,6 +137,13 @@ class CallScreenActivity : ComponentActivity() {
             context = newBase.createConfigurationContext(config)
         }
         super.attachBaseContext(ContextWrapper(context))
+    }
+    private fun callFinish() {
+        if (isTaskRoot) {
+            finishAndRemoveTask()
+        } else {
+            finish()
+        }
     }
 }
 

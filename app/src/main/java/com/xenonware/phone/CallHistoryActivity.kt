@@ -23,11 +23,6 @@ class CallHistoryActivity : ComponentActivity() {
 
     private val viewModel: CallHistoryViewModel by viewModels()
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadCallLogs(applicationContext)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -56,6 +51,12 @@ class CallHistoryActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.loadCallLogs(applicationContext)
+    }
+
     override fun attachBaseContext(newBase: Context) {
         var context = newBase
         val prefs = SharedPreferenceManager(newBase)

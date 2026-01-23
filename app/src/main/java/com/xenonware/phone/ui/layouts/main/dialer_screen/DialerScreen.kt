@@ -90,6 +90,7 @@ import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.viewmodel.CallLogEntry
+import com.xenonware.phone.viewmodel.IndexedContact
 import com.xenonware.phone.viewmodel.PhoneViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,7 +106,7 @@ fun DialerScreen(
     val recentCalls by viewModel.recentCalls.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
     val allContacts by viewModel.contacts.collectAsState()
-    val indexedContacts by viewModel._indexedContacts.collectAsState()
+    val indexedContacts by viewModel.indexedContacts.collectAsState()
 
     var phoneNumber by remember { mutableStateOf("") }
     var debouncedQuery by remember { mutableStateOf("") }
@@ -371,7 +372,7 @@ private fun buildSuggestions(
     query: String,
     recent: List<CallLogEntry>,
     favorites: List<Contact>,
-    indexedContacts: List<PhoneViewModel.IndexedContact>
+    indexedContacts: List<IndexedContact>
 ): List<SuggestionItem> = buildList {
 
     val trimmed = query.trim()

@@ -146,7 +146,7 @@ class SettingsActivity : ComponentActivity() {
                                                 signInResult.pendingIntent.intentSender
                                             ).build()
                                         )
-                                    } catch (e: ApiException) {
+                                    } catch (_: ApiException) {
                                         traditionalSignInLauncher.launch(googleAuthUiClient.getTraditionalSignInIntent())
                                     }
                                 }
@@ -169,6 +169,18 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        settingsViewModel.updateCurrentLanguage()
+        settingsViewModel.refreshDeveloperModeState()
+        lifecycleScope.launch {
+            val user = googleAuthUiClient.getSignedInUser()
+            val isSignedIn = user != null
+            sharedPreferenceManager.isUserLoggedIn = isSignedIn
+            signInViewModel.updateSignInState(isSignedIn)
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         var context = newBase
         val prefs = SharedPreferenceManager(newBase)
@@ -182,17 +194,5 @@ class SettingsActivity : ComponentActivity() {
             context = newBase.createConfigurationContext(config)
         }
         super.attachBaseContext(ContextWrapper(context))
-    }
-
-    override fun onResume() {
-        super.onResume()
-        settingsViewModel.updateCurrentLanguage()
-        settingsViewModel.refreshDeveloperModeState()
-        lifecycleScope.launch {
-            val user = googleAuthUiClient.getSignedInUser()
-            val isSignedIn = user != null
-            sharedPreferenceManager.isUserLoggedIn = isSignedIn
-            signInViewModel.updateSignInState(isSignedIn)
-        }
     }
 }

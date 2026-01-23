@@ -12,19 +12,22 @@ import kotlin.math.min
 class SharedPreferenceManager(context: Context) {
 
     private val prefsName = "AppPrefs"
+    private val isUserLoggedInKey = "is_user_logged_in"
     private val themeKey = "app_theme"
-    private val languageTagKey = "app_language_tag"
+    private val blackedOutModeKey = "blacked_out_mode_enabled"
     private val coverThemeEnabledKey = "cover_theme_enabled"
     private val coverDisplayDimension1Key = "cover_display_dimension_1"
     private val coverDisplayDimension2Key = "cover_display_dimension_2"
-    private val blackedOutModeKey = "blacked_out_mode_enabled"
+    private val languageTagKey = "app_language_tag"
     private val developerModeKey = "developer_mode_enabled"
     private val newLayoutKey = "new_layout_enabled"
-    private val isUserLoggedInKey = "is_user_logged_in"
-
 
     internal val sharedPreferences: SharedPreferences =
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+
+    var isUserLoggedIn: Boolean
+        get() = sharedPreferences.getBoolean(isUserLoggedInKey, false)
+        set(value) = sharedPreferences.edit { putBoolean(isUserLoggedInKey, value) }
 
 
     var theme: Int
@@ -36,6 +39,10 @@ class SharedPreferenceManager(context: Context) {
         AppCompatDelegate.MODE_NIGHT_YES,
         AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
     )
+
+    var blackedOutModeEnabled: Boolean
+        get() = sharedPreferences.getBoolean(blackedOutModeKey, false)
+        set(value) = sharedPreferences.edit { putBoolean(blackedOutModeKey, value) }
 
     var coverThemeEnabled: Boolean
         get() = sharedPreferences.getBoolean(coverThemeEnabledKey, false)
@@ -54,9 +61,9 @@ class SharedPreferenceManager(context: Context) {
             }
         }
 
-    var blackedOutModeEnabled: Boolean
-        get() = sharedPreferences.getBoolean(blackedOutModeKey, false)
-        set(value) = sharedPreferences.edit { putBoolean(blackedOutModeKey, value) }
+    var languageTag: String
+        get() = sharedPreferences.getString(languageTagKey, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(languageTagKey, value) }
 
     var developerModeEnabled: Boolean
         get() = sharedPreferences.getBoolean(developerModeKey, false)
@@ -65,14 +72,6 @@ class SharedPreferenceManager(context: Context) {
     var newLayoutEnabled: Boolean
         get() = sharedPreferences.getBoolean(newLayoutKey, false)
         set(value) = sharedPreferences.edit { putBoolean(newLayoutKey, value) }
-
-    var isUserLoggedIn: Boolean
-        get() = sharedPreferences.getBoolean(isUserLoggedInKey, false)
-        set(value) = sharedPreferences.edit { putBoolean(isUserLoggedInKey, value) }
-
-    var languageTag: String
-        get() = sharedPreferences.getString(languageTagKey, "") ?: ""
-        set(value) = sharedPreferences.edit { putString(languageTagKey, value) }
 
     fun isCoverThemeApplied(currentDisplaySize: IntSize): Boolean {
         if (!coverThemeEnabled) return false
@@ -89,14 +88,14 @@ class SharedPreferenceManager(context: Context) {
 
     fun clearSettings() {
         sharedPreferences.edit {
-            putInt(themeKey, ThemeSetting.SYSTEM.ordinal)
-            putBoolean(coverThemeEnabledKey, false)
-            remove(coverDisplayDimension1Key)
-            remove(coverDisplayDimension2Key)
+            putBoolean(isUserLoggedInKey, false)
             putBoolean(blackedOutModeKey, false)
+            putBoolean(coverThemeEnabledKey, false)
             putBoolean(developerModeKey, false)
             putBoolean(newLayoutKey, false)
-            putBoolean(isUserLoggedInKey, false)
+            putInt(themeKey, ThemeSetting.SYSTEM.ordinal)
+            remove(coverDisplayDimension1Key)
+            remove(coverDisplayDimension2Key)
             remove(languageTagKey)
         }
     }

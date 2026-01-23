@@ -36,14 +36,8 @@ class CallHistoryViewModel : ViewModel() {
         }
     }
 
-    // Optional: more precise permission check
     private fun hasReadCallLogPermission(context: Context): Boolean {
         return context.checkSelfPermission(android.Manifest.permission.READ_CALL_LOG) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
-    }
-
-    fun refresh() {
-        // We'll call this from Activity onResume
-        // ViewModel doesn't hold context → we pass it when needed
     }
 }

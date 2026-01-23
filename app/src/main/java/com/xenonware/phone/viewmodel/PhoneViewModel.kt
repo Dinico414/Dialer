@@ -1,14 +1,11 @@
 package com.xenonware.phone.viewmodel
 
-import android.annotation.SuppressLint
 import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.provider.CallLog
 import android.provider.ContactsContract
-import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,18 +13,35 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.xenonware.phone.data.Contact
-import com.xenonware.phone.data.SharedPreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class IndexedContact(
+    val contact: Contact,
+    val normalizedPhone: String,
+    val t9NormalizedName: String,
+    val t9Keys: String,
+)
+
+data class CallLogEntry(
+    val id: String = "",
+    val number: String = "",
+    val type: Int = 0,
+    val timestamp: Long = 0L,
+    val duration: Long = 0L,
+    val isOffline: Boolean = false,
+)
+
 class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context get() = getApplication<Application>().applicationContext
-    private val prefsManager = SharedPreferenceManager(context)
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
+
+    private val _showSetDefaultOverlay = MutableStateFlow(false)
+    val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
 
     private val _recentCalls = MutableStateFlow<List<CallLogEntry>>(emptyList())
     val recentCalls: StateFlow<List<CallLogEntry>> = _recentCalls.asStateFlow()
@@ -38,26 +52,18 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
-    data class IndexedContact(
-        val contact: Contact,
-        val normalizedPhone: String,
-        val t9NormalizedName: String,
-        val t9Keys: String
-    )
+    private val _incomingPhoneNumber = MutableStateFlow<String?>(null)
+    val incomingPhoneNumber: StateFlow<String?> = _incomingPhoneNumber.asStateFlow()
 
-    @Suppress("PropertyName")
-    val _indexedContacts = MutableStateFlow<List<IndexedContact>>(emptyList())
+    private val _filteredContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val filteredContacts: StateFlow<List<Contact>> = _filteredContacts.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _showSetDefaultOverlay = MutableStateFlow(false)
-    val showSetDefaultOverlay: StateFlow<Boolean> = _showSetDefaultOverlay.asStateFlow()
-
-    private val _incomingPhoneNumber = MutableStateFlow<String?>(null)
-    val incomingPhoneNumber: StateFlow<String?> = _incomingPhoneNumber.asStateFlow()
-
     private val offlineCallIds = mutableSetOf<String>()
+
+    val indexedContacts = MutableStateFlow<List<IndexedContact>>(emptyList())
 
     init {
         loadLocalData()
@@ -69,23 +75,57 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             contacts.collect { contactsList ->
-                _indexedContacts.value = contactsList
-                    .filter { it.phone.isNotBlank() }
-                    .map { contact ->
-                        IndexedContact(
-                            contact = contact,
-                            normalizedPhone = normalizePhone(contact.phone),
-                            t9NormalizedName = normalizeName(contact.name),
-                            t9Keys = nameToT9Keys(normalizeName(contact.name))
-                        )
-                    }
-                    .sortedBy { it.contact.name.lowercase() }
+                indexedContacts.value =
+                    contactsList.filter { it.phone.isNotBlank() }.map { contact ->
+                            IndexedContact(
+                                contact = contact,
+                                normalizedPhone = normalizePhone(contact.phone),
+                                t9NormalizedName = normalizeName(contact.name),
+                                t9Keys = nameToT9Keys(normalizeName(contact.name))
+                            )
+                        }.sortedBy { it.contact.name.lowercase() }
             }
         }
     }
 
+    fun checkDefaultDialerStatus() {
+        val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+        val isDefault = rm.isRoleHeld(RoleManager.ROLE_DIALER)
+        _showSetDefaultOverlay.value = !isDefault
+    }
+
+    fun onSignedIn() {
+        val uid = auth.currentUser?.uid ?: return
+        startRealtimeSync(uid)
+        checkDefaultDialerStatus()
+    }
+
     fun setIncomingPhoneNumber(number: String) {
         _incomingPhoneNumber.value = number
+    }
+
+    fun updateSearchQuery(query: String) {
+        val trimmed = query.trim()
+        _searchQuery.value = trimmed
+
+        if (trimmed.isEmpty()) {
+            _filteredContacts.value = _contacts.value
+            return
+        }
+
+        val queryNorm = trimmed.lowercase()
+
+        val filtered = _contacts.value.filter { contact ->
+            val name = contact.name.trim().lowercase()
+
+            val matchesName =
+                name.contains(queryNorm) || name.startsWith(queryNorm) || name.split(Regex("\\s+"))
+                    .any { it.startsWith(queryNorm) }
+
+            matchesName || matchesNumber(contact.phone, trimmed)
+        }
+
+        _filteredContacts.value = filtered
     }
 
     private fun matchesNumber(phone: String, query: String): Boolean {
@@ -107,16 +147,14 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadLocalData() {
         if (ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.READ_CALL_LOG
+                context, android.Manifest.permission.READ_CALL_LOG
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             _recentCalls.value = loadCallLogs()
         }
 
         if (ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.READ_CONTACTS
+                context, android.Manifest.permission.READ_CONTACTS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             val loaded = loadContacts()
@@ -232,53 +270,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    private val _filteredContacts = MutableStateFlow<List<Contact>>(emptyList())
-    val filteredContacts: StateFlow<List<Contact>> = _filteredContacts.asStateFlow()
-
-    fun updateSearchQuery(query: String) {
-        val trimmed = query.trim()
-        _searchQuery.value = trimmed
-
-        if (trimmed.isEmpty()) {
-            _filteredContacts.value = _contacts.value
-            return
-        }
-
-        val queryNorm = trimmed.lowercase()
-
-        val filtered = _contacts.value.filter { contact ->
-            val name = contact.name.trim().lowercase()
-
-            val matchesName =
-                name.contains(queryNorm) ||
-                        name.startsWith(queryNorm) ||
-                        name.split(Regex("\\s+")).any { it.startsWith(queryNorm) }
-
-            matchesName || matchesNumber(contact.phone, trimmed)
-        }
-
-        _filteredContacts.value = filtered
-    }
-
-    @SuppressLint("ObsoleteSdkInt")
-    fun checkDefaultDialerStatus() {
-        val isDefault = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
-            rm.isRoleHeld(RoleManager.ROLE_DIALER)
-        } else {
-            @Suppress("DEPRECATION") val tm =
-                context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            tm.defaultDialerPackage == context.packageName
-        }
-        _showSetDefaultOverlay.value = !isDefault
-    }
-
-    fun onSignedIn() {
-        val uid = auth.currentUser?.uid ?: return
-        startRealtimeSync(uid)
-        checkDefaultDialerStatus()
-    }
-
     private fun nameToT9Keys(name: String): String = buildString {
         name.forEach { c ->
             t9Map.entries.find { it.value.contains(c) }?.key?.let { append(it) }
@@ -307,12 +298,3 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
-
-data class CallLogEntry(
-    val id: String = "",
-    val number: String = "",
-    val type: Int = 0,
-    val timestamp: Long = 0L,
-    val duration: Long = 0L,
-    val isOffline: Boolean = false,
-)

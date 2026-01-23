@@ -109,6 +109,42 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.checkDefaultDialerStatus()
+        lifecycleScope.launch {
+            val user = googleAuthUiClient.getSignedInUser()
+            val isSignedIn = user != null
+
+            sharedPreferenceManager.isUserLoggedIn = isSignedIn
+            signInViewModel.updateSignInState(isSignedIn)
+
+            if (isSignedIn) {
+                viewModel.onSignedIn()
+            }
+        }
+
+        val currentThemePref = sharedPreferenceManager.theme
+        val currentCoverThemeEnabledSetting = sharedPreferenceManager.coverThemeEnabled
+        val currentBlackedOutMode = sharedPreferenceManager.blackedOutModeEnabled
+
+        if (currentThemePref != lastAppliedTheme ||
+            currentCoverThemeEnabledSetting != lastAppliedCoverThemeEnabled ||
+            currentBlackedOutMode != lastAppliedBlackedOutMode
+        ) {
+            if (currentThemePref != lastAppliedTheme) {
+                updateAppCompatDelegateTheme(currentThemePref)
+            }
+
+            lastAppliedTheme = currentThemePref
+            lastAppliedCoverThemeEnabled = currentCoverThemeEnabledSetting
+            lastAppliedBlackedOutMode = currentBlackedOutMode
+
+            recreate()
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         var context = newBase
         val prefs = SharedPreferenceManager(newBase)
@@ -144,43 +180,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.checkDefaultDialerStatus()
-        lifecycleScope.launch {
-            val user = googleAuthUiClient.getSignedInUser()
-            val isSignedIn = user != null
-
-            sharedPreferenceManager.isUserLoggedIn = isSignedIn
-            signInViewModel.updateSignInState(isSignedIn)
-
-            if (isSignedIn) {
-                viewModel.onSignedIn()
-            }
-        }
-
-        // Theme handling
-        val currentThemePref = sharedPreferenceManager.theme
-        val currentCoverThemeEnabledSetting = sharedPreferenceManager.coverThemeEnabled
-        val currentBlackedOutMode = sharedPreferenceManager.blackedOutModeEnabled
-
-        if (currentThemePref != lastAppliedTheme ||
-            currentCoverThemeEnabledSetting != lastAppliedCoverThemeEnabled ||
-            currentBlackedOutMode != lastAppliedBlackedOutMode
-        ) {
-            if (currentThemePref != lastAppliedTheme) {
-                updateAppCompatDelegateTheme(currentThemePref)
-            }
-
-            lastAppliedTheme = currentThemePref
-            lastAppliedCoverThemeEnabled = currentCoverThemeEnabledSetting
-            lastAppliedBlackedOutMode = currentBlackedOutMode
-
-            recreate()
-        }
-    }
-
-
     private fun updateAppCompatDelegateTheme(themePref: Int) {
         if (themePref >= 0 && themePref < sharedPreferenceManager.themeFlag.size) {
             AppCompatDelegate.setDefaultNightMode(sharedPreferenceManager.themeFlag[themePref])
@@ -207,7 +206,7 @@ fun XenonApp(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             Toast.makeText(context, "Phone is now the default dialer!", Toast.LENGTH_LONG).show()
-            viewModel.checkDefaultDialerStatus() // Hide overlay
+            viewModel.checkDefaultDialerStatus()
         }
     }
 

@@ -17,8 +17,19 @@ import java.util.concurrent.TimeUnit
 @Suppress("DEPRECATION")
 class CallScreenViewModel : ViewModel() {
 
+    private var currentCall: Call? = null
+
+    private val inCallService: MyInCallService?
+        get() = MyInCallService.getInstance()
+
     private val _callState = MutableStateFlow<Int?>(null)
     val callState: StateFlow<Int?> = _callState.asStateFlow()
+
+    private val _previousActiveState = MutableStateFlow<Int?>(null)
+    val previousActiveState: StateFlow<Int?> = _previousActiveState.asStateFlow()
+
+    private val _callWasRejectedByUser = MutableStateFlow(false)
+    val callWasRejectedByUser: StateFlow<Boolean> = _callWasRejectedByUser.asStateFlow()
 
     private val _displayName = MutableStateFlow("Unknown")
     val displayName: StateFlow<String> = _displayName.asStateFlow()
@@ -34,17 +45,6 @@ class CallScreenViewModel : ViewModel() {
 
     private val _showKeypad = MutableStateFlow(false)
     val showKeypad: StateFlow<Boolean> = _showKeypad.asStateFlow()
-
-    private val _callWasRejectedByUser = MutableStateFlow(false)
-    val callWasRejectedByUser: StateFlow<Boolean> = _callWasRejectedByUser.asStateFlow()
-
-    private val _previousActiveState = MutableStateFlow<Int?>(null)
-    val previousActiveState: StateFlow<Int?> = _previousActiveState.asStateFlow()
-
-    private var currentCall: Call? = null
-
-    private val inCallService: MyInCallService?
-        get() = MyInCallService.getInstance()
 
     fun initialize(call: Call, context: Context) {
         currentCall = call
@@ -67,6 +67,59 @@ class CallScreenViewModel : ViewModel() {
 
         registerCallCallback(call)
 
+    }
+
+    fun formatDuration(millis: Long): String {
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
+        return "%02d:%02d".format(minutes, seconds)
+    }
+
+    fun setUserRejectedCall() {
+        _callWasRejectedByUser.value = true
+    }
+
+    fun cycleAudioRoute(supportedRouteMask: Int) {
+        val routes = buildList {
+            if (supportedRouteMask and CallAudioState.ROUTE_EARPIECE != 0) add(CallAudioState.ROUTE_EARPIECE)
+            if (supportedRouteMask and CallAudioState.ROUTE_SPEAKER != 0) add(CallAudioState.ROUTE_SPEAKER)
+            if (supportedRouteMask and CallAudioState.ROUTE_WIRED_HEADSET != 0) add(CallAudioState.ROUTE_WIRED_HEADSET)
+            if (supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH != 0) add(CallAudioState.ROUTE_BLUETOOTH)
+        }
+
+        if (routes.size > 1) {
+            val currentIndex = routes.indexOf(_currentAudioRoute.value)
+            val nextIndex = (currentIndex + 1) % routes.size
+            val nextRoute = routes[nextIndex]
+
+            inCallService?.setAudioRoute(nextRoute)
+
+            _currentAudioRoute.value = nextRoute
+        }
+    }
+
+    fun toggleMute() {
+        val newMute = !_isMuted.value
+        inCallService?.setMuted(newMute)
+        _isMuted.value = newMute
+    }
+
+    fun toggleHold() {
+        currentCall?.let {
+            if (_isOnHold.value) it.unhold() else it.hold()
+        }
+    }
+
+    fun toggleKeypad() {
+        _showKeypad.value = !_showKeypad.value
+    }
+
+    private fun getCallState(call: Call): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            call.details.state
+        } else {
+            call.state
+        }
     }
 
     private fun registerCallCallback(call: Call) {
@@ -117,74 +170,6 @@ class CallScreenViewModel : ViewModel() {
         call.registerCallback(callback)
     }
 
-    private fun showToastForState(state: Int) {
-        val showToast = false
-        if (showToast) {
-            val context = inCallService?.applicationContext ?: return
-            val text = when (state) {
-                Call.STATE_NEW -> "New call"
-                Call.STATE_DIALING -> "Dialing..."
-                Call.STATE_RINGING -> "Incoming call"
-                Call.STATE_HOLDING -> "Call on hold"
-                Call.STATE_ACTIVE -> "Call connected"
-                Call.STATE_DISCONNECTED -> "Call ended"
-                Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
-                Call.STATE_CONNECTING -> "Connecting..."
-                Call.STATE_DISCONNECTING -> "Disconnecting..."
-                Call.STATE_PULLING_CALL -> "Pulling call..."
-                Call.STATE_AUDIO_PROCESSING -> "Audio processing"
-                Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
-                else -> "Unknown state"
-            }
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun toggleMute() {
-        val newMute = !_isMuted.value
-        inCallService?.setMuted(newMute)
-        _isMuted.value = newMute
-    }
-
-    fun cycleAudioRoute(supportedRouteMask: Int) {
-        val routes = buildList {
-            if (supportedRouteMask and CallAudioState.ROUTE_EARPIECE != 0) add(CallAudioState.ROUTE_EARPIECE)
-            if (supportedRouteMask and CallAudioState.ROUTE_SPEAKER != 0) add(CallAudioState.ROUTE_SPEAKER)
-            if (supportedRouteMask and CallAudioState.ROUTE_WIRED_HEADSET != 0) add(CallAudioState.ROUTE_WIRED_HEADSET)
-            if (supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH != 0) add(CallAudioState.ROUTE_BLUETOOTH)
-        }
-
-        if (routes.size > 1) {
-            val currentIndex = routes.indexOf(_currentAudioRoute.value)
-            val nextIndex = (currentIndex + 1) % routes.size
-            val nextRoute = routes[nextIndex]
-
-            inCallService?.setAudioRoute(nextRoute)
-
-            _currentAudioRoute.value = nextRoute
-        }
-    }
-
-    fun toggleHold() {
-        currentCall?.let {
-            if (_isOnHold.value) it.unhold() else it.hold()
-        }
-    }
-
-    fun toggleKeypad() {
-        _showKeypad.value = !_showKeypad.value
-    }
-
-    fun setUserRejectedCall() {
-        _callWasRejectedByUser.value = true
-    }
-
-    fun formatDuration(millis: Long): String {
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
-        return "%02d:%02d".format(minutes, seconds)
-    }
-
     private fun lookupContactName(context: Context, phoneNumber: String): String? {
         return try {
             val uri = Uri.withAppendedPath(
@@ -205,11 +190,27 @@ class CallScreenViewModel : ViewModel() {
         }
     }
 
-    private fun getCallState(call: Call): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            call.details.state
-        } else {
-            call.state
+
+    private fun showToastForState(state: Int) {
+        val showToast = false
+        if (showToast) {
+            val context = inCallService?.applicationContext ?: return
+            val text = when (state) {
+                Call.STATE_NEW -> "New call"
+                Call.STATE_DIALING -> "Dialing..."
+                Call.STATE_RINGING -> "Incoming call"
+                Call.STATE_HOLDING -> "Call on hold"
+                Call.STATE_ACTIVE -> "Call connected"
+                Call.STATE_DISCONNECTED -> "Call ended"
+                Call.STATE_SELECT_PHONE_ACCOUNT -> "Select phone account"
+                Call.STATE_CONNECTING -> "Connecting..."
+                Call.STATE_DISCONNECTING -> "Disconnecting..."
+                Call.STATE_PULLING_CALL -> "Pulling call..."
+                Call.STATE_AUDIO_PROCESSING -> "Audio processing"
+                Call.STATE_SIMULATED_RINGING -> "Simulated ringing"
+                else -> "Unknown state"
+            }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
         }
     }
 }
