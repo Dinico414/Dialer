@@ -1,5 +1,6 @@
 package com.xenonware.phone.viewmodel
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
@@ -10,6 +11,7 @@ import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
@@ -18,6 +20,7 @@ import com.xenonware.phone.data.SharedPreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -33,8 +36,17 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     val favorites: StateFlow<List<Contact>> = _favorites.asStateFlow()
 
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
-    val contacts: StateFlow<List<Contact>> =
-        _contacts.asStateFlow()  
+    val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
+
+    data class IndexedContact(
+        val contact: Contact,
+        val normalizedPhone: String,
+        val t9NormalizedName: String,
+        val t9Keys: String
+    )
+
+    @Suppress("PropertyName")
+    val _indexedContacts = MutableStateFlow<List<IndexedContact>>(emptyList())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -54,9 +66,23 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         auth.currentUser?.uid?.let { uid ->
             startRealtimeSync(uid)
         }
+
+        viewModelScope.launch {
+            contacts.collect { contactsList ->
+                _indexedContacts.value = contactsList
+                    .filter { it.phone.isNotBlank() }
+                    .map { contact ->
+                        IndexedContact(
+                            contact = contact,
+                            normalizedPhone = normalizePhone(contact.phone),
+                            t9NormalizedName = normalizeName(contact.name),
+                            t9Keys = nameToT9Keys(normalizeName(contact.name))
+                        )
+                    }
+                    .sortedBy { it.contact.name.lowercase() }
+            }
+        }
     }
-
-
 
     fun setIncomingPhoneNumber(number: String) {
         _incomingPhoneNumber.value = number
@@ -221,7 +247,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         val queryNorm = trimmed.lowercase()
 
         val filtered = _contacts.value.filter { contact ->
-            val name = contact.name?.trim()?.lowercase() ?: ""
+            val name = contact.name.trim().lowercase()
 
             val matchesName =
                 name.contains(queryNorm) ||
@@ -234,6 +260,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         _filteredContacts.value = filtered
     }
 
+    @SuppressLint("ObsoleteSdkInt")
     fun checkDefaultDialerStatus() {
         val isDefault = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
@@ -250,6 +277,34 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         val uid = auth.currentUser?.uid ?: return
         startRealtimeSync(uid)
         checkDefaultDialerStatus()
+    }
+
+    private fun nameToT9Keys(name: String): String = buildString {
+        name.forEach { c ->
+            t9Map.entries.find { it.value.contains(c) }?.key?.let { append(it) }
+        }
+    }
+
+    companion object {
+        private val t9Map = mapOf(
+            '2' to "abc",
+            '3' to "def",
+            '4' to "ghi",
+            '5' to "jkl",
+            '6' to "mno",
+            '7' to "pqrs",
+            '8' to "tuv",
+            '9' to "wxyz"
+        )
+
+        fun normalizeName(name: String): String {
+            return name.lowercase().replace(Regex("[^a-z]"), "")
+        }
+
+        fun normalizePhone(number: String): String {
+            if (number.isBlank()) return ""
+            return number.replace(Regex("[^+0-9]"), "").removePrefix("00").removePrefix("+")
+        }
     }
 }
 

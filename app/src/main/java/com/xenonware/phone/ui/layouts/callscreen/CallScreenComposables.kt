@@ -4,6 +4,7 @@ package com.xenonware.phone.ui.layouts.callscreen
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.telecom.Call
 import android.telecom.CallAudioState
@@ -105,6 +106,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -118,6 +120,8 @@ import com.xenonware.phone.data.Contact
 import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
 import com.xenonware.phone.viewmodel.CallScreenViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -125,7 +129,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun CallScreenUi(
-    call: Call?, isLandscape: Boolean, forceCompactMode: Boolean = false,
+    call: Call?, isLandscape: Boolean, forceCompactMode: Boolean = false
 ) {
     val context = LocalContext.current
     val viewModel: CallScreenViewModel = viewModel()
@@ -177,7 +181,7 @@ fun CallScreenUi(
         Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
             callWasRejectedByUser -> stringResource(R.string.rejected_call_label)
-                cameFromRinging && !callWasRejectedByUser -> stringResource(R.string.missed_call_label)
+            cameFromRinging && !callWasRejectedByUser -> stringResource(R.string.missed_call_label)
             else -> stringResource(R.string.ended_call_label)
         }
 
@@ -303,16 +307,35 @@ fun CallScreenUi(
                             stop = Color(0xFFFFB300),
                             fraction = 0.25f
                         ) else MaterialTheme.colorScheme.onSurface
+
+
                         val animatedTextColor by animateColorAsState(
                             targetValue = targetTextColor, animationSpec = spring(
+
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
                                 stiffness = Spring.StiffnessVeryLow
                             ), label = "TextColorAnimation"
                         )
 
                         TextButton(
-                            onClick = { call.reject(true, null) },
-                            interactionSource = interactionSource
+                            onClick = {
+                                viewModel.setUserRejectedCall()
+                                call.reject(true, null)
+                                val phoneNumber = call.details.handle?.schemeSpecificPart?.trim() ?: ""
+                                if (phoneNumber.isNotEmpty()) {
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        delay(2000L)
+                                        val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                            data = "smsto:$phoneNumber".toUri()
+                                        }
+                                        try {
+                                            context.startActivity(smsIntent)
+                                        } catch (_: Exception) { }
+                                    }
+                                }
+                            },
+                            interactionSource = interactionSource,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(
                                 text = "SMS",
@@ -579,7 +602,18 @@ private fun CallControls(
                             val keys =
                                 listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
                             val letters = listOf(
-                                "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", ""
+                                "",
+                                "ABC",
+                                "DEF",
+                                "GHI",
+                                "JKL",
+                                "MNO",
+                                "PQRS",
+                                "TUV",
+                                "WXYZ",
+                                "",
+                                "+",
+                                ""
                             )
 
                             LazyVerticalGrid(

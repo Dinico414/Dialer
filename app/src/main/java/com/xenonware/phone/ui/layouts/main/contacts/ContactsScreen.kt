@@ -2,18 +2,24 @@ package com.xenonware.phone.ui.layouts.main.contacts
 
 import android.content.Context
 import android.content.Intent
-import android.provider.ContactsContract
 import android.telecom.Call
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,27 +29,44 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Message
 import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -71,9 +94,16 @@ import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.materials.HazeMaterials
+import kotlinx.coroutines.launch
 
 data class ContactGroup(val letter: Char, val contacts: List<Contact>)
 
+@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ContactsScreen(
     modifier: Modifier = Modifier,
@@ -81,11 +111,16 @@ fun ContactsScreen(
     searchQuery: String = "",
     contentPadding: PaddingValues
 ) {
+    val hazeState = remember { HazeState() }
     if (contactsToShow.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank()) stringResource(R.string.no_contacts_found)
-                else stringResource(R.string.no_contacts_found), color = colorScheme.onSurfaceVariant, fontSize = 18.sp
+                text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank())
+                    stringResource(R.string.no_contacts_found)
+                else
+                    stringResource(R.string.no_contacts_found),
+                color = colorScheme.onSurfaceVariant,
+                fontSize = 18.sp
             )
         }
         return
@@ -94,55 +129,138 @@ fun ContactsScreen(
     val groupedContacts = remember(contactsToShow) {
         contactsToShow.sortedBy { it.name }
             .groupBy { it.name.firstOrNull()?.uppercaseChar() ?: '#' }
-            .map { (letter, list) -> ContactGroup(letter, list) }.sortedBy { it.letter }
+            .map { (letter, list) -> ContactGroup(letter, list) }
+            .sortedBy { it.letter }
     }
 
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-        modifier = modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxSize(),
-        contentPadding = PaddingValues(
-            bottom = contentPadding.calculateBottomPadding()
+    val listState = rememberLazyListState()
 
-        )) {
-        groupedContacts.forEach { group ->
-            item(key = "header_${group.letter}") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(colorScheme.surfaceContainer)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = group.letter.toString(),
-                        fontSize = 20.sp,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurfaceVariant
+    Box(modifier = modifier.fillMaxSize()) {
+
+        val coroutineScope = rememberCoroutineScope()
+
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxSize()
+                .hazeSource(state = hazeState),
+            contentPadding = PaddingValues(
+                bottom = contentPadding.calculateBottomPadding()
+            )
+        ) {
+            groupedContacts.forEach { group ->
+                item(key = "header_${group.letter}") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(colorScheme.surfaceContainer)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = group.letter.toString(),
+                            fontSize = 20.sp,
+                            fontFamily = QuicksandTitleVariable,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                itemsIndexed(
+                    items = group.contacts,
+                    key = { _, contact -> contact.id }
+                ) { index, contact ->
+                    ContactItemCard(
+                        contact = contact,
+                        isFirstInGroup = index == 0,
+                        isLastInGroup = index == group.contacts.lastIndex,
+                        isSingle = group.contacts.size == 1
                     )
                 }
             }
+        }
 
-            itemsIndexed(
-                items = group.contacts, key = { _, contact -> contact.id }) { index, contact ->
-                ContactItemCard(
-                    contact = contact,
-                    isFirstInGroup = index == 0,
-                    isLastInGroup = index == group.contacts.lastIndex,
-                    isSingle = group.contacts.size == 1
+        // Scroll to top button
+        val showScrollToTop by remember {
+            derivedStateOf {
+                listState.firstVisibleItemIndex > 0 ||
+                        listState.firstVisibleItemScrollOffset > 200
+            }
+        }
+
+        val showScrollToBottom by remember {
+            derivedStateOf {
+                !listState.isScrolledToEnd()
+            }
+        }
+
+        val showButton by remember {
+            derivedStateOf { showScrollToTop && showScrollToBottom }
+        }
+
+        val buttonAlpha by animateFloatAsState(
+            targetValue = if (showButton) 1f else 0f,
+            animationSpec = tween(300),
+            label = "scroll button alpha"
+        )
+
+        val buttonScale by animateFloatAsState(
+            targetValue = if (showButton) 1f else 0.8f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessLow
+            ),
+            label = "scroll button scale"
+        )
+
+        val hazeThinColor = colorScheme.primary
+
+        if (buttonAlpha > 0.02f) {
+            IconButton(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom = contentPadding.calculateBottomPadding(),
+                    )
+                    .scale(buttonScale)
+                    .clip(CircleShape)
+                    .alpha(buttonAlpha)
+                    .hazeEffect(
+                    state = hazeState,
+                    style = HazeMaterials.ultraThin(hazeThinColor)
+                        ),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = colorScheme.onSurface
+                ),
+                onClick = {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(0)
+                    }
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    contentDescription = "Scroll to top",
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
     }
 }
 
-
 @Composable
 fun ContactItemCard(
-    contact: Contact, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
+    contact: Contact,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    isSingle: Boolean,
 ) {
     val context = LocalContext.current
+
+    var isExpanded by remember { mutableStateOf(false) }
 
     val shape = when {
         isSingle -> RoundedCornerShape(MediumCornerRadius)
@@ -152,102 +270,156 @@ fun ContactItemCard(
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
-
         isLastInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
-
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
-
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ContactAvatar(contact = contact)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ContactAvatar(contact = contact)
 
-            Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = contact.name,
-                    fontFamily = QuicksandTitleVariable,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = contact.phone, fontSize = 14.sp, color = colorScheme.onSurfaceVariant
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                IconButton(
-                    shape = RoundedCornerShape(
-                        topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp
-                    ), onClick = {
-                        val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = "smsto:${contact.phone}".toUri()
-                        }
-                        context.startActivity(smsIntent)
-                    }, modifier = Modifier
-                        .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 24.dp,
-                                bottomStart = 24.dp,
-                                topEnd = 4.dp,
-                                bottomEnd = 4.dp
-                            )
-                        )
-                        .background(colorScheme.surfaceContainerHigh)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Message,
-                        contentDescription = "Send SMS",
-                        tint = Color(0xFFFFB300),
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(24.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = contact.name,
+                        fontFamily = QuicksandTitleVariable,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = contact.phone,
+                        fontSize = 14.sp,
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
 
                 IconButton(
-                    shape = RoundedCornerShape(
-                        topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp
-                    ),
-                    onClick = { safePlaceCall(context, contact.phone) },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 4.dp,
-                                bottomStart = 4.dp,
-                                topEnd = 24.dp,
-                                bottomEnd = 24.dp
-                            )
-                        )
-                        .background(colorScheme.surfaceContainerHigh)
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Call,
-                        contentDescription = "Call",
-                        tint = Color(0xFF4CAF50),
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .size(24.dp)
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isExpanded) 180f else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
                     )
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand actions",
+                        tint = colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .rotate(rotation)
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(
+                    expandFrom = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ) + fadeIn(animationSpec = tween(300, delayMillis = 100)),
+                exit = shrinkVertically(
+                    shrinkTowards = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ) + fadeOut(animationSpec = tween(220))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // SMS Button
+                    FilledTonalIconButton(
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Color(0xFFFFB300)
+                        ),
+                        shape = RoundedCornerShape(
+                            topStart = 12.dp, topEnd = 4.dp,
+                            bottomStart = 12.dp, bottomEnd = 4.dp
+                        ),
+                        onClick = {
+                            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = "smsto:${contact.phone}".toUri()
+                            }
+                            context.startActivity(smsIntent)
+                        },
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Message,
+                            contentDescription = "Send SMS",
+                            tint = colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Call button
+                    FilledTonalIconButton(
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        ),
+                        shape = RoundedCornerShape(4.dp),
+                        onClick = { safePlaceCall(context, contact.phone) },
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Call,
+                            contentDescription = "Call",
+                            tint = colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Info Button
+                    FilledTonalIconButton(
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = colorScheme.primaryContainer
+                        ),
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp, topEnd = 12.dp,
+                            bottomStart = 4.dp, bottomEnd = 12.dp
+                        ),
+                        onClick = {
+                            // TODO: Open contact detail / edit screen
+                        },
+                        modifier = Modifier.weight(0.5f).widthIn(max = 56.dp).height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = "Contact Info",
+                            tint = colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -304,22 +476,30 @@ fun RingingContactAvatar(
     val infiniteTransition = rememberInfiniteTransition(label = "expressiveIndeterminate")
 
     val baseRotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing), repeatMode = RepeatMode.Restart
-        ), label = "BaseRotation"
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "BaseRotation"
     )
 
     val kickRotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(
             animation = tween(3000, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1f)),
             repeatMode = RepeatMode.Restart
-        ), label = "KickRotation"
+        ),
+        label = "KickRotation"
     )
 
     val liquidPulse by infiniteTransition.animateFloat(
-        initialValue = 0.7f, targetValue = 1.2f, animationSpec = infiniteRepeatable(
-            animation = tween(1100, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
-        ), label = "Pulse"
+        initialValue = 0.7f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Pulse"
     )
 
     val finalRotation = (baseRotation + kickRotation) * stateMorphProgress
@@ -330,7 +510,9 @@ fun RingingContactAvatar(
     val circle = remember { RoundedPolygon.circle(numVertices = 8) }
     val expressiveShape = remember {
         RoundedPolygon.star(
-            numVerticesPerRadius = 8, innerRadius = 0.6f, rounding = CornerRounding(0.22f)
+            numVerticesPerRadius = 8,
+            innerRadius = 0.6f,
+            rounding = CornerRounding(0.22f)
         )
     }
     val morph = remember(circle, expressiveShape) { Morph(circle, expressiveShape) }
@@ -340,7 +522,8 @@ fun RingingContactAvatar(
     val pastelBackground = Color.hsl(hue = hue, saturation = 0.45f, lightness = 0.85f)
 
     Box(
-        modifier = modifier.size(size), contentAlignment = Alignment.Center
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
     ) {
         val currentMorphShape = remember(finalProgress) {
             MorphPolygonShape(morph, finalProgress)
@@ -348,19 +531,21 @@ fun RingingContactAvatar(
 
         val shadowTint = colorScheme.scrim.copy(alpha = 0.6f)
 
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                rotationZ = finalRotation
-                scaleX = finalScale
-                scaleY = finalScale
-                shadowElevation = 10.dp.toPx()
-                this.spotShadowColor = shadowTint
-                this.ambientShadowColor = shadowTint
-                shape = currentMorphShape
-                clip = true
-            }
-            .background(pastelBackground))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = finalRotation
+                    scaleX = finalScale
+                    scaleY = finalScale
+                    shadowElevation = 10.dp.toPx()
+                    spotShadowColor = shadowTint
+                    ambientShadowColor = shadowTint
+                    shape = currentMorphShape
+                    clip = true
+                }
+                .background(pastelBackground)
+        )
         Text(
             text = contact.name.firstOrNull()?.uppercase() ?: "?",
             fontSize = (size.value * 0.42).sp,
@@ -376,6 +561,7 @@ class MorphPolygonShape(
     private val progress: Float,
 ) : Shape {
     private val matrix = android.graphics.Matrix()
+
     override fun createOutline(
         size: Size,
         layoutDirection: LayoutDirection,
@@ -386,58 +572,25 @@ class MorphPolygonShape(
         matrix.setScale(size.width / 2f, size.height / 2f)
         matrix.postTranslate(size.width / 2f, size.height / 2f)
         path.asAndroidPath().transform(matrix)
-
         return Outline.Generic(path)
     }
-}
-
-private fun loadContacts(context: Context): List<Contact> {
-    val list = mutableListOf<Contact>()
-    context.contentResolver.query(
-        ContactsContract.Contacts.CONTENT_URI,
-        arrayOf(
-            ContactsContract.Contacts._ID,
-            ContactsContract.Contacts.DISPLAY_NAME,
-            ContactsContract.Contacts.STARRED
-        ),
-        "${ContactsContract.Contacts.HAS_PHONE_NUMBER} > 0",
-        null,
-        "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
-    )?.use { cursor ->
-        while (cursor.moveToNext()) {
-            val id = cursor.getString(0) ?: continue
-            val name = cursor.getString(1) ?: ""
-            val starred = cursor.getInt(2) == 1
-
-            var phone = ""
-            context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
-                "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-                arrayOf(id),
-                null
-            )?.use { pCursor ->
-                if (pCursor.moveToFirst()) {
-                    phone = pCursor.getString(0)?.trim() ?: ""
-                }
-            }
-
-            if (phone.isNotBlank()) {
-                list += Contact(
-                    id = id, name = name.trim(), phone = phone, isFavorite = starred
-                )
-            }
-        }
-    }
-    return list.distinctBy { it.phone }
 }
 
 private fun safePlaceCall(context: Context, phoneNumber: String) {
     val uri = "tel:$phoneNumber".toUri()
     val intent = Intent(Intent.ACTION_CALL, uri)
+    val callFailedString = context.getString(R.string.call_failed)
     try {
         context.startActivity(intent)
     } catch (_: Exception) {
-        Toast.makeText(context, "Unable to place call", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
     }
+}
+
+private fun LazyListState.isScrolledToEnd(): Boolean {
+    val info = layoutInfo
+    if (info.totalItemsCount == 0) return true
+    val last = info.visibleItemsInfo.lastOrNull() ?: return true
+    return last.index == info.totalItemsCount - 1 &&
+            last.offset + last.size <= info.viewportEndOffset
 }

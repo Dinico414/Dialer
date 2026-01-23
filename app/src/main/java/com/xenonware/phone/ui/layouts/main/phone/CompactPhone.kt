@@ -307,6 +307,7 @@ fun CompactPhone(
                     addModeContentOverride = { },
                     contentOverride = null,
                     fabOverride = null,
+                    isFabEnabled = false,
                     isSpannedMode = deviceConfig.isSpannedMode,
                     fabOnLeftInSpannedMode = deviceConfig.fabOnLeft,
                     spannedModeHingeGap = deviceConfig.hingeGapDp,
