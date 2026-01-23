@@ -1,9 +1,7 @@
 package com.xenonware.phone.ui.layouts.main.contacts
 
-import android.content.Context
 import android.content.Intent
 import android.telecom.Call
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -94,6 +92,7 @@ import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
+import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -228,9 +227,9 @@ fun ContactsScreen(
                     .clip(CircleShape)
                     .alpha(buttonAlpha)
                     .hazeEffect(
-                    state = hazeState,
-                    style = HazeMaterials.ultraThin(hazeThinColor)
-                        ),
+                        state = hazeState,
+                        style = HazeMaterials.ultraThin(hazeThinColor)
+                    ),
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = Color.Transparent,
                     contentColor = colorScheme.onSurface
@@ -372,7 +371,9 @@ fun ContactItemCard(
                             }
                             context.startActivity(smsIntent)
                         },
-                        modifier = Modifier.weight(1f).height(40.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.Message,
@@ -388,8 +389,14 @@ fun ContactItemCard(
                             containerColor = Color(0xFF4CAF50)
                         ),
                         shape = RoundedCornerShape(4.dp),
-                        onClick = { safePlaceCall(context, contact.phone) },
-                        modifier = Modifier.weight(1f).height(40.dp)
+                        onClick = {
+                            if (contact.phone.isNotEmpty()) {
+                                safePlaceCall(context, contact.phone)
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Call,
@@ -411,7 +418,10 @@ fun ContactItemCard(
                         onClick = {
                             // TODO: Open contact detail / edit screen
                         },
-                        modifier = Modifier.weight(0.5f).widthIn(max = 56.dp).height(40.dp)
+                        modifier = Modifier
+                            .weight(0.5f)
+                            .widthIn(max = 56.dp)
+                            .height(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Info,
@@ -573,17 +583,6 @@ class MorphPolygonShape(
         matrix.postTranslate(size.width / 2f, size.height / 2f)
         path.asAndroidPath().transform(matrix)
         return Outline.Generic(path)
-    }
-}
-
-private fun safePlaceCall(context: Context, phoneNumber: String) {
-    val uri = "tel:$phoneNumber".toUri()
-    val intent = Intent(Intent.ACTION_CALL, uri)
-    val callFailedString = context.getString(R.string.call_failed)
-    try {
-        context.startActivity(intent)
-    } catch (_: Exception) {
-        Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
     }
 }
 

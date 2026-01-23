@@ -680,7 +680,7 @@ fun Dialpad(
 }
 
 @SuppressLint("ObsoleteSdkInt")
-private fun safePlaceCall(context: Context, phoneNumber: String) {
+fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
     val uri = "tel:$phoneNumber".toUri()
     val permissionDeniedString = context.getString(R.string.permission_denied)

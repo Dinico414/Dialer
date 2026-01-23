@@ -3,7 +3,6 @@ package com.xenonware.phone.ui.layouts.call_history
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.provider.CallLog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,7 +58,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -70,6 +68,7 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
+import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import com.xenonware.phone.viewmodel.CallHistoryViewModel
 import com.xenonware.phone.viewmodel.LayoutType
 import java.text.SimpleDateFormat
@@ -93,7 +92,6 @@ fun CompactHistoryScreen(
     layoutType: LayoutType,
     isLandscape: Boolean,
     viewModel: CallHistoryViewModel,
-    modifier: Modifier = Modifier,
 ) {
     val callLogs by viewModel.callLogs.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -319,15 +317,8 @@ fun CallHistoryItemCard(
 
             IconButton(
                 onClick = {
-                    val intent = Intent(Intent.ACTION_CALL, "tel:${entry.phoneNumber}".toUri())
-                    try {
-                        context.startActivity(intent)
-                    } catch (_: Exception) {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_DIAL, "tel:${entry.phoneNumber}".toUri()
-                            )
-                        )
+                    if (entry.phoneNumber.isNotEmpty()) {
+                        safePlaceCall(context, entry.phoneNumber)
                     }
                 }, modifier = Modifier
                     .size(48.dp)
