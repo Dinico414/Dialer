@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.ui.unit.IntSize
@@ -31,8 +32,10 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 enum class ThemeSetting(val title: String, val nightModeFlag: Int) {
-    LIGHT("Light", AppCompatDelegate.MODE_NIGHT_NO),
-    DARK("Dark", AppCompatDelegate.MODE_NIGHT_YES),
+    LIGHT("Light", AppCompatDelegate.MODE_NIGHT_NO), DARK(
+        "Dark",
+        AppCompatDelegate.MODE_NIGHT_YES
+    ),
     SYSTEM("System", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
 }
 
@@ -104,17 +107,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val multiTapCooldownMillis = 500L
 
     val activeNightModeFlag: StateFlow<Int> = combine(
-        _persistedThemeIndexFlow,
-        _dialogPreviewThemeIndex,
-        _showThemeDialog
+        _persistedThemeIndexFlow, _dialogPreviewThemeIndex, _showThemeDialog
     ) { persistedIndex, previewIndex, isDialogShowing ->
         val themeIndexToUse = if (isDialogShowing) {
             previewIndex
         } else {
             persistedIndex
         }
-        themeOptions.getOrElse(themeIndexToUse) { themeOptions.first { it == ThemeSetting.SYSTEM } }
-            .nightModeFlag
+        themeOptions.getOrElse(themeIndexToUse) { themeOptions.first { it == ThemeSetting.SYSTEM } }.nightModeFlag
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -129,7 +129,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
         viewModelScope.launch {
             _persistedThemeIndexFlow.collect { index ->
-                _currentThemeTitleFlow.value = themeOptions.getOrElse(index) { themeOptions.first() }.title
+                _currentThemeTitleFlow.value =
+                    themeOptions.getOrElse(index) { themeOptions.first() }.title
             }
         }
         updateCurrentLanguage()
@@ -196,18 +197,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return sharedPreferenceManager.isCoverThemeApplied(displaySize)
     }
 
-    fun onClearDataClicked() { _showClearDataDialog.value = true }
+    fun onClearDataClicked() {
+        _showClearDataDialog.value = true
+    }
 
     fun confirmClearData() {
         viewModelScope.launch {
             val context = getApplication<Application>()
             try {
-                val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                @Suppress("DEPRECATION")
-                val success = activityManager.clearApplicationUserData()
+                val activityManager =
+                    context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+
+                @Suppress("DEPRECATION") val success = activityManager.clearApplicationUserData()
                 if (success) {
-                    val defaultThemeIndex = themeOptions.indexOfFirst { it == ThemeSetting.SYSTEM }
-                        .takeIf { it != -1 } ?: ThemeSetting.SYSTEM.ordinal
+                    val defaultThemeIndex =
+                        themeOptions.indexOfFirst { it == ThemeSetting.SYSTEM }.takeIf { it != -1 }
+                            ?: ThemeSetting.SYSTEM.ordinal
                     sharedPreferenceManager.theme = defaultThemeIndex
                     _persistedThemeIndexFlow.value = defaultThemeIndex
                     _dialogPreviewThemeIndex.value = defaultThemeIndex
@@ -217,15 +222,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _enableCoverTheme.value = false
                     sharedPreferenceManager.developerModeEnabled = false
                     _developerModeEnabled.value = false
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) { setAppLocale("") }
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                        setAppLocale("")
+                    }
                     updateCurrentLanguage()
                     restartApplication(context)
                 } else {
-                    Toast.makeText(context, context.getString(R.string.error_clearing_data_failed), Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.error_clearing_data_failed),
+                        Toast.LENGTH_LONG
+                    ).show()
                     openAppInfo(context)
                 }
             } catch (e: SecurityException) {
-                Toast.makeText(context, context.getString(R.string.error_clearing_data_permission), Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.error_clearing_data_permission),
+                    Toast.LENGTH_LONG
+                ).show()
                 openAppInfo(context)
                 e.printStackTrace()
             } finally {
@@ -235,9 +250,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun dismissClearDataDialog() { _showClearDataDialog.value = false }
+    fun dismissClearDataDialog() {
+        _showClearDataDialog.value = false
+    }
 
-    fun onResetSettingsClicked() { _showResetSettingsDialog.value = true }
+    fun onResetSettingsClicked() {
+        _showResetSettingsDialog.value = true
+    }
 
     fun confirmResetSettings() {
         viewModelScope.launch {
@@ -251,7 +270,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _enableCoverTheme.value = sharedPreferenceManager.coverThemeEnabled
             refreshDeveloperModeState()
 
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) { setAppLocale("") }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                setAppLocale("")
+            }
             updateCurrentLanguage()
             _showResetSettingsDialog.value = false
             delay(1000)
@@ -259,21 +280,58 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun dismissResetSettingsDialog() { _showResetSettingsDialog.value = false }
+    fun dismissResetSettingsDialog() {
+        _showResetSettingsDialog.value = false
+    }
 
     private fun getCurrentLocaleDisplayName(): String {
-        val appLocales = AppCompatDelegate.getApplicationLocales()
-        return if (appLocales.isEmpty || appLocales.get(0) == null) {
-            getApplication<Application>().getString(R.string.system_default)
-        } else { appLocales.get(0)!!.displayName }
+        val locales = AppCompatDelegate.getApplicationLocales()
+        if (locales.isEmpty || locales[0] == null) {
+            val savedTag = sharedPreferenceManager.languageTag
+            if (savedTag.isNotEmpty()) {
+                val locale = Locale.forLanguageTag(savedTag)
+                return locale.getDisplayName(locale)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val ctx = getApplication<Application>()
+                val localeManager = ctx.getSystemService(android.app.LocaleManager::class.java)
+                val appLocales = localeManager.applicationLocales
+                if (!appLocales.isEmpty) {
+                    val locale = appLocales[0]
+                    return locale.getDisplayName(locale)
+                }
+            }
+
+            return getApplication<Application>().getString(R.string.system_default)
+        }
+        val locale = locales[0]!!
+        return locale.getDisplayName(locale)
     }
 
     private fun getAppLocaleTag(): String {
-        val appLocales = AppCompatDelegate.getApplicationLocales()
-        return if (appLocales.isEmpty) "" else appLocales.toLanguageTags()
+        val locales = AppCompatDelegate.getApplicationLocales()
+        if (locales.isEmpty) {
+            val saved = sharedPreferenceManager.languageTag
+            if (saved.isNotEmpty()) return saved
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val ctx = getApplication<Application>()
+                val localeManager = ctx.getSystemService(android.app.LocaleManager::class.java)
+                val appLocales = localeManager.applicationLocales
+                if (!appLocales.isEmpty) return appLocales.toLanguageTags()
+            }
+            return ""
+        }
+        return locales.toLanguageTags()
     }
 
+
     fun updateCurrentLanguage() {
+        val locales = AppCompatDelegate.getApplicationLocales()
+        Log.d(
+            "LangDebug",
+            "getApplicationLocales() → $locales (size: ${locales.size()}, empty: ${locales.isEmpty})"
+        )
         _currentLanguage.value = getCurrentLocaleDisplayName()
         _selectedLanguageTagInDialog.value = getAppLocaleTag()
         refreshDeveloperModeState()
@@ -283,20 +341,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val application = getApplication<Application>()
         val languages = mutableListOf(
             LanguageOption(
-                application.getString(R.string.system_default),
-                ""
+                application.getString(R.string.system_default), ""
             )
         )
-        val en = Locale("en"); languages.add(
+        val en = Locale.forLanguageTag("en")
+        languages.add(
             LanguageOption(
-                en.getDisplayName(en),
-                en.toLanguageTag()
+                en.getDisplayName(en), en.toLanguageTag()
             )
         )
-        val de = Locale("de"); languages.add(
+        val de = Locale.forLanguageTag("de")
+        languages.add(
             LanguageOption(
-                de.getDisplayName(de),
-                de.toLanguageTag()
+                de.getDisplayName(de), de.toLanguageTag()
             )
         )
         _availableLanguages.value = languages
@@ -305,34 +362,51 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onLanguageSettingClicked(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
-                context.startActivity(Intent(Settings.ACTION_APP_LOCALE_SETTINGS).apply {
+                val intent = Intent(Settings.ACTION_APP_LOCALE_SETTINGS).apply {
                     data = Uri.fromParts("package", context.packageName, null)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
+                }
+                context.startActivity(intent)
             } catch (_: Exception) {
-                Toast.makeText(context, "Could not open language settings.", Toast.LENGTH_SHORT).show()
-                _selectedLanguageTagInDialog.value = getAppLocaleTag()
-                _showLanguageDialog.value = true
+                Toast.makeText(context, "Could not open language settings", Toast.LENGTH_SHORT).show()
             }
         } else {
-            _selectedLanguageTagInDialog.value = getAppLocaleTag()
+            _selectedLanguageTagInDialog.value = sharedPreferenceManager.languageTag.ifEmpty { getAppLocaleTag() }
             _showLanguageDialog.value = true
         }
     }
 
-    fun onLanguageSelectedInDialog(localeTag: String) { _selectedLanguageTagInDialog.value = localeTag }
-
-    fun applySelectedLanguage() {
-        val context = getApplication<Application>()
-        setAppLocale(_selectedLanguageTagInDialog.value)
-        _showLanguageDialog.value = false
-        updateCurrentLanguage() // Also calls refreshDeveloperModeState
-        viewModelScope.launch { delay(1000); restartApplication(context) }
+    fun onLanguageSelectedInDialog(localeTag: String) {
+        _selectedLanguageTagInDialog.value = localeTag
     }
 
     private fun setAppLocale(localeTag: String) {
-        val appLocale = if (localeTag.isEmpty()) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(localeTag)
+        val appLocale = if (localeTag.isEmpty()) {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(localeTag)
+        }
         AppCompatDelegate.setApplicationLocales(appLocale)
+    }
+
+    fun refreshLanguage() {
+        updateCurrentLanguage()
+    }
+
+    fun applySelectedLanguage() {
+        val selectedTag = _selectedLanguageTagInDialog.value
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            setAppLocale(selectedTag)
+            sharedPreferenceManager.languageTag = selectedTag
+            viewModelScope.launch {
+                delay(500)
+                restartApplication(getApplication())
+            }
+        }
+
+        _showLanguageDialog.value = false
+        updateCurrentLanguage()
     }
 
     fun dismissLanguageDialog() {
@@ -341,20 +415,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
 
-    fun openImpressum(context: Context) { Toast.makeText(context, "Impressum: xenonware.com/impressum", Toast.LENGTH_LONG).show() }
+    fun openImpressum(context: Context) {
+        Toast.makeText(context, "Impressum: xenonware.com/impressum", Toast.LENGTH_LONG).show()
+    }
 
     private fun restartApplication(context: Context) {
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
         if (intent?.component != null) {
             context.startActivity(Intent.makeRestartActivityTask(intent.component))
             Process.killProcess(Process.myPid())
-        } else { Toast.makeText(context, context.getString(R.string.error_restarting_app), Toast.LENGTH_LONG).show() }
+        } else {
+            Toast.makeText(
+                context, context.getString(R.string.error_restarting_app), Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     // ViewModel Members
     private var currentToast: Toast? = null
 
-    fun onInfoTileClicked(context1: Context) {
+    fun onInfoTileClicked() {
         val context = getApplication<Application>().applicationContext
         currentToast?.cancel()
         singleTapJob?.cancel()
@@ -365,7 +445,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (currentTime - lastMultiTapTime < multiTapCooldownMillis) {
             if (_developerModeEnabled.value) {
                 currentToast = Toast.makeText(
-                    context, context.getString(R.string.already_in_developer_mode), Toast.LENGTH_SHORT
+                    context,
+                    context.getString(R.string.already_in_developer_mode),
+                    Toast.LENGTH_SHORT
                 )
                 currentToast?.show()
             }
@@ -385,7 +467,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
             if (_developerModeEnabled.value) {
                 currentToast = Toast.makeText(
-                    context, context.getString(R.string.already_in_developer_mode), Toast.LENGTH_SHORT
+                    context,
+                    context.getString(R.string.already_in_developer_mode),
+                    Toast.LENGTH_SHORT
                 )
                 currentToast?.show()
                 infoTileTapCount = 0
@@ -424,8 +508,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-        } catch (e: Exception) {
-            currentToast = Toast.makeText(context, "Could not open app settings.", Toast.LENGTH_SHORT)
+        } catch (_: Exception) {
+            currentToast =
+                Toast.makeText(context, "Could not open app settings.", Toast.LENGTH_SHORT)
             currentToast?.show()
         }
     }
@@ -451,11 +536,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
 
-    class SettingsViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+    class SettingsViewModelFactory(private val application: Application) :
+        ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-                @Suppress("UNCHECKED_CAST")
-                return SettingsViewModel(application) as T
+                @Suppress("UNCHECKED_CAST") return SettingsViewModel(application) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

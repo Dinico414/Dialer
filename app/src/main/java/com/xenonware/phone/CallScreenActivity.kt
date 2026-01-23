@@ -2,8 +2,11 @@ package com.xenonware.phone
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Configuration
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.telecom.Call
@@ -30,6 +33,7 @@ import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.CallScreenLayout
 import com.xenonware.phone.ui.theme.ScreenEnvironment
 import com.xenonware.phone.viewmodel.CallScreenViewModel
+import java.util.Locale
 
 class CallScreenActivity : ComponentActivity() {
 
@@ -125,6 +129,21 @@ class CallScreenActivity : ComponentActivity() {
                 }
             }
         })
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        var context = newBase
+        val prefs = SharedPreferenceManager(newBase)
+        val savedTag = prefs.languageTag
+        if (savedTag.isNotEmpty() && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val locale = Locale.forLanguageTag(savedTag)
+            Locale.setDefault(locale)
+            val config = Configuration(newBase.resources.configuration)
+            config.setLocale(locale)
+            config.setLayoutDirection(locale)
+            context = newBase.createConfigurationContext(config)
+        }
+        super.attachBaseContext(ContextWrapper(context))
     }
 }
 

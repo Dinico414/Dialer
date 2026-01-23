@@ -2,7 +2,10 @@ package com.xenonware.phone
 
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -35,6 +38,7 @@ import com.xenonware.phone.ui.theme.ScreenEnvironment
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.PhoneViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -105,6 +109,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    override fun attachBaseContext(newBase: Context) {
+        var context = newBase
+        val prefs = SharedPreferenceManager(newBase)
+        val savedTag = prefs.languageTag
+        if (savedTag.isNotEmpty() && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val locale = Locale.forLanguageTag(savedTag)
+            Locale.setDefault(locale)
+            val config = Configuration(newBase.resources.configuration)
+            config.setLocale(locale)
+            config.setLayoutDirection(locale)
+            context = newBase.createConfigurationContext(config)
+        }
+        super.attachBaseContext(ContextWrapper(context))
+    }
 
     private fun handleDialerIntent(intent: Intent?) {
         if (intent == null) return
@@ -173,7 +191,6 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-
 fun XenonApp(
     viewModel: PhoneViewModel,
     signInViewModel: SignInViewModel,

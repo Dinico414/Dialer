@@ -13,6 +13,7 @@ class SharedPreferenceManager(context: Context) {
 
     private val prefsName = "AppPrefs"
     private val themeKey = "app_theme"
+    private val languageTagKey = "app_language_tag"
     private val coverThemeEnabledKey = "cover_theme_enabled"
     private val coverDisplayDimension1Key = "cover_display_dimension_1"
     private val coverDisplayDimension2Key = "cover_display_dimension_2"
@@ -69,6 +70,10 @@ class SharedPreferenceManager(context: Context) {
         get() = sharedPreferences.getBoolean(isUserLoggedInKey, false)
         set(value) = sharedPreferences.edit { putBoolean(isUserLoggedInKey, value) }
 
+    var languageTag: String
+        get() = sharedPreferences.getString(languageTagKey, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(languageTagKey, value) }
+
     fun isCoverThemeApplied(currentDisplaySize: IntSize): Boolean {
         if (!coverThemeEnabled) return false
         val storedDimension1 = sharedPreferences.getInt(coverDisplayDimension1Key, 0)
@@ -92,6 +97,7 @@ class SharedPreferenceManager(context: Context) {
             putBoolean(developerModeKey, false)
             putBoolean(newLayoutKey, false)
             putBoolean(isUserLoggedInKey, false)
+            remove(languageTagKey)
         }
     }
 }

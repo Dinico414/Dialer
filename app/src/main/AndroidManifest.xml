@@ -92,6 +92,15 @@
             android:theme="@style/Theme.Xenon" />
 
         <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <service
             android:name=".service.MyInCallService"
             android:permission="android.permission.BIND_INCALL_SERVICE"
             android:exported="true"

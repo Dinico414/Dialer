@@ -264,7 +264,7 @@ fun SettingsItems(
     SettingsTile(
         title = stringResource(R.string.version),
         subtitle = "v $appVersion" + if (developerModeEnabled) " (Developer)" else "",
-        onClick = { viewModel.onInfoTileClicked(context) },
+        onClick = { viewModel.onInfoTileClicked() },
         onLongClick = { viewModel.openImpressum(context) },
         icon = {
             Icon(
