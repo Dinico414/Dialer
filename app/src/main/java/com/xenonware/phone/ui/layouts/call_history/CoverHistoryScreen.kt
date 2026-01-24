@@ -137,8 +137,6 @@ fun CoverHistoryScreen(
                             entries = callLogs,
                             todayStr = stringResource(R.string.today),
                             yesterdayStr = stringResource(R.string.yesterday),
-                            lastWeekStr = stringResource(R.string.last_week),
-                            lastMonthStr = stringResource(R.string.last_month)
                         )
                         val listState = rememberLazyListState()
 

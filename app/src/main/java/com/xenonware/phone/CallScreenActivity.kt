@@ -98,7 +98,13 @@ class CallScreenActivity : ComponentActivity() {
         super.onResume()
         isVisible = true
         MyInCallService.currentCall?.let { call ->
-            if (call.state == Call.STATE_RINGING) {
+            if (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    call.details.state == Call.STATE_RINGING
+                } else {
+                    @Suppress("DEPRECATION")
+                    call.state == Call.STATE_RINGING
+                }
+            ) {
                 CallNotificationHelper.showIncomingCallNotification(this, call)
             }
         }
@@ -108,7 +114,13 @@ class CallScreenActivity : ComponentActivity() {
         super.onPause()
         isVisible = false
         MyInCallService.currentCall?.let { call ->
-            if (call.state == Call.STATE_RINGING) {
+            if (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    call.details.state == Call.STATE_RINGING
+                } else {
+                    @Suppress("DEPRECATION")
+                    call.state == Call.STATE_RINGING
+                }
+            ) {
                 CallNotificationHelper.showIncomingCallNotification(applicationContext, call)
             }
         }

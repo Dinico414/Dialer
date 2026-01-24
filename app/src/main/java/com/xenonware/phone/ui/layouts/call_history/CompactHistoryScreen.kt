@@ -45,7 +45,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -173,8 +172,6 @@ fun CompactHistoryScreen(
                             entries = callLogs,
                             todayStr = stringResource(R.string.today),
                             yesterdayStr = stringResource(R.string.yesterday),
-                            lastWeekStr = stringResource(R.string.last_week),
-                            lastMonthStr = stringResource(R.string.last_month)
                         )
                         val listState = rememberLazyListState()
 
@@ -231,7 +228,7 @@ fun CallHistoryItemCard(
     entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
-    val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.MEDIUM, Locale.getDefault())
 
     val (icon, backgroundColor) = when (entry.type) {
         CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
@@ -339,52 +336,50 @@ fun groupCallLogsByDate(
     entries: List<CallLogEntry>,
     todayStr: String,
     yesterdayStr: String,
-    lastWeekStr: String,
-    lastMonthStr: String
 ): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
 
-    val now = Calendar.getInstance()
-    val today = Calendar.getInstance().apply {
+    // Start of today (00:00:00)
+    val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }
-    val yesterday = today.clone() as Calendar
-    yesterday.add(Calendar.DAY_OF_MONTH, -1)
 
-    val last7days = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -7) }
-    val last30days = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -30) }
+    // Start of yesterday
+    val yesterdayStart = todayStart.clone() as Calendar
+    yesterdayStart.add(Calendar.DAY_OF_MONTH, -1)
+
+    // We'll use the system's default SHORT date format for older dates
+    val dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.SHORT, Locale.getDefault())
 
     val groups = mutableListOf<CallGroup>()
-    val currentGroup = mutableListOf<CallLogEntry>()
+    val currentGroupEntries = mutableListOf<CallLogEntry>()
     var currentTitle: String? = null
 
+    // Sort descending (newest first) — already expected in your code
     for (entry in entries.sortedByDescending { it.date }) {
         val cal = Calendar.getInstance().apply { timeInMillis = entry.date }
 
         val title = when {
-            cal.timeInMillis >= today.timeInMillis -> todayStr
-            cal.timeInMillis >= yesterday.timeInMillis -> yesterdayStr
-            cal.timeInMillis >= last7days.timeInMillis -> lastWeekStr
-            cal.timeInMillis >= last30days.timeInMillis -> lastMonthStr
-            cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                    cal.get(Calendar.MONTH) == now.get(Calendar.MONTH) -> "This Month"
-            else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+            cal.timeInMillis >= todayStart.timeInMillis -> todayStr
+            cal.timeInMillis >= yesterdayStart.timeInMillis -> yesterdayStr
+            else -> dateFormat.format(cal.time)   // → "24.01.2026" or "1/24/26" etc.
         }
 
-        if (title != currentTitle && currentGroup.isNotEmpty()) {
-            groups.add(CallGroup(currentTitle!!, currentGroup.toList()))
-            currentGroup.clear()
+        if (title != currentTitle && currentGroupEntries.isNotEmpty()) {
+            groups.add(CallGroup(currentTitle!!, currentGroupEntries.toList()))
+            currentGroupEntries.clear()
         }
 
         currentTitle = title
-        currentGroup.add(entry)
+        currentGroupEntries.add(entry)
     }
 
-    if (currentGroup.isNotEmpty()) {
-        groups.add(CallGroup(currentTitle!!, currentGroup.toList()))
+    // Don't forget the last group
+    if (currentGroupEntries.isNotEmpty()) {
+        groups.add(CallGroup(currentTitle!!, currentGroupEntries.toList()))
     }
 
     return groups
