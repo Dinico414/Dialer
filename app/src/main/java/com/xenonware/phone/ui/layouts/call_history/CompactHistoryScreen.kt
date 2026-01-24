@@ -1,5 +1,6 @@
 package com.xenonware.phone.ui.layouts.call_history
 
+import com.xenonware.phone.util.PhoneNumberFormatter
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -224,7 +225,7 @@ fun CompactHistoryScreen(
 }
 
 @Composable
-fun CallHistoryItemCard(
+fun   CallHistoryItemCard(
     entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
@@ -296,17 +297,20 @@ fun CallHistoryItemCard(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                val formattedNumber = PhoneNumberFormatter.formatForDisplay(entry.phoneNumber, context)
+                val callTypeText = when (entry.type) {
+                    CallLog.Calls.INCOMING_TYPE -> stringResource(R.string.incoming)
+                    CallLog.Calls.OUTGOING_TYPE -> stringResource(R.string.outgoing)
+                    CallLog.Calls.MISSED_TYPE -> stringResource(R.string.missed)
+                    CallLog.Calls.VOICEMAIL_TYPE -> stringResource(R.string.voicemail)
+                    CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> stringResource(R.string.answered_externally)
+                    CallLog.Calls.REJECTED_TYPE -> stringResource(R.string.rejected)
+                    CallLog.Calls.BLOCKED_TYPE -> stringResource(R.string.blocked)
+                    else -> stringResource(R.string.unknown)
+                }
+
                 Text(
-                    text = when (entry.type) {
-                        CallLog.Calls.INCOMING_TYPE -> stringResource(id = R.string.incoming)
-                        CallLog.Calls.OUTGOING_TYPE -> stringResource(id = R.string.outgoing)
-                        CallLog.Calls.MISSED_TYPE -> stringResource(id = R.string.missed)
-                        CallLog.Calls.VOICEMAIL_TYPE -> stringResource(id = R.string.voicemail)
-                        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> stringResource(id = R.string.answered_externally)
-                        CallLog.Calls.REJECTED_TYPE -> stringResource(id = R.string.rejected)
-                        CallLog.Calls.BLOCKED_TYPE -> stringResource(id = R.string.blocked)
-                        else -> stringResource(id = R.string.unknown)
-                    } + " • ${dateFormat.format(Date(entry.date))}",
+                    text = "$callTypeText • $formattedNumber • ${dateFormat.format(Date(entry.date))}",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

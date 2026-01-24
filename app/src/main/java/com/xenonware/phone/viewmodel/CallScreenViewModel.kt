@@ -1,5 +1,6 @@
 package com.xenonware.phone.viewmodel
 
+import com.xenonware.phone.util.PhoneNumberFormatter
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -46,6 +47,7 @@ class CallScreenViewModel : ViewModel() {
     private val _showKeypad = MutableStateFlow(false)
     val showKeypad: StateFlow<Boolean> = _showKeypad.asStateFlow()
 
+
     fun initialize(call: Call, context: Context) {
         currentCall = call
 
@@ -59,10 +61,12 @@ class CallScreenViewModel : ViewModel() {
         }
 
         val rawNumber = call.details.handle?.schemeSpecificPart ?: "Private"
+
         _displayName.value = if (rawNumber == "Private") {
             "Private"
         } else {
-            lookupContactName(context, rawNumber) ?: rawNumber
+            lookupContactName(context, rawNumber)
+                ?: PhoneNumberFormatter.formatForDisplay(rawNumber, context)
         }
 
         registerCallCallback(call)

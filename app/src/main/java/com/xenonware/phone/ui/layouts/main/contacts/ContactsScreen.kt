@@ -1,5 +1,6 @@
 package com.xenonware.phone.ui.layouts.main.contacts
 
+import com.xenonware.phone.util.PhoneNumberFormatter
 import android.content.Intent
 import android.telecom.Call
 import androidx.compose.animation.AnimatedVisibility
@@ -303,7 +304,7 @@ fun ContactItemCard(
                         color = colorScheme.onSurface
                     )
                     Text(
-                        text = contact.phone,
+                        text = PhoneNumberFormatter.formatForDisplay(contact.phone, LocalContext.current),
                         fontSize = 14.sp,
                         color = colorScheme.onSurfaceVariant
                     )

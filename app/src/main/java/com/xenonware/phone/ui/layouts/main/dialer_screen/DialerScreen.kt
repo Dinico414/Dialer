@@ -90,6 +90,7 @@ import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
+import com.xenonware.phone.util.PhoneNumberFormatter
 import com.xenonware.phone.viewmodel.CallLogEntry
 import com.xenonware.phone.viewmodel.IndexedContact
 import com.xenonware.phone.viewmodel.PhoneViewModel
@@ -279,23 +280,22 @@ private fun SuggestionRow(
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
-
         isFirstInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
-
         isLastInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
-
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
+
+    val context = LocalContext.current
 
     Surface(
         modifier = Modifier
@@ -311,7 +311,6 @@ private fun SuggestionRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             if (matchingContact != null) {
                 ContactAvatar(
                     contact = matchingContact, modifier = Modifier.size(48.dp)
@@ -336,9 +335,7 @@ private fun SuggestionRow(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -348,7 +345,7 @@ private fun SuggestionRow(
                 )
 
                 Text(
-                    text = item.subtitle,
+                    text = PhoneNumberFormatter.formatForDisplay(item.subtitle, context),
                     style = MaterialTheme.typography.bodySmall,
                     color = colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -508,13 +505,18 @@ fun Dialpad(
     val spacing = 8.dp
     val totalSpacing = spacing * 3
 
-    val buttonHeight = (targetTotalHeight - totalSpacing) / 4
-
-    val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).toSp() }
-    val letterTextSize = with(density) {
-        (buttonHeight.toPx() * 0.185f).coerceAtLeast(0f).toSp()
+    var buttonHeight = (targetTotalHeight - totalSpacing) / 4
+    if (buttonHeight < 48.dp) {
+        buttonHeight = 48.dp
     }
-    val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).toSp() }
+
+    val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).coerceAtLeast(16f).toSp() }
+    val letterTextSize = with(density) {
+        (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp()
+    }
+    val iconSize = with(density) {
+        (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp()
+    }
 
     Column(
         modifier = Modifier
