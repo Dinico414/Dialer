@@ -7,6 +7,10 @@ import android.provider.CallLog
 import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,15 +45,22 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -63,17 +74,23 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.geocoding.PhoneNumberOfflineGeocoder
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
-import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
+import com.xenonware.phone.ui.layouts.main.contacts.isScrolledToEnd
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import com.xenonware.phone.util.PhoneNumberFormatter
 import com.xenonware.phone.viewmodel.CallHistoryViewModel
 import com.xenonware.phone.viewmodel.LayoutType
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.materials.HazeMaterials
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -89,6 +106,7 @@ data class CallGroup(
 )
 
 
+@OptIn(ExperimentalHazeMaterialsApi::class)
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CompactHistoryScreen(
@@ -163,7 +181,9 @@ fun CompactHistoryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(R.string.permission_required),
+                                text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(
+                                    R.string.permission_required
+                                ),
                                 fontSize = 18.sp,
                                 lineHeight = 28.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -179,45 +199,117 @@ fun CompactHistoryScreen(
                             yesterdayStr = stringResource(R.string.yesterday),
                         )
                         val listState = rememberLazyListState()
+                        val coroutineScope = rememberCoroutineScope()
 
-                        LazyColumn(
-                            state = listState,
-                            verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                bottom = with(LocalDensity.current) {
-                                    WindowInsets.navigationBars.asPaddingValues()
-                                        .calculateBottomPadding() + 64.dp + LargePadding * 2
-                                })
+                        val hazeState = remember { HazeState() }
+
+                        val showScrollToTop by remember {
+                            derivedStateOf {
+                                listState.firstVisibleItemIndex > 0 ||
+                                        listState.firstVisibleItemScrollOffset > 200
+                            }
+                        }
+
+                        val showScrollToBottom by remember {
+                            derivedStateOf {
+                                !listState.isScrolledToEnd()
+                            }
+                        }
+
+                        val showButton by remember {
+                            derivedStateOf { showScrollToTop && showScrollToBottom }
+                        }
+
+
+                        val buttonAlpha by animateFloatAsState(
+                            targetValue = if (showButton) 1f else 0f,
+                            animationSpec = tween(300),
+                            label = "scroll button alpha"
+                        )
+
+                        val buttonScale by animateFloatAsState(
+                            targetValue = if (showButton) 1f else 0.8f, animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessLow
+                            ), label = "scroll button scale"
+                        )
+
+                        val hazeThinColor = MaterialTheme.colorScheme.primary
+
+                        Box(
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            groupedCalls.forEach { group ->
-                                item(key = "header_${group.title}") {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                                    ) {
-                                        Text(
-                                            text = group.title,
-                                            fontSize = 20.sp,
-                                            fontFamily = QuicksandTitleVariable,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                            LazyColumn(
+                                state = listState,
+                                verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .fillMaxSize()
+                                    .hazeSource(state = hazeState),
+                                contentPadding = PaddingValues(
+                                    bottom = with(LocalDensity.current) {
+                                        WindowInsets.navigationBars.asPaddingValues()
+                                            .calculateBottomPadding()
+                                    })) {
+                                groupedCalls.forEach { group ->
+                                    item(key = "header_${group.title}") {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        ) {
+                                            Text(
+                                                text = group.title,
+                                                fontSize = 20.sp,
+                                                fontFamily = QuicksandTitleVariable,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    items(
+                                        items = group.entries, key = { it.date }) { entry ->
+                                        val index = group.entries.indexOf(entry)
+                                        CallHistoryItemCard(
+                                            entry = entry,
+                                            isFirstInGroup = index == 0,
+                                            isLastInGroup = index == group.entries.lastIndex,
+                                            isSingle = group.entries.size == 1
                                         )
                                     }
                                 }
+                            }
 
-                                items(
-                                    items = group.entries, key = { it.date }) { entry ->
-                                    val index = group.entries.indexOf(entry)
-                                    CallHistoryItemCard(
-                                        entry = entry,
-                                        isFirstInGroup = index == 0,
-                                        isLastInGroup = index == group.entries.lastIndex,
-                                        isSingle = group.entries.size == 1
+                            if (buttonAlpha > 0.02f) {
+                                IconButton(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(
+                                            bottom = with(LocalDensity.current) {
+                                                WindowInsets.navigationBars.asPaddingValues()
+                                                    .calculateBottomPadding() + 16.dp
+                                            })
+                                        .scale(buttonScale)
+                                        .clip(CircleShape)
+                                        .alpha(buttonAlpha)
+                                        .hazeEffect(
+                                            state = hazeState,
+                                            style = HazeMaterials.ultraThin(hazeThinColor)
+                                        ), colors = IconButtonDefaults.iconButtonColors(
+                                        containerColor = Color.Transparent,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    ), onClick = {
+                                        coroutineScope.launch {
+                                            listState.animateScrollToItem(0)
+                                        }
+                                    }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                                        contentDescription = "Scroll to top",
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
                             }
@@ -241,7 +333,10 @@ fun CallHistoryItemCard(
         CallLog.Calls.OUTGOING_TYPE -> Icons.Rounded.KeyboardArrowUp to Color(0xFF4CAF50)
         CallLog.Calls.MISSED_TYPE -> Icons.Rounded.Close to Color(0xFFF44336)
         CallLog.Calls.VOICEMAIL_TYPE -> Icons.Rounded.Voicemail to Color(0xFFFFC107)
-        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF9E9E9E)
+        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(
+            0xFF9E9E9E
+        )
+
         CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.Close to Color(0xFF9E9E9E)
         CallLog.Calls.BLOCKED_TYPE -> Icons.Rounded.Block to Color(0xFF9E9E9E)
         else -> Icons.Rounded.Remove to Color(0xFF9E9E9E)
@@ -296,20 +391,22 @@ fun CallHistoryItemCard(
 
             Column(modifier = Modifier.weight(1f)) {
 
-                val displayText = if (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isEmpty()) {
-                    PhoneNumberFormatter.formatForDisplay(entry.nameOrNumber, context)
-                } else {
-                    entry.nameOrNumber
-                }
+                val displayText =
+                    if (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isEmpty()) {
+                        PhoneNumberFormatter.formatForDisplay(entry.nameOrNumber, context)
+                    } else {
+                        entry.nameOrNumber
+                    }
                 Text(
                     text = displayText,
                     fontFamily = QuicksandTitleVariable,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                val hasContact = entry.nameOrNumber != entry.phoneNumber && entry.nameOrNumber.isNotBlank()
+                val hasContact =
+                    entry.nameOrNumber != entry.phoneNumber && entry.nameOrNumber.isNotBlank()
 
                 val callTypeText = when (entry.type) {
                     CallLog.Calls.INCOMING_TYPE -> stringResource(R.string.incoming)
@@ -325,15 +422,23 @@ fun CallHistoryItemCard(
                 val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(callDate)
 
                 val extraLabel = getNumberTypeOrOrigin(
-                    context = context,
-                    phoneNumber = entry.phoneNumber,
-                    hasContactName = hasContact
+                    context = context, phoneNumber = entry.phoneNumber, hasContactName = hasContact
                 )
 
                 Text(
-                    text = "$callTypeText • $time$extraLabel",
+                    text = "$extraLabel$time",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = callTypeText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraLight,
+                    color = lerp(
+                        start = MaterialTheme.colorScheme.onSurfaceVariant,
+                        stop = backgroundColor,
+                        fraction = 0.6f
+                    )
                 )
             }
 
@@ -351,10 +456,8 @@ fun CallHistoryItemCard(
                 Icon(
                     imageVector = Icons.Rounded.Call,
                     contentDescription = "Call",
-                    tint = if (entry.phoneNumber.isNotEmpty())
-                        Color(0xFF4CAF50)
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    tint = if (entry.phoneNumber.isNotEmpty()) Color(0xFF4CAF50)
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -367,8 +470,7 @@ private val geocoder = PhoneNumberOfflineGeocoder.getInstance()
 
 @Composable
 private fun getNumberOriginLabel(
-    context: Context,
-    rawNumber: String
+    context: Context, rawNumber: String
 ): String {
     if (rawNumber.isBlank()) return ""
 
@@ -381,17 +483,16 @@ private fun getNumberOriginLabel(
         val regionCode = phoneUtil.getRegionCodeForNumber(number) ?: return ""
 
         val description = geocoder.getDescriptionForNumber(
-            number,
-            Locale.getDefault()  // uses device language → "Berlin", "Rom", "Paris"...
+            number, Locale.getDefault()  // uses device language → "Berlin", "Rom", "Paris"...
         )?.trim() ?: ""
 
         if (description.isBlank()) return ""
 
         if (regionCode == userCountry) {
-            " • $description"  // e.g. " • Berlin", " • München", " • Rom"
+            "$description • "  // e.g. "Berlin • ", "München • ", "Rom • "
         } else {
             val countryName = Locale("", regionCode).displayCountry
-            " • $countryName"  // e.g. " • Italien", " • Frankreich"
+            "$countryName • "  // e.g. "Italien • ", "Frankreich • "
         }
     } catch (_: Exception) {
         ""
@@ -400,16 +501,14 @@ private fun getNumberOriginLabel(
 
 @Composable
 private fun getNumberTypeOrOrigin(
-    context: Context,
-    phoneNumber: String,
-    hasContactName: Boolean
+    context: Context, phoneNumber: String, hasContactName: Boolean
 ): String {
     if (phoneNumber.isBlank()) return ""
 
     if (hasContactName) {
         val labelFromContact = getContactPhoneLabel(context, phoneNumber)
         if (labelFromContact.isNotBlank()) {
-            return " • $labelFromContact"
+            return "$labelFromContact • "
         }
     }
 
@@ -429,22 +528,20 @@ private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
         val selectionArgs = arrayOf(rawNumber)
 
         context.contentResolver.query(
-            uri,
-            projection,
-            selection,
-            selectionArgs,
-            null
+            uri, projection, selection, selectionArgs, null
         )?.use { cursor ->
             if (cursor.moveToFirst()) {
-                val type = cursor.getInt(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
-                val customLabel = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL))
+                val type =
+                    cursor.getInt(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
+                val customLabel =
+                    cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL))
 
                 return when (type) {
                     ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE -> "Mobil"
                     ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Geschäftlich"
                     ContactsContract.CommonDataKinds.Phone.TYPE_HOME -> "Privat"
-                    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_HOME,
-                    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK -> "Fax"
+                    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_HOME, ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK -> "Fax"
+
                     ContactsContract.CommonDataKinds.Phone.TYPE_OTHER -> "Sonstige"
                     else -> customLabel?.takeIf { it.isNotBlank() } ?: ""
                 }
@@ -510,59 +607,56 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
     val logs = mutableListOf<CallLogEntry>()
 
     val cursor = context.contentResolver.query(
-        CallLog.Calls.CONTENT_URI,
-        null,
-        null,
-        null,
-        "${CallLog.Calls.DATE} DESC"
+        CallLog.Calls.CONTENT_URI, null, null, null, "${CallLog.Calls.DATE} DESC"
     )
 
     cursor?.use {
-        val numberIndex     = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
-        val typeIndex       = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
-        val dateIndex       = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
-        val nameIndex       = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
+        val numberIndex = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
+        val typeIndex = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
+        val dateIndex = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
+        val nameIndex = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
 
         val presentationIndex = it.getColumnIndex(CallLog.Calls.NUMBER_PRESENTATION)
 
         while (it.moveToNext()) {
             val rawNumber = it.getString(numberIndex) ?: ""
-            val name      = if (nameIndex >= 0) it.getString(nameIndex) else null
-            val type      = it.getInt(typeIndex)
-            val date      = it.getLong(dateIndex)
+            val name = if (nameIndex >= 0) it.getString(nameIndex) else null
+            val type = it.getInt(typeIndex)
+            val date = it.getLong(dateIndex)
 
-            val privateStr    = context.getString(R.string.private_label)
-            val unknownStr    = context.getString(R.string.unknown)
+            val privateStr = context.getString(R.string.private_label)
+            val unknownStr = context.getString(R.string.unknown)
             val restrictedStr = context.getString(R.string.restricted)
-            val payphoneStr   = context.getString(R.string.payphone)
+            val payphoneStr = context.getString(R.string.payphone)
 
             val displayName = when {
                 !name.isNullOrBlank() -> name.trim()
 
                 presentationIndex >= 0 -> {
                     when (it.getInt(presentationIndex)) {
-                        CallLog.Calls.PRESENTATION_ALLOWED     -> rawNumber.trim().ifBlank { unknownStr }
-                        CallLog.Calls.PRESENTATION_RESTRICTED  -> privateStr
-                        CallLog.Calls.PRESENTATION_UNKNOWN     -> unknownStr
-                        CallLog.Calls.PRESENTATION_PAYPHONE    -> payphoneStr
+                        CallLog.Calls.PRESENTATION_ALLOWED -> rawNumber.trim()
+                            .ifBlank { unknownStr }
+
+                        CallLog.Calls.PRESENTATION_RESTRICTED -> privateStr
+                        CallLog.Calls.PRESENTATION_UNKNOWN -> unknownStr
+                        CallLog.Calls.PRESENTATION_PAYPHONE -> payphoneStr
                         else -> privateStr
                     }
                 }
 
                 else -> when {
-                    rawNumber.isBlank()
-                            || rawNumber == "-1"
-                            || rawNumber == "-2"
-                            || rawNumber == "-3"
-                            || rawNumber.equals(unknownStr, ignoreCase = true)
-                            || rawNumber.equals("P", ignoreCase = true)
-                            || rawNumber.equals("Restricted", ignoreCase = true)
-                            || rawNumber.equals("Withheld", ignoreCase = true)
-                        -> unknownStr
+                    rawNumber.isBlank() || rawNumber == "-1" || rawNumber == "-2" || rawNumber == "-3" || rawNumber.equals(
+                        unknownStr,
+                        ignoreCase = true
+                    ) || rawNumber.equals("P", ignoreCase = true) || rawNumber.equals(
+                        "Restricted",
+                        ignoreCase = true
+                    ) || rawNumber.equals("Withheld", ignoreCase = true) -> unknownStr
 
-                    rawNumber.equals(privateStr, ignoreCase = true)
-                            || rawNumber.equals(restrictedStr, ignoreCase = true)
-                        -> privateStr
+                    rawNumber.equals(privateStr, ignoreCase = true) || rawNumber.equals(
+                        restrictedStr,
+                        ignoreCase = true
+                    ) -> privateStr
 
                     rawNumber.equals(payphoneStr, ignoreCase = true) -> payphoneStr
 

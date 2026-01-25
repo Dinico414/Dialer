@@ -1,6 +1,5 @@
 package com.xenonware.phone.ui.layouts.main.contacts
 
-import com.xenonware.phone.util.PhoneNumberFormatter
 import android.content.Intent
 import android.telecom.Call
 import androidx.compose.animation.AnimatedVisibility
@@ -94,6 +93,7 @@ import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
+import com.xenonware.phone.util.PhoneNumberFormatter
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -587,7 +587,7 @@ class MorphPolygonShape(
     }
 }
 
-private fun LazyListState.isScrolledToEnd(): Boolean {
+fun LazyListState.isScrolledToEnd(): Boolean {
     val info = layoutInfo
     if (info.totalItemsCount == 0) return true
     val last = info.visibleItemsInfo.lastOrNull() ?: return true
