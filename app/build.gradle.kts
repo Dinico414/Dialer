@@ -110,6 +110,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.libphonenumber)
+    implementation(libs.geocoder)
 
     implementation(libs.firebase.auth.ktx)
     implementation(libs.play.services.auth)

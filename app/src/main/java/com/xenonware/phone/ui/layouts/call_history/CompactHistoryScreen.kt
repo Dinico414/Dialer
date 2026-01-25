@@ -1,10 +1,10 @@
 package com.xenonware.phone.ui.layouts.call_history
 
-import com.xenonware.phone.util.PhoneNumberFormatter
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.CallLog
+import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.i18n.phonenumbers.PhoneNumberUtil
+import com.google.i18n.phonenumbers.geocoding.PhoneNumberOfflineGeocoder
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.LargePadding
@@ -69,12 +71,14 @@ import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
+import com.xenonware.phone.util.PhoneNumberFormatter
 import com.xenonware.phone.viewmodel.CallHistoryViewModel
 import com.xenonware.phone.viewmodel.LayoutType
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
 
 data class CallLogEntry(
     val nameOrNumber: String, val phoneNumber: String, val type: Int, val date: Long,
@@ -229,7 +233,12 @@ fun   CallHistoryItemCard(
     entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
-    val dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.MEDIUM, Locale.getDefault())
+
+    val callDate = Date(entry.date)
+    val weekdayFormat = SimpleDateFormat("EE", Locale.getDefault())
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val weekday = weekdayFormat.format(callDate)
+    val time = timeFormat.format(callDate)
 
     val (icon, backgroundColor) = when (entry.type) {
         CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
@@ -290,14 +299,22 @@ fun   CallHistoryItemCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+
+                val displayText = if (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isEmpty()) {
+                    PhoneNumberFormatter.formatForDisplay(entry.nameOrNumber, context)
+                } else {
+                    entry.nameOrNumber
+                }
                 Text(
-                    text = entry.nameOrNumber,
+                    text = displayText,
                     fontFamily = QuicksandTitleVariable,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                val formattedNumber = PhoneNumberFormatter.formatForDisplay(entry.phoneNumber, context)
+
+                val hasContact = entry.nameOrNumber != entry.phoneNumber && entry.nameOrNumber.isNotBlank()
+
                 val callTypeText = when (entry.type) {
                     CallLog.Calls.INCOMING_TYPE -> stringResource(R.string.incoming)
                     CallLog.Calls.OUTGOING_TYPE -> stringResource(R.string.outgoing)
@@ -309,8 +326,16 @@ fun   CallHistoryItemCard(
                     else -> stringResource(R.string.unknown)
                 }
 
+                val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(callDate)
+
+                val extraLabel = getNumberTypeOrOrigin(
+                    context = context,
+                    phoneNumber = entry.phoneNumber,
+                    hasContactName = hasContact
+                )
+
                 Text(
-                    text = "$callTypeText • $formattedNumber • ${dateFormat.format(Date(entry.date))}",
+                    text = "$callTypeText • $time$extraLabel",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -336,6 +361,101 @@ fun   CallHistoryItemCard(
     }
 }
 
+private val phoneUtil = PhoneNumberUtil.getInstance()
+private val geocoder = PhoneNumberOfflineGeocoder.getInstance()
+
+@Composable
+private fun getNumberOriginLabel(
+    context: Context,
+    rawNumber: String
+): String {
+    if (rawNumber.isBlank()) return ""
+
+    val userCountry = context.resources.configuration.locales.get(0).country ?: "DE"
+
+    return try {
+        val number = phoneUtil.parse(rawNumber, userCountry)
+        if (!phoneUtil.isValidNumber(number)) return ""
+
+        val regionCode = phoneUtil.getRegionCodeForNumber(number) ?: return ""
+
+        val description = geocoder.getDescriptionForNumber(
+            number,
+            Locale.getDefault()  // uses device language → "Berlin", "Rom", "Paris"...
+        )?.trim() ?: ""
+
+        if (description.isBlank()) return ""
+
+        if (regionCode == userCountry) {
+            " • $description"  // e.g. " • Berlin", " • München", " • Rom"
+        } else {
+            val countryName = Locale("", regionCode).displayCountry
+            " • $countryName"  // e.g. " • Italien", " • Frankreich"
+        }
+    } catch (_: Exception) {
+        ""
+    }
+}
+
+@Composable
+private fun getNumberTypeOrOrigin(
+    context: Context,
+    phoneNumber: String,
+    hasContactName: Boolean
+): String {
+    if (phoneNumber.isBlank()) return ""
+
+    if (hasContactName) {
+        val labelFromContact = getContactPhoneLabel(context, phoneNumber)
+        if (labelFromContact.isNotBlank()) {
+            return " • $labelFromContact"
+        }
+    }
+
+    return getNumberOriginLabel(context, phoneNumber)
+}
+
+private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
+    if (rawNumber.isBlank()) return ""
+
+    try {
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.TYPE,
+            ContactsContract.CommonDataKinds.Phone.LABEL
+        )
+        val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} = ?"
+        val selectionArgs = arrayOf(rawNumber)
+
+        context.contentResolver.query(
+            uri,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val type = cursor.getInt(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
+                val customLabel = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL))
+
+                return when (type) {
+                    ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE -> "Mobil"
+                    ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Geschäftlich"
+                    ContactsContract.CommonDataKinds.Phone.TYPE_HOME -> "Privat"
+                    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_HOME,
+                    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK -> "Fax"
+                    ContactsContract.CommonDataKinds.Phone.TYPE_OTHER -> "Sonstige"
+                    else -> customLabel?.takeIf { it.isNotBlank() } ?: ""
+                }
+            }
+        }
+    } catch (_: SecurityException) {
+    } catch (_: Exception) {
+    }
+
+    return ""
+}
+
 fun groupCallLogsByDate(
     entries: List<CallLogEntry>,
     todayStr: String,
@@ -343,7 +463,6 @@ fun groupCallLogsByDate(
 ): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
 
-    // Start of today (00:00:00)
     val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -351,25 +470,23 @@ fun groupCallLogsByDate(
         set(Calendar.MILLISECOND, 0)
     }
 
-    // Start of yesterday
     val yesterdayStart = todayStart.clone() as Calendar
     yesterdayStart.add(Calendar.DAY_OF_MONTH, -1)
 
-    // We'll use the system's default SHORT date format for older dates
-    val dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.SHORT, Locale.getDefault())
+    val dateFormatWithDay = SimpleDateFormat("EE dd.MM.yyyy", Locale.getDefault())
+
 
     val groups = mutableListOf<CallGroup>()
     val currentGroupEntries = mutableListOf<CallLogEntry>()
     var currentTitle: String? = null
 
-    // Sort descending (newest first) — already expected in your code
     for (entry in entries.sortedByDescending { it.date }) {
         val cal = Calendar.getInstance().apply { timeInMillis = entry.date }
 
         val title = when {
             cal.timeInMillis >= todayStart.timeInMillis -> todayStr
             cal.timeInMillis >= yesterdayStart.timeInMillis -> yesterdayStr
-            else -> dateFormat.format(cal.time)   // → "24.01.2026" or "1/24/26" etc.
+            else -> dateFormatWithDay.format(cal.time)
         }
 
         if (title != currentTitle && currentGroupEntries.isNotEmpty()) {
@@ -381,7 +498,6 @@ fun groupCallLogsByDate(
         currentGroupEntries.add(entry)
     }
 
-    // Don't forget the last group
     if (currentGroupEntries.isNotEmpty()) {
         groups.add(CallGroup(currentTitle!!, currentGroupEntries.toList()))
     }
