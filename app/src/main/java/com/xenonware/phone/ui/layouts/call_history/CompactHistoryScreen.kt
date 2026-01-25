@@ -229,16 +229,12 @@ fun CompactHistoryScreen(
 }
 
 @Composable
-fun   CallHistoryItemCard(
+fun CallHistoryItemCard(
     entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
 ) {
     val context = LocalContext.current
 
     val callDate = Date(entry.date)
-    val weekdayFormat = SimpleDateFormat("EE", Locale.getDefault())
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val weekday = weekdayFormat.format(callDate)
-    val time = timeFormat.format(callDate)
 
     val (icon, backgroundColor) = when (entry.type) {
         CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
@@ -346,14 +342,19 @@ fun   CallHistoryItemCard(
                     if (entry.phoneNumber.isNotEmpty()) {
                         safePlaceCall(context, entry.phoneNumber)
                     }
-                }, modifier = Modifier
+                },
+                enabled = entry.phoneNumber.isNotEmpty(),
+                modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(24.dp))
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Call,
                     contentDescription = "Call",
-                    tint = Color(0xFF4CAF50),
+                    tint = if (entry.phoneNumber.isNotEmpty())
+                        Color(0xFF4CAF50)
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -509,50 +510,76 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
     val logs = mutableListOf<CallLogEntry>()
 
     val cursor = context.contentResolver.query(
-        CallLog.Calls.CONTENT_URI, null, null, null, "${CallLog.Calls.DATE} DESC"
+        CallLog.Calls.CONTENT_URI,
+        null,
+        null,
+        null,
+        "${CallLog.Calls.DATE} DESC"
     )
 
     cursor?.use {
-        val numberIndex = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
-        val typeIndex = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
-        val dateIndex = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
-        val nameIndex = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
+        val numberIndex     = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
+        val typeIndex       = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
+        val dateIndex       = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
+        val nameIndex       = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
+
+        val presentationIndex = it.getColumnIndex(CallLog.Calls.NUMBER_PRESENTATION)
 
         while (it.moveToNext()) {
-            val rawNumber = it.getString(numberIndex)
-            val name = if (nameIndex != -1) it.getString(nameIndex) else null
-            val type = it.getInt(typeIndex)
-            val date = it.getLong(dateIndex)
+            val rawNumber = it.getString(numberIndex) ?: ""
+            val name      = if (nameIndex >= 0) it.getString(nameIndex) else null
+            val type      = it.getInt(typeIndex)
+            val date      = it.getLong(dateIndex)
 
-            val privateString = context.getString(R.string.private_label)
-            val unknownString = context.getString(R.string.unknown)
-            val restrictedString = context.getString(R.string.restricted)
-            val payphoneString = context.getString(R.string.payphone)
+            val privateStr    = context.getString(R.string.private_label)
+            val unknownStr    = context.getString(R.string.unknown)
+            val restrictedStr = context.getString(R.string.restricted)
+            val payphoneStr   = context.getString(R.string.payphone)
 
             val displayName = when {
                 !name.isNullOrBlank() -> name.trim()
 
-                rawNumber.isNullOrBlank() || rawNumber.equals(
-                    privateString, ignoreCase = true
-                ) || rawNumber.equals(
-                    restrictedString, ignoreCase = true
-                ) || rawNumber.equals(unknownString, ignoreCase = true) || rawNumber.equals(
-                    payphoneString, ignoreCase = true
-                ) || rawNumber.equals("-1", ignoreCase = true) || rawNumber.equals(
-                    "-2", ignoreCase = true
-                ) || rawNumber.equals("-3", ignoreCase = true) -> privateString
+                presentationIndex >= 0 -> {
+                    when (it.getInt(presentationIndex)) {
+                        CallLog.Calls.PRESENTATION_ALLOWED     -> rawNumber.trim().ifBlank { unknownStr }
+                        CallLog.Calls.PRESENTATION_RESTRICTED  -> privateStr
+                        CallLog.Calls.PRESENTATION_UNKNOWN     -> unknownStr
+                        CallLog.Calls.PRESENTATION_PAYPHONE    -> payphoneStr
+                        else -> privateStr
+                    }
+                }
 
-                else -> rawNumber.trim()
+                else -> when {
+                    rawNumber.isBlank()
+                            || rawNumber == "-1"
+                            || rawNumber == "-2"
+                            || rawNumber == "-3"
+                            || rawNumber.equals(unknownStr, ignoreCase = true)
+                            || rawNumber.equals("P", ignoreCase = true)
+                            || rawNumber.equals("Restricted", ignoreCase = true)
+                            || rawNumber.equals("Withheld", ignoreCase = true)
+                        -> unknownStr
+
+                    rawNumber.equals(privateStr, ignoreCase = true)
+                            || rawNumber.equals(restrictedStr, ignoreCase = true)
+                        -> privateStr
+
+                    rawNumber.equals(payphoneStr, ignoreCase = true) -> payphoneStr
+
+                    else -> PhoneNumberFormatter.formatForDisplay(rawNumber, context)
+                }
             }
 
-            val phoneNumberToDial = if (rawNumber.isNullOrBlank() || rawNumber.equals(
-                    privateString, ignoreCase = true
-                ) || rawNumber.equals(unknownString, ignoreCase = true)
-            ) {
-                ""
-            } else {
-                rawNumber
+            val canDial = when {
+                displayName == privateStr -> false
+                displayName == unknownStr -> false
+                displayName == payphoneStr -> false
+                rawNumber.isBlank() -> false
+                rawNumber.startsWith("-") -> false
+                else -> true
             }
+
+            val phoneNumberToDial = if (canDial) rawNumber.trim() else ""
 
             logs.add(
                 CallLogEntry(
@@ -564,5 +591,6 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
             )
         }
     }
+
     return logs
 }
