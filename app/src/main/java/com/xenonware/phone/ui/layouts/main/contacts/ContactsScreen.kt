@@ -534,6 +534,8 @@ fun RingingContactAvatar(
     val hash = contact.name.hashCode()
     val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
     val pastelBackground = Color.hsl(hue = hue, saturation = 0.45f, lightness = 0.85f)
+    val voicemailPastelBackground = Color(0xFFFFCC73)
+    val voicemailTextColor = Color(0xFF8D5524)
 
     Box(
         modifier = modifier.size(size),
@@ -558,7 +560,7 @@ fun RingingContactAvatar(
                     shape = currentMorphShape
                     clip = true
                 }
-                .background(pastelBackground)
+                .background(if (isVoicemail) voicemailPastelBackground else pastelBackground)
         )
         if (isVoicemail) {
             Text(
@@ -566,7 +568,7 @@ fun RingingContactAvatar(
                 fontSize = (size.value * 0.55).sp,
                 fontFamily = FontFamily(Font(R.font.voicemailfont)),
                 fontWeight = FontWeight.Bold,
-                color = Color.hsl(hue = hue, saturation = 0.7f, lightness = 0.2f)
+                color = voicemailTextColor
                 )
         } else {
             Text(
