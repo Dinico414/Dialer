@@ -1,15 +1,17 @@
 package com.xenonware.phone.viewmodel
 
-import com.xenonware.phone.util.PhoneNumberFormatter
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
+import android.telephony.TelephonyManager
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import com.xenonware.phone.service.MyInCallService
+import com.xenonware.phone.util.PhoneNumberFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +49,10 @@ class CallScreenViewModel : ViewModel() {
     private val _showKeypad = MutableStateFlow(false)
     val showKeypad: StateFlow<Boolean> = _showKeypad.asStateFlow()
 
+    private val _isVoicemailCall = MutableStateFlow(false)
+    val isVoicemailCall: StateFlow<Boolean> = _isVoicemailCall.asStateFlow()
+
+    private var voicemailNumber: String? = null
 
     fun initialize(call: Call, context: Context) {
         currentCall = call
@@ -69,8 +75,32 @@ class CallScreenViewModel : ViewModel() {
                 ?: PhoneNumberFormatter.formatForDisplay(rawNumber, context)
         }
 
-        registerCallCallback(call)
+        loadVoicemailNumber(context)
+        checkIfVoicemailCall()
 
+        registerCallCallback(call)
+    }
+
+    private fun loadVoicemailNumber(context: Context) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_PHONE_STATE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            val tm = context.getSystemService(TelephonyManager::class.java)
+            voicemailNumber = tm?.voiceMailNumber?.trim()?.takeIf { it.isNotBlank() }
+        }
+
+        if (voicemailNumber.isNullOrBlank()) {
+            voicemailNumber = "*86"
+        }
+    }
+
+    private fun checkIfVoicemailCall() {
+        val dialed = currentCall?.details?.handle?.schemeSpecificPart?.trim() ?: ""
+        val vm = voicemailNumber?.trim() ?: ""
+        _isVoicemailCall.value = dialed.isNotBlank() && vm.isNotBlank() &&
+                (dialed == vm || dialed.endsWith(vm) || dialed == "*86")
     }
 
     fun formatDuration(millis: Long): String {
@@ -144,6 +174,7 @@ class CallScreenViewModel : ViewModel() {
                 ) {
                     _previousActiveState.value = Call.STATE_ACTIVE
                 }
+                checkIfVoicemailCall()
                 showToastForState(newState)
             }
 
@@ -168,6 +199,7 @@ class CallScreenViewModel : ViewModel() {
                 ) {
                     _previousActiveState.value = Call.STATE_ACTIVE
                 }
+                checkIfVoicemailCall()
                 showToastForState(newState)
             }
         }
@@ -193,7 +225,6 @@ class CallScreenViewModel : ViewModel() {
             null
         }
     }
-
 
     private fun showToastForState(state: Int) {
         val showToast = false

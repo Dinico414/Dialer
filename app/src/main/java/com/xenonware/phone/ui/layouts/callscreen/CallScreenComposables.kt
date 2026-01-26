@@ -271,7 +271,10 @@ fun CallScreenUi(
                     .weight(1f), contentAlignment = Alignment.Center
             ) {
                 RingingContactAvatar(
-                    contact = Contact(name = displayName), state = state, size = avatarSize
+                    contact = Contact(name = displayName),
+                    state = state,
+                    size = avatarSize,
+                    isVoicemail = viewModel.isVoicemailCall.collectAsStateWithLifecycle().value
                 )
             }
 

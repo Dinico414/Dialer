@@ -74,6 +74,8 @@ import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -471,6 +473,7 @@ fun ContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
 fun RingingContactAvatar(
     modifier: Modifier = Modifier,
     contact: Contact,
+    isVoicemail: Boolean = false,
     state: Int = -1,
     size: androidx.compose.ui.unit.Dp = 64.dp,
 ) {
@@ -557,13 +560,23 @@ fun RingingContactAvatar(
                 }
                 .background(pastelBackground)
         )
-        Text(
-            text = contact.name.firstOrNull()?.uppercase() ?: "?",
-            fontSize = (size.value * 0.42).sp,
-            fontFamily = QuicksandTitleVariable,
-            fontWeight = FontWeight.Bold,
-            color = Color.hsl(hue = hue, saturation = 0.7f, lightness = 0.2f)
-        )
+        if (isVoicemail) {
+            Text(
+                text = "ↈ",
+                fontSize = (size.value * 0.55).sp,
+                fontFamily = FontFamily(Font(R.font.voicemailfont)),
+                fontWeight = FontWeight.Bold,
+                color = Color.hsl(hue = hue, saturation = 0.7f, lightness = 0.2f)
+                )
+        } else {
+            Text(
+                text = contact.name.firstOrNull()?.uppercase() ?: "?",
+                fontSize = (size.value * 0.42).sp,
+                fontFamily = QuicksandTitleVariable,
+                fontWeight = FontWeight.Bold,
+                color = Color.hsl(hue = hue, saturation = 0.7f, lightness = 0.2f)
+            )
+        }
     }
 }
 
