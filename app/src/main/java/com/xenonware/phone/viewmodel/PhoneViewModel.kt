@@ -1,7 +1,6 @@
 package com.xenonware.phone.viewmodel
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
@@ -12,6 +11,7 @@ import android.os.Bundle
 import android.provider.CallLog
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
+import android.telephony.TelephonyManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -173,61 +173,18 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startVoicemailCall() {
-        // Most common carrier voicemail shortcuts in many countries (Germany/DE included):
-        // "*86", "123", "500", "5500", "888", "999", or just your own number
-        //
-        // → Try "*86" first — works for many (including some Vodafone, Telekom variants)
-        // → Fallback: dial your own number — many carriers send to voicemail when busy
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
-        val voicemailCodes = listOf("*86", "123", "5500") // add more if you know your carrier
-
-        val intent = Intent(Intent.ACTION_CALL).apply {
-            // Try first code that might work
-            data = "tel:${voicemailCodes.first()}".toUri()
-        }
-
-        try {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.CALL_PHONE
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                context.startActivity(intent)
-            } else {
-                // fallback to dialer
-                context.startActivity(Intent(Intent.ACTION_DIAL, intent.data))
-            }
-        } catch (_: Exception) {
-            // Fallback: try dialing own number (common voicemail trigger when line busy)
-            val ownNumber = getOwnPhoneNumber() // implement below or hardcode for testing
-            if (!ownNumber.isNullOrBlank()) {
-                startCall(ownNumber)
-            } else {
-                Toast.makeText(context, "Voicemail not available", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    @SuppressLint("HardwareIds")
-    private fun getOwnPhoneNumber(): String? {
-        val requiredPermission = Manifest.permission.READ_PHONE_STATE
-
-        if (ContextCompat.checkSelfPermission(
-                context,
-                requiredPermission
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return null
-        }
-
-        return try {
-            val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
-            @Suppress("DEPRECATION")
-            telephony.line1Number?.takeIf { it.isNotBlank() }
+        val vmNumber = try {
+            telephonyManager.voiceMailNumber
         } catch (_: SecurityException) {
             null
-        } catch (_: Exception) {
-            null
+        }
+
+        if (!vmNumber.isNullOrBlank()) {
+            startCall(vmNumber)
+        } else {
+            startCall("voicemail:")
         }
     }
 
