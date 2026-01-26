@@ -1,12 +1,20 @@
 package com.xenonware.phone.viewmodel
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
 import android.provider.CallLog
 import android.provider.ContactsContract
+import android.telecom.TelecomManager
+import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -128,6 +136,101 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         _filteredContacts.value = filtered
     }
 
+    fun startCall(number: String) {
+        if (number.isBlank()) return
+
+        val uri = "tel:${Uri.encode(number)}".toUri()
+
+        if (isDefaultDialer()) {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            val extras = Bundle().apply {
+                putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
+            }
+            try {
+                telecomManager.placeCall(uri, extras)
+            } catch (_: SecurityException) {
+                fallbackToIntent(uri)
+            }
+        } else {
+            fallbackToIntent(uri)
+        }
+    }
+
+    private fun isDefaultDialer(): Boolean {
+        val rm = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+        return rm.isRoleHeld(RoleManager.ROLE_DIALER)
+    }
+
+    private fun fallbackToIntent(uri: Uri) {
+        val intent = Intent(Intent.ACTION_CALL, uri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            Toast.makeText(context, "Call failed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startVoicemailCall() {
+        // Most common carrier voicemail shortcuts in many countries (Germany/DE included):
+        // "*86", "123", "500", "5500", "888", "999", or just your own number
+        //
+        // → Try "*86" first — works for many (including some Vodafone, Telekom variants)
+        // → Fallback: dial your own number — many carriers send to voicemail when busy
+
+        val voicemailCodes = listOf("*86", "123", "5500") // add more if you know your carrier
+
+        val intent = Intent(Intent.ACTION_CALL).apply {
+            // Try first code that might work
+            data = "tel:${voicemailCodes.first()}".toUri()
+        }
+
+        try {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CALL_PHONE
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                context.startActivity(intent)
+            } else {
+                // fallback to dialer
+                context.startActivity(Intent(Intent.ACTION_DIAL, intent.data))
+            }
+        } catch (_: Exception) {
+            // Fallback: try dialing own number (common voicemail trigger when line busy)
+            val ownNumber = getOwnPhoneNumber() // implement below or hardcode for testing
+            if (!ownNumber.isNullOrBlank()) {
+                startCall(ownNumber)
+            } else {
+                Toast.makeText(context, "Voicemail not available", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    @SuppressLint("HardwareIds")
+    private fun getOwnPhoneNumber(): String? {
+        val requiredPermission = Manifest.permission.READ_PHONE_STATE
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                requiredPermission
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+
+        return try {
+            val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            @Suppress("DEPRECATION")
+            telephony.line1Number?.takeIf { it.isNotBlank() }
+        } catch (_: SecurityException) {
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun matchesNumber(phone: String, query: String): Boolean {
         if (query.isEmpty()) return true
 
@@ -147,14 +250,14 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadLocalData() {
         if (ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.READ_CALL_LOG
+                context, Manifest.permission.READ_CALL_LOG
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             _recentCalls.value = loadCallLogs()
         }
 
         if (ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.READ_CONTACTS
+                context, Manifest.permission.READ_CONTACTS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             val loaded = loadContacts()

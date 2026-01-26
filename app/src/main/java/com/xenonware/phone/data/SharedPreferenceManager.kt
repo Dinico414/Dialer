@@ -21,6 +21,7 @@ class SharedPreferenceManager(context: Context) {
     private val languageTagKey = "app_language_tag"
     private val developerModeKey = "developer_mode_enabled"
     private val newLayoutKey = "new_layout_enabled"
+    private val quickDialPrefix = "quick_dial_slot_"
 
     internal val sharedPreferences: SharedPreferences =
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
@@ -97,6 +98,29 @@ class SharedPreferenceManager(context: Context) {
             remove(coverDisplayDimension1Key)
             remove(coverDisplayDimension2Key)
             remove(languageTagKey)
+        }
+    }
+
+    fun getQuickDialNumber(slot: Int): String? {
+        if (slot !in 2..9) return null
+        return sharedPreferences.getString("${quickDialPrefix}$slot", null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun saveQuickDial(slot: Int, number: String) {
+        if (slot !in 2..9 || number.isBlank()) return
+        sharedPreferences.edit {
+            putString("${quickDialPrefix}$slot", number.trim())
+        }
+    }
+
+    fun hasQuickDial(slot: Int): Boolean {
+        return getQuickDialNumber(slot) != null
+    }
+
+    fun clearQuickDial(slot: Int) {
+        if (slot !in 2..9) return
+        sharedPreferences.edit {
+            remove("${quickDialPrefix}$slot")
         }
     }
 }

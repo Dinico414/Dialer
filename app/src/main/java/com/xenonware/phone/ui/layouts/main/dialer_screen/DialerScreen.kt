@@ -14,11 +14,12 @@ import android.os.Bundle
 import android.telecom.TelecomManager
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,6 +90,7 @@ import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
+import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.ui.layouts.main.contacts.ContactAvatar
 import com.xenonware.phone.util.PhoneNumberFormatter
 import com.xenonware.phone.viewmodel.CallLogEntry
@@ -248,6 +250,7 @@ fun DialerScreen(
         )
 
         Dialpad(
+            phoneNumber = phoneNumber,
             onNumberClick = { digit -> phoneNumber += digit },
             onDeleteClick = {
                 if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
@@ -478,6 +481,7 @@ private fun matchesT9Fast(t9Keys: String, query: String): Boolean {
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun Dialpad(
+    phoneNumber: String,
     onNumberClick: (String) -> Unit,
     onDeleteClick: () -> Unit,
     onClearAll: () -> Unit,
@@ -485,6 +489,9 @@ fun Dialpad(
     onOpenHistory: () -> Unit,
     contentPadding: PaddingValues
 ) {
+    val viewModel: PhoneViewModel = viewModel()
+    val prefs = SharedPreferenceManager(LocalContext.current)
+
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -522,11 +529,13 @@ fun Dialpad(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .padding(bottom = bottomPadding), horizontalAlignment = Alignment.CenterHorizontally
+            .padding(bottom = bottomPadding),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
-        val letters =
-            listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
+        val letters = listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
+
+        val longPressDelay = 480L
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -538,15 +547,66 @@ fun Dialpad(
                 val key = keys[index]
                 val letter = letters[index]
 
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+
+                var longPressTriggered by remember { mutableStateOf(false) }
+
+                LaunchedEffect(isPressed) {
+                    if (isPressed) {
+                        longPressTriggered = false
+
+                        delay(longPressDelay)
+
+                        if (!longPressTriggered) {
+                            longPressTriggered = true
+
+                            when (key) {
+                                "1" -> viewModel.startVoicemailCall()
+
+                                in "2".."9" -> {
+                                    val slot = key.toInt()
+
+                                    val enteredNumber = phoneNumber.trim()
+                                    if (enteredNumber.isNotBlank()) {
+                                        prefs.saveQuickDial(slot, enteredNumber)
+                                        Toast.makeText(
+                                            context,
+                                            "Saved to Quick Dial $slot",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        if (prefs.hasQuickDial(slot)) {
+                                            val number = prefs.getQuickDialNumber(slot) ?: return@LaunchedEffect
+                                            viewModel.startCall(number)
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "No Quickdial set yet — enter a number and long-press to save",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                }
+
+                                else -> { if (key == "0") onNumberClick("+") }
+                            }
+                        }
+                    } else {
+                        longPressTriggered = false
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .height(buttonHeight)
                         .clip(CircleShape)
                         .background(colorScheme.surfaceBright)
-                        .combinedClickable(
-                            onClick = { onNumberClick(key) },
-                            onLongClick = {
-                                if (key == "0") onNumberClick("+") else onNumberClick(key)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            onClick = {
+                                if (!longPressTriggered) {
+                                    onNumberClick(key)
+                                }
                             }
                         ),
                     contentAlignment = Alignment.Center
@@ -565,7 +625,9 @@ fun Dialpad(
                         Text(
                             text = letter,
                             fontSize = if (key == "1" || key == "0") iconSize else letterTextSize,
-                            style = LocalTextStyle.current.copy(lineHeight = if (key == "1" || key == "0") iconSize else letterTextSize),
+                            style = LocalTextStyle.current.copy(
+                                lineHeight = if (key == "1" || key == "0") iconSize else letterTextSize
+                            ),
                             fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable,
                             fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight,
                             color = colorScheme.onSurfaceVariant,
@@ -711,7 +773,18 @@ private fun fallbackCallIntent(context: Context, uri: Uri) {
     }
 }
 
-private fun vibrateFeedback(context: Context, durationMs: Long = 35L, amplitude: Int = 90) {
+private fun vibrateFeedback(
+    context: Context,
+    durationMs: Long = 35L,
+    amplitude: Int = 90,
+    pattern: LongArray? = null
+) {
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator ?: return
-    vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
+
+    if (pattern != null) {
+        val effect = android.os.VibrationEffect.createWaveform(pattern, -1)
+        vibrator.vibrate(effect)
+    } else {
+        vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
+    }
 }
