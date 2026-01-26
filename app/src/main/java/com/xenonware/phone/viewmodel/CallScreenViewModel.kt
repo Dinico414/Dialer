@@ -81,28 +81,6 @@ class CallScreenViewModel : ViewModel() {
         registerCallCallback(call)
     }
 
-    private fun loadVoicemailNumber(context: Context) {
-        if (ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.READ_PHONE_STATE
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            val tm = context.getSystemService(TelephonyManager::class.java)
-            voicemailNumber = tm?.voiceMailNumber?.trim()?.takeIf { it.isNotBlank() }
-        }
-
-        if (voicemailNumber.isNullOrBlank()) {
-            voicemailNumber = "*86"
-        }
-    }
-
-    private fun checkIfVoicemailCall() {
-        val dialed = currentCall?.details?.handle?.schemeSpecificPart?.trim() ?: ""
-        val vm = voicemailNumber?.trim() ?: ""
-        _isVoicemailCall.value = dialed.isNotBlank() && vm.isNotBlank() &&
-                (dialed == vm || dialed.endsWith(vm) || dialed == "*86")
-    }
-
     fun formatDuration(millis: Long): String {
         val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
         val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
@@ -147,6 +125,29 @@ class CallScreenViewModel : ViewModel() {
     fun toggleKeypad() {
         _showKeypad.value = !_showKeypad.value
     }
+
+    private fun loadVoicemailNumber(context: Context) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_PHONE_STATE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            val tm = context.getSystemService(TelephonyManager::class.java)
+            voicemailNumber = tm?.voiceMailNumber?.trim()?.takeIf { it.isNotBlank() }
+        }
+
+        if (voicemailNumber.isNullOrBlank()) {
+            voicemailNumber = "*86"
+        }
+    }
+
+    private fun checkIfVoicemailCall() {
+        val dialed = currentCall?.details?.handle?.schemeSpecificPart?.trim() ?: ""
+        val vm = voicemailNumber?.trim() ?: ""
+        _isVoicemailCall.value = dialed.isNotBlank() && vm.isNotBlank() &&
+                (dialed == vm || dialed.endsWith(vm) || dialed == "*86")
+    }
+
 
     private fun getCallState(call: Call): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
