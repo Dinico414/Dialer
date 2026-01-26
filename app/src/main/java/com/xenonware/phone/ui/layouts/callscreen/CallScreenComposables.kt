@@ -33,6 +33,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,6 +120,7 @@ import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
 import com.xenonware.phone.service.MyInCallService
 import com.xenonware.phone.ui.layouts.main.contacts.RingingContactAvatar
+import com.xenonware.phone.ui.theme.XenonTheme
 import com.xenonware.phone.viewmodel.CallScreenViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -129,11 +131,15 @@ import kotlin.math.roundToInt
 
 @Composable
 fun CallScreenUi(
-    call: Call?, isLandscape: Boolean, forceCompactMode: Boolean = false
+    call: Call?,
+    isLandscape: Boolean,
+    forceCompactMode: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: CallScreenViewModel = viewModel()
     val activity = context as? Activity
+
+    val isVoicemail by viewModel.isVoicemailCall.collectAsStateWithLifecycle()
 
     DisposableEffect(isLandscape) {
         activity?.requestedOrientation = if (isLandscape) {
@@ -151,212 +157,215 @@ fun CallScreenUi(
         call?.let { viewModel.initialize(it, context) }
     }
 
-    val stateNullable by viewModel.callState.collectAsStateWithLifecycle()
-    val state = stateNullable ?: run {
-        return
-    }
+    XenonTheme(
+        darkTheme = isSystemInDarkTheme(),
+        useVoicemailTheme = isVoicemail
+    ) {
+        val stateNullable by viewModel.callState.collectAsStateWithLifecycle()
+        val state = stateNullable ?: return@XenonTheme
 
-    if (call == null) return
+        if (call == null) return@XenonTheme
 
-    val displayName by viewModel.displayName.collectAsStateWithLifecycle()
-    val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
-    val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
-    val cameFromRinging = previousActiveState == Call.STATE_RINGING
+        val displayName by viewModel.displayName.collectAsStateWithLifecycle()
+        val previousActiveState by viewModel.previousActiveState.collectAsStateWithLifecycle()
+        val callWasRejectedByUser by viewModel.callWasRejectedByUser.collectAsStateWithLifecycle()
+        val cameFromRinging = previousActiveState == Call.STATE_RINGING
 
-    val duration by produceState(0L, state, call.details.connectTimeMillis) {
-        if (state == Call.STATE_ACTIVE && call.details.connectTimeMillis > 0) {
-            while (true) {
-                value = System.currentTimeMillis() - call.details.connectTimeMillis
-                delay(1000)
-            }
-        } else {
-            value = 0L
-        }
-    }
-
-    val statusText = when (state) {
-        Call.STATE_RINGING -> stringResource(R.string.incoming_call__label)
-        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> stringResource(R.string.calling__label)
-        Call.STATE_HOLDING -> stringResource(R.string.on_hold_label)
-        Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
-        Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
-            callWasRejectedByUser -> stringResource(R.string.rejected_call_label)
-            cameFromRinging && !callWasRejectedByUser -> stringResource(R.string.missed_call_label)
-            else -> stringResource(R.string.ended_call_label)
-        }
-
-        else -> stringResource(R.string.unknown_call_state_label)
-    }
-
-    val isCompact = forceCompactMode || isLandscape
-
-    val avatarSize = if (isCompact) 140.dp else 180.dp
-    val nameFontSize = if (isCompact) 36.sp else 48.sp
-    val statusFontSize = if (isCompact) 20.sp else 24.sp
-    val controlButtonSize = if (isCompact) 64.dp else 72.dp
-    val endCallButtonWidth = if (isCompact) 160.dp else 200.dp
-    val verticalSpacerWeight = if (isCompact) 0.15f else 0.25f
-
-    val surfaceContainer = MaterialTheme.colorScheme.surfaceContainer
-    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
-    val secondaryContainer = MaterialTheme.colorScheme.secondaryContainer
-
-    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
-    val primaryBreath by infiniteTransition.animateFloat(
-        initialValue = 1.3f, targetValue = 1.7f, animationSpec = infiniteRepeatable(
-            animation = tween(6500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
-        ), label = "primaryBreath"
-    )
-    val secondaryBreath by infiniteTransition.animateFloat(
-        initialValue = 1.7f, targetValue = 1.3f, animationSpec = infiniteRepeatable(
-            animation = tween(16000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
-        ), label = "secondaryBreath"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawBehind {
-                drawRect(color = surfaceContainer)
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(secondaryContainer, Color.Transparent),
-                        center = Offset(size.width, size.height),
-                        radius = size.width * secondaryBreath
-                    )
-                )
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(primaryContainer, Color.Transparent),
-                        center = Offset(0f, size.height),
-                        radius = size.width * primaryBreath
-                    )
-                )
-            }) {
-        Column(
-            modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            val safeTopPadding =
-                WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues()
-                    .calculateTopPadding()
-            val safeBottomPadding =
-                WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                    .calculateBottomPadding()
-
-            Spacer(
-                Modifier
-                    .padding(top = safeTopPadding)
-                    .weight(verticalSpacerWeight)
-            )
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = statusText,
-                    fontSize = statusFontSize,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    fontWeight = FontWeight.Light
-                )
-                Spacer(Modifier.height(if (isCompact) LargePadding else LargestPadding))
-                Text(
-                    text = displayName,
-                    fontSize = nameFontSize,
-                    fontFamily = QuicksandTitleVariable,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f), contentAlignment = Alignment.Center
-            ) {
-                RingingContactAvatar(
-                    contact = Contact(name = displayName),
-                    state = state,
-                    size = avatarSize,
-                    isVoicemail = viewModel.isVoicemailCall.collectAsStateWithLifecycle().value
-                )
-            }
-
-            CallControls(
-                state = state,
-                call = call,
-                viewModel = viewModel,
-                isCompact = isCompact,
-                controlButtonSize = controlButtonSize,
-                endCallButtonWidth = endCallButtonWidth
-            )
-
-            Spacer(Modifier.height(LargePadding))
-
-            if (state == Call.STATE_RINGING) {
-                Box(
-                    Modifier
-                        .padding(bottom = safeBottomPadding)
-                        .weight(verticalSpacerWeight)
-                ) {
-                    CompositionLocalProvider(
-                        LocalRippleConfiguration provides RippleConfiguration(
-                            color = Color(
-                                0xFFFFB300
-                            )
-                        )
-                    ) {
-                        val interactionSource = remember { MutableInteractionSource() }
-                        val isPressed by interactionSource.collectIsPressedAsState()
-
-                        val targetTextColor = if (isPressed) lerp(
-                            start = MaterialTheme.colorScheme.onSurface,
-                            stop = Color(0xFFFFB300),
-                            fraction = 0.25f
-                        ) else MaterialTheme.colorScheme.onSurface
-
-
-                        val animatedTextColor by animateColorAsState(
-                            targetValue = targetTextColor, animationSpec = spring(
-
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessVeryLow
-                            ), label = "TextColorAnimation"
-                        )
-
-                        TextButton(
-                            onClick = {
-                                viewModel.setUserRejectedCall()
-                                call.reject(true, null)
-                                val phoneNumber = call.details.handle?.schemeSpecificPart?.trim() ?: ""
-                                if (phoneNumber.isNotEmpty()) {
-                                    CoroutineScope(Dispatchers.Main).launch {
-                                        delay(2000L)
-                                        val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                            data = "smsto:$phoneNumber".toUri()
-                                        }
-                                        try {
-                                            context.startActivity(smsIntent)
-                                        } catch (_: Exception) { }
-                                    }
-                                }
-                            },
-                            interactionSource = interactionSource,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-                        ) {
-                            Text(
-                                text = "SMS",
-                                color = animatedTextColor,
-                                fontFamily = QuicksandTitleVariable,
-                                fontWeight = FontWeight.Light,
-                                fontSize = 18.sp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
+        val duration by produceState(0L, state, call.details.connectTimeMillis) {
+            if (state == Call.STATE_ACTIVE && call.details.connectTimeMillis > 0) {
+                while (true) {
+                    value = System.currentTimeMillis() - call.details.connectTimeMillis
+                    delay(1000)
                 }
             } else {
+                value = 0L
+            }
+        }
+
+        val statusText = when (state) {
+            Call.STATE_RINGING -> stringResource(R.string.incoming_call__label)
+            Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_PULLING_CALL -> stringResource(R.string.calling__label)
+            Call.STATE_HOLDING -> stringResource(R.string.on_hold_label)
+            Call.STATE_ACTIVE -> viewModel.formatDuration(duration)
+            Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> when {
+                callWasRejectedByUser -> stringResource(R.string.rejected_call_label)
+                cameFromRinging && !callWasRejectedByUser -> stringResource(R.string.missed_call_label)
+                else -> stringResource(R.string.ended_call_label)
+            }
+            else -> stringResource(R.string.unknown_call_state_label)
+        }
+
+        val isCompact = forceCompactMode || isLandscape
+
+        val avatarSize = if (isCompact) 140.dp else 180.dp
+        val nameFontSize = if (isCompact) 36.sp else 48.sp
+        val statusFontSize = if (isCompact) 20.sp else 24.sp
+        val controlButtonSize = if (isCompact) 64.dp else 72.dp
+        val endCallButtonWidth = if (isCompact) 160.dp else 200.dp
+        val verticalSpacerWeight = if (isCompact) 0.15f else 0.25f
+
+        val surfaceContainer = MaterialTheme.colorScheme.surfaceContainer
+        val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+        val secondaryContainer = MaterialTheme.colorScheme.secondaryContainer
+
+        val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+        val primaryBreath by infiniteTransition.animateFloat(
+            initialValue = 1.3f, targetValue = 1.7f, animationSpec = infiniteRepeatable(
+                animation = tween(6500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
+            ), label = "primaryBreath"
+        )
+        val secondaryBreath by infiniteTransition.animateFloat(
+            initialValue = 1.7f, targetValue = 1.3f, animationSpec = infiniteRepeatable(
+                animation = tween(16000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
+            ), label = "secondaryBreath"
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(color = surfaceContainer)
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(secondaryContainer, Color.Transparent),
+                            center = Offset(size.width, size.height),
+                            radius = size.width * secondaryBreath
+                        )
+                    )
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(primaryContainer, Color.Transparent),
+                            center = Offset(0f, size.height),
+                            radius = size.width * primaryBreath
+                        )
+                    )
+                }
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val safeTopPadding =
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues()
+                        .calculateTopPadding()
+                val safeBottomPadding =
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
+                        .calculateBottomPadding()
+
                 Spacer(
                     Modifier
-                        .padding(bottom = safeBottomPadding)
+                        .padding(top = safeTopPadding)
                         .weight(verticalSpacerWeight)
                 )
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = statusText,
+                        fontSize = statusFontSize,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Light
+                    )
+                    Spacer(Modifier.height(if (isCompact) LargePadding else LargestPadding))
+                    Text(
+                        text = displayName,
+                        fontSize = nameFontSize,
+                        fontFamily = QuicksandTitleVariable,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    RingingContactAvatar(
+                        contact = Contact(name = displayName),
+                        state = state,
+                        size = avatarSize,
+                        isVoicemail = isVoicemail
+                    )
+                }
+
+                CallControls(
+                    state = state,
+                    call = call,
+                    viewModel = viewModel,
+                    isCompact = isCompact,
+                    controlButtonSize = controlButtonSize,
+                    endCallButtonWidth = endCallButtonWidth
+                )
+
+                Spacer(Modifier.height(LargePadding))
+
+                if (state == Call.STATE_RINGING) {
+                    Box(
+                        Modifier
+                            .padding(bottom = safeBottomPadding)
+                            .weight(verticalSpacerWeight)
+                    ) {
+                        CompositionLocalProvider(
+                            LocalRippleConfiguration provides RippleConfiguration(
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val isPressed by interactionSource.collectIsPressedAsState()
+
+                            val targetTextColor = if (isPressed) lerp(
+                                start = MaterialTheme.colorScheme.onSurface,
+                                stop = MaterialTheme.colorScheme.primary,
+                                fraction = 0.25f
+                            ) else MaterialTheme.colorScheme.onSurface
+
+                            val animatedTextColor by animateColorAsState(
+                                targetValue = targetTextColor,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessVeryLow
+                                ),
+                                label = "TextColorAnimation"
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    viewModel.setUserRejectedCall()
+                                    call.reject(true, null)
+                                    val phoneNumber = call.details.handle?.schemeSpecificPart?.trim() ?: ""
+                                    if (phoneNumber.isNotEmpty()) {
+                                        CoroutineScope(Dispatchers.Main).launch {
+                                            delay(2000L)
+                                            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                                data = "smsto:$phoneNumber".toUri()
+                                            }
+                                            try {
+                                                context.startActivity(smsIntent)
+                                            } catch (_: Exception) { }
+                                        }
+                                    }
+                                },
+                                interactionSource = interactionSource,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "SMS",
+                                    color = animatedTextColor,
+                                    fontFamily = QuicksandTitleVariable,
+                                    fontWeight = FontWeight.Light,
+                                    fontSize = 18.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Spacer(
+                        Modifier
+                            .padding(bottom = safeBottomPadding)
+                            .weight(verticalSpacerWeight)
+                    )
+                }
             }
         }
     }

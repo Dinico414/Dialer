@@ -119,6 +119,82 @@ private val LightColorScheme = lightColorScheme(
     surfaceContainerHighest = surfaceContainerHighestLight
 )
 
+private val VoiceDarkColorScheme = darkColorScheme(
+    primary = voicePrimaryDark,
+    onPrimary = voiceOnPrimaryDark,
+    primaryContainer = voicePrimaryContainerDark,
+    onPrimaryContainer = voiceOnPrimaryContainerDark,
+    secondary = voiceSecondaryDark,
+    onSecondary = voiceOnSecondaryDark,
+    secondaryContainer = voiceSecondaryContainerDark,
+    onSecondaryContainer = voiceOnSecondaryContainerDark,
+    tertiary = voiceTertiaryDark,
+    onTertiary = voiceOnTertiaryDark,
+    tertiaryContainer = voiceTertiaryContainerDark,
+    onTertiaryContainer = voiceOnTertiaryContainerDark,
+    error = voiceErrorDark,
+    onError = voiceOnErrorDark,
+    errorContainer = voiceErrorContainerDark,
+    onErrorContainer = voiceOnErrorContainerDark,
+    background = voiceBackgroundDark,
+    onBackground = voiceOnBackgroundDark,
+    surface = voiceSurfaceDark,
+    onSurface = voiceOnSurfaceDark,
+    surfaceVariant = voiceSurfaceVariantDark,
+    onSurfaceVariant = voiceOnSurfaceVariantDark,
+    outline = voiceOutlineDark,
+    outlineVariant = voiceOutlineVariantDark,
+    scrim = voiceScrimDark,
+    inverseSurface = voiceInverseSurfaceDark,
+    inverseOnSurface = voiceInverseOnSurfaceDark,
+    inversePrimary = voiceInversePrimaryDark,
+    surfaceDim = voiceSurfaceDimDark,
+    surfaceBright = voiceSurfaceBrightDark,
+    surfaceContainerLowest = voiceSurfaceContainerLowestDark,
+    surfaceContainerLow = voiceSurfaceContainerLowDark,
+    surfaceContainer = voiceSurfaceContainerDark,
+    surfaceContainerHigh = voiceSurfaceContainerHighDark,
+    surfaceContainerHighest = voiceSurfaceContainerHighestDark
+)
+
+private val VoiceLightColorScheme = lightColorScheme(
+    primary = voicePrimaryLight,
+    onPrimary = voiceOnPrimaryLight,
+    primaryContainer = voicePrimaryContainerLight,
+    onPrimaryContainer = voiceOnPrimaryContainerLight,
+    secondary = voiceSecondaryLight,
+    onSecondary = voiceOnSecondaryLight,
+    secondaryContainer = voiceSecondaryContainerLight,
+    onSecondaryContainer = voiceOnSecondaryContainerLight,
+    tertiary = voiceTertiaryLight,
+    onTertiary = voiceOnTertiaryLight,
+    tertiaryContainer = voiceTertiaryContainerLight,
+    onTertiaryContainer = voiceOnTertiaryContainerLight,
+    error = voiceErrorLight,
+    onError = voiceOnErrorLight,
+    errorContainer = voiceErrorContainerLight,
+    onErrorContainer = voiceOnErrorContainerLight,
+    background = voiceBackgroundLight,
+    onBackground = voiceOnBackgroundLight,
+    surface = voiceSurfaceLight,
+    onSurface = voiceOnSurfaceLight,
+    surfaceVariant = voiceSurfaceVariantLight,
+    onSurfaceVariant = voiceOnSurfaceVariantLight,
+    outline = voiceOutlineLight,
+    outlineVariant = voiceOutlineVariantLight,
+    scrim = voiceScrimLight,
+    inverseSurface = voiceInverseSurfaceLight,
+    inverseOnSurface = voiceInverseOnSurfaceLight,
+    inversePrimary = voiceInversePrimaryLight,
+    surfaceDim = voiceSurfaceDimLight,
+    surfaceBright = voiceSurfaceBrightLight,
+    surfaceContainerLowest = voiceSurfaceContainerLowestLight,
+    surfaceContainerLow = voiceSurfaceContainerLowLight,
+    surfaceContainer = voiceSurfaceContainerLight,
+    surfaceContainerHigh = voiceSurfaceContainerHighLight,
+    surfaceContainerHighest = voiceSurfaceContainerHighestLight
+)
+
 fun Color.adjustTone(targetTone: Float): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(this.toArgb(), hsl)
@@ -137,9 +213,7 @@ fun ColorScheme.toBlackedOut(): ColorScheme {
 
 fun ColorScheme.toCoverMode(): ColorScheme {
     return this.copy(
-        background = Color.Black,
-        surfaceContainer = Color.Black,
-        surfaceBright = Color.Black
+        background = Color.Black, surfaceContainer = Color.Black, surfaceBright = Color.Black
     )
 }
 
@@ -148,9 +222,10 @@ fun ColorScheme.toCoverMode(): ColorScheme {
 @Composable
 fun XenonTheme(
     darkTheme: Boolean,
+    useVoicemailTheme: Boolean = false,
     useBlackedOutDarkTheme: Boolean = false,
     isCoverMode: Boolean = false,
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = !useVoicemailTheme,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -159,7 +234,10 @@ fun XenonTheme(
         val baseDarkScheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             dynamicDarkColorScheme(context)
         } else {
-            DarkColorScheme
+            when {
+                useVoicemailTheme -> VoiceDarkColorScheme
+                else -> DarkColorScheme
+            }
         }
         when {
             isCoverMode -> baseDarkScheme.toCoverMode()
@@ -170,10 +248,13 @@ fun XenonTheme(
         if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             dynamicLightColorScheme(context)
         } else {
-           LightColorScheme
-
+            when {
+                useVoicemailTheme -> VoiceLightColorScheme
+                else -> LightColorScheme
+            }
         }
     }
+
 
     val extendedColorScheme = remember(darkTheme) {
         if (darkTheme) {
