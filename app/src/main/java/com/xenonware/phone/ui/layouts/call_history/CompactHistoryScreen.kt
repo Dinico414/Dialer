@@ -3,8 +3,10 @@ package com.xenonware.phone.ui.layouts.call_history
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.CallLog
 import android.provider.ContactsContract
+import android.telephony.TelephonyManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.geocoding.PhoneNumberOfflineGeocoder
@@ -322,24 +325,29 @@ fun CompactHistoryScreen(
 
 @Composable
 fun CallHistoryItemCard(
-    entry: CallLogEntry, isFirstInGroup: Boolean, isLastInGroup: Boolean, isSingle: Boolean,
+    entry: CallLogEntry,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    isSingle: Boolean,
 ) {
     val context = LocalContext.current
 
     val callDate = Date(entry.date)
 
-    val (icon, backgroundColor) = when (entry.type) {
-        CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
-        CallLog.Calls.OUTGOING_TYPE -> Icons.Rounded.KeyboardArrowUp to Color(0xFF4CAF50)
-        CallLog.Calls.MISSED_TYPE -> Icons.Rounded.Close to Color(0xFFF44336)
-        CallLog.Calls.VOICEMAIL_TYPE -> Icons.Rounded.Voicemail to Color(0xFFFFC107)
-        CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(
-            0xFF9E9E9E
-        )
+    val isVoicemail = isVoicemailNumber(context, entry.phoneNumber)
 
-        CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.Close to Color(0xFF9E9E9E)
-        CallLog.Calls.BLOCKED_TYPE -> Icons.Rounded.Block to Color(0xFF9E9E9E)
-        else -> Icons.Rounded.Remove to Color(0xFF9E9E9E)
+    val (icon, backgroundColor) = when {
+        isVoicemail -> Icons.Rounded.Voicemail to Color(0xFFFFC107)
+        else -> when (entry.type) {
+            CallLog.Calls.INCOMING_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF2196F3)
+            CallLog.Calls.OUTGOING_TYPE -> Icons.Rounded.KeyboardArrowUp to Color(0xFF4CAF50)
+            CallLog.Calls.MISSED_TYPE -> Icons.Rounded.Close to Color(0xFFF44336)
+            CallLog.Calls.VOICEMAIL_TYPE -> Icons.Rounded.Voicemail to Color(0xFFFFC107)
+            CallLog.Calls.ANSWERED_EXTERNALLY_TYPE -> Icons.Rounded.KeyboardArrowDown to Color(0xFF9E9E9E)
+            CallLog.Calls.REJECTED_TYPE -> Icons.Rounded.Close to Color(0xFF9E9E9E)
+            CallLog.Calls.BLOCKED_TYPE -> Icons.Rounded.Block to Color(0xFF9E9E9E)
+            else -> Icons.Rounded.Remove to Color(0xFF9E9E9E)
+        }
     }
 
     val shape = when {
@@ -350,14 +358,12 @@ fun CallHistoryItemCard(
             bottomStart = SmallestCornerRadius,
             bottomEnd = SmallestCornerRadius
         )
-
         isLastInGroup -> RoundedCornerShape(
             topStart = SmallestCornerRadius,
             topEnd = SmallestCornerRadius,
             bottomStart = MediumCornerRadius,
             bottomEnd = MediumCornerRadius
         )
-
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
 
@@ -391,12 +397,18 @@ fun CallHistoryItemCard(
 
             Column(modifier = Modifier.weight(1f)) {
 
-                val displayText =
-                    if (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isEmpty()) {
+                val displayText = when {
+                    isVoicemail && (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isBlank()) -> {
+                        stringResource(R.string.voicemail)
+                    }
+                    entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isEmpty() -> {
                         PhoneNumberFormatter.formatForDisplay(entry.nameOrNumber, context)
-                    } else {
+                    }
+                    else -> {
                         entry.nameOrNumber
                     }
+                }
+
                 Text(
                     text = displayText,
                     fontFamily = QuicksandTitleVariable,
@@ -422,7 +434,9 @@ fun CallHistoryItemCard(
                 val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(callDate)
 
                 val extraLabel = getNumberTypeOrOrigin(
-                    context = context, phoneNumber = entry.phoneNumber, hasContactName = hasContact
+                    context = context,
+                    phoneNumber = entry.phoneNumber,
+                    hasContactName = hasContact
                 )
 
                 Text(
@@ -463,6 +477,29 @@ fun CallHistoryItemCard(
             }
         }
     }
+}
+
+@Composable
+private fun isVoicemailNumber(context: Context, phoneNumber: String): Boolean {
+    if (phoneNumber.isBlank()) return false
+
+    val normalized = phoneNumber.trim().replace(Regex("[^+0-9*#-]"), "")
+
+    val commonVoicemailCodes = listOf("*86", "123", "5500", "333", "888", "500")
+
+    if (normalized in commonVoicemailCodes) return true
+
+    if (ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+    ) {
+        val tm = context.getSystemService(TelephonyManager::class.java)
+        val vmNumber = tm?.voiceMailNumber?.trim()?.replace(Regex("[^+0-9]"), "")
+        if (!vmNumber.isNullOrBlank() && normalized.contains(vmNumber)) return true
+    }
+
+    return false
 }
 
 private val phoneUtil = PhoneNumberUtil.getInstance()
