@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,6 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -84,6 +87,9 @@ fun ContactSheet(
 ) {
     val hazeState = remember { HazeState() }
     val isDarkTheme = LocalIsDarkTheme.current
+    val scrollState = rememberScrollState()
+
+    var avatarHeightPx by remember { mutableFloatStateOf(0f) }
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -96,7 +102,41 @@ fun ContactSheet(
             systemUiController.setStatusBarColor(color = originalStatusBarColor)
         }
     }
-    val hazeThinColor = colorScheme.surfaceDim
+    val surfaceDim = colorScheme.surfaceDim
+    val pastelBackgroundLight = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.90f)
+    }
+    val textColorLight = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.25f)
+    }
+    val pastelBackgroundDark = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.15f)
+    }
+    val textColorDark = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.80f)
+    }
+
+    val pastelBackground = if (isDarkTheme) pastelBackgroundDark else pastelBackgroundLight
+
+    val textColor = if (isDarkTheme) textColorDark else textColorLight
+
+    val scrollProgress = if (avatarHeightPx > 0) {
+        (scrollState.value / avatarHeightPx).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    val animatedToolbarColor = lerp(surfaceDim, pastelBackground, scrollProgress)
+    val animatedToolbarTextColor = lerp(colorScheme.onSurface, textColor, scrollProgress)
+
 
     val safeDrawingPadding = if (WindowInsets.ime.asPaddingValues()
             .calculateBottomPadding() > WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
@@ -119,7 +159,6 @@ fun ContactSheet(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
     ) {
         val topPadding = 68.dp
-        val scrollState = rememberScrollState()
 
         Column(
             modifier = Modifier
@@ -140,9 +179,11 @@ fun ContactSheet(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Avatar
-                ContactAvatar(
+                BigContactAvatar(
                     contact = contact,
-                    modifier = Modifier.size(96.dp)
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                            avatarHeightPx = coords.size.height.toFloat()
+                        },
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -162,7 +203,9 @@ fun ContactSheet(
                 // Phone number
                 if (contact.phone.isNotBlank()) {
                     Text(
-                        text = PhoneNumberFormatter.formatForDisplay(contact.phone, LocalContext.current),
+                        text = PhoneNumberFormatter.formatForDisplay(
+                            contact.phone, LocalContext.current
+                        ),
                         fontSize = 18.sp,
                         color = colorScheme.primary,
                         textAlign = TextAlign.Center
@@ -171,7 +214,7 @@ fun ContactSheet(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Action buttons (only in view mode)
+                // Action buttons
                 if (isViewMode && contact.phone.isNotBlank()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(0.8f),
@@ -182,7 +225,11 @@ fun ContactSheet(
                             modifier = Modifier.weight(1f)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.AutoMirrored.Rounded.Message, null, modifier = Modifier.size(20.dp))
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.Message,
+                                    null,
+                                    modifier = Modifier.size(20.dp)
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Text("Message")
                             }
@@ -191,8 +238,7 @@ fun ContactSheet(
                         Spacer(Modifier.width(16.dp))
 
                         Button(
-                            onClick = { onCallClick(contact.phone) },
-                            modifier = Modifier.weight(1f)
+                            onClick = { onCallClick(contact.phone) }, modifier = Modifier.weight(1f)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.Call, null, modifier = Modifier.size(20.dp))
@@ -218,31 +264,41 @@ fun ContactSheet(
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp)
                 .clip(RoundedCornerShape(100f))
-                .background(colorScheme.surfaceDim)
-                .hazeEffect(state = hazeState, style = HazeMaterials.ultraThin(hazeThinColor)),
-            verticalAlignment = Alignment.CenterVertically
+                .background(animatedToolbarColor)
+                .hazeEffect(
+                    state = hazeState, style = HazeMaterials.ultraThin(animatedToolbarColor)
+                ), verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onDismiss, modifier = Modifier.padding(4.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    tint = animatedToolbarTextColor
+                )
             }
 
             val titleTextStyle = MaterialTheme.typography.titleLarge.merge(
                 TextStyle(
                     fontFamily = QuicksandTitleVariable,
                     textAlign = TextAlign.Center,
-                    color = colorScheme.onSurface
+                    color = animatedToolbarTextColor
                 )
             )
 
             Text(
                 text = stringResource(id = R.string.contact_card),
                 modifier = Modifier.weight(1f),
-                style = titleTextStyle
+                style = titleTextStyle,
+                color = animatedToolbarTextColor
             )
 
             Box {
                 IconButton(onClick = { showMenu = !showMenu }, modifier = Modifier.padding(4.dp)) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = "More Options")
+                    Icon(
+                        Icons.Rounded.MoreVert,
+                        contentDescription = "More Options",
+                        tint = animatedToolbarTextColor
+                    )
                 }
                 XenonDropDown(
                     expanded = showMenu,
