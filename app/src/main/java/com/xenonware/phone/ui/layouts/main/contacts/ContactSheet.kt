@@ -41,14 +41,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -65,7 +67,6 @@ import com.xenonware.phone.ui.res.MenuItem
 import com.xenonware.phone.ui.res.XenonDropDown
 import com.xenonware.phone.ui.theme.LocalIsDarkTheme
 import com.xenonware.phone.util.PhoneNumberFormatter
-import com.xenonware.phone.viewmodel.PhoneViewModel
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -75,39 +76,25 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 @OptIn(ExperimentalFoundationApi::class, ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ContactSheet(
-    initialContent: String = "",
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
     toolbarHeight: Dp,
-    saveTrigger: Boolean,
-    onSaveTriggerConsumed: () -> Unit,
     isBlackThemeActive: Boolean = false,
     isCoverModeActive: Boolean = false,
-    viewModel: PhoneViewModel,
-    modifier: Modifier,
-    isContactSheetOpen: Boolean,
-    // ── New parameters added below (no existing ones removed) ───────────────────────
-    contact: Contact? = null,
+    contact: Contact,
     isViewMode: Boolean = true,
     onCallClick: (String) -> Unit = {},
     onMessageClick: (String) -> Unit = {},
 ) {
     val hazeState = remember { HazeState() }
     val isDarkTheme = LocalIsDarkTheme.current
+    val scrollState = rememberScrollState()
 
-    val scope = rememberCoroutineScope()
+    var avatarHeightPx by remember { mutableFloatStateOf(0f) }
 
     var showMenu by remember { mutableStateOf(false) }
 
     val systemUiController = rememberSystemUiController()
     val originalStatusBarColor = Color.Transparent
-
-//    LaunchedEffect(saveTrigger) {
-//        if (saveTrigger) {
-//            onSave ( )
-//            onSaveTriggerConsumed()
-//        }
-//    }
 
     DisposableEffect(systemUiController, isDarkTheme) {
         systemUiController.setSystemBarsColor(color = Color.Transparent, darkIcons = !isDarkTheme)
@@ -115,7 +102,41 @@ fun ContactSheet(
             systemUiController.setStatusBarColor(color = originalStatusBarColor)
         }
     }
-    val hazeThinColor = colorScheme.surfaceDim
+    val surfaceDim = colorScheme.surfaceDim
+    val pastelBackgroundLight = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.90f)
+    }
+    val textColorLight = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.25f)
+    }
+    val pastelBackgroundDark = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.15f)
+    }
+    val textColorDark = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.80f)
+    }
+
+    val pastelBackground = if (isDarkTheme) pastelBackgroundDark else pastelBackgroundLight
+
+    val textColor = if (isDarkTheme) textColorDark else textColorLight
+
+    val scrollProgress = if (avatarHeightPx > 0) {
+        (scrollState.value / avatarHeightPx).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    val animatedToolbarColor = lerp(surfaceDim, pastelBackground, scrollProgress)
+    val animatedToolbarTextColor = lerp(colorScheme.onSurface, textColor, scrollProgress)
+
 
     val safeDrawingPadding = if (WindowInsets.ime.asPaddingValues()
             .calculateBottomPadding() > WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
@@ -138,7 +159,6 @@ fun ContactSheet(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
     ) {
         val topPadding = 68.dp
-        val scrollState = rememberScrollState()
 
         Column(
             modifier = Modifier
@@ -152,74 +172,78 @@ fun ContactSheet(
         ) {
             Spacer(modifier = Modifier.height(topPadding))
 
-            // ── Replaced only the TODO line with contact display logic ───────────────────────
-            if (contact != null) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Avatar
-                    ContactAvatar(
-                        contact = contact,
-                        modifier = Modifier.size(96.dp)
-                    )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Avatar
+                BigContactAvatar(
+                    contact = contact,
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                            avatarHeightPx = coords.size.height.toFloat()
+                        },
+                )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Name
+                // Name
+                Text(
+                    text = contact.name,
+                    fontSize = 26.sp,
+                    fontFamily = QuicksandTitleVariable,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    color = colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Phone number
+                if (contact.phone.isNotBlank()) {
                     Text(
-                        text = contact.name,
-                        fontSize = 26.sp,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        color = colorScheme.onSurface
+                        text = PhoneNumberFormatter.formatForDisplay(
+                            contact.phone, LocalContext.current
+                        ),
+                        fontSize = 18.sp,
+                        color = colorScheme.primary,
+                        textAlign = TextAlign.Center
                     )
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                    // Phone number
-                    if (contact.phone.isNotBlank()) {
-                        Text(
-                            text = PhoneNumberFormatter.formatForDisplay(contact.phone, LocalContext.current),
-                            fontSize = 18.sp,
-                            color = colorScheme.primary,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    // Action buttons (only in view mode)
-                    if (isViewMode && contact.phone.isNotBlank()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(0.8f),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                // Action buttons
+                if (isViewMode && contact.phone.isNotBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(0.8f),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        OutlinedButton(
+                            onClick = { onMessageClick(contact.phone) },
+                            modifier = Modifier.weight(1f)
                         ) {
-                            OutlinedButton(
-                                onClick = { onMessageClick(contact.phone) },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.AutoMirrored.Rounded.Message, null, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Message")
-                                }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.Message,
+                                    null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Message")
                             }
+                        }
 
-                            Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(16.dp))
 
-                            Button(
-                                onClick = { onCallClick(contact.phone) },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Call, null, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Call")
-                                }
+                        Button(
+                            onClick = { onCallClick(contact.phone) }, modifier = Modifier.weight(1f)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Call, null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Call")
                             }
                         }
                     }
@@ -229,7 +253,7 @@ fun ContactSheet(
             Spacer(modifier = Modifier.height(bottomPadding))
         }
 
-        //Toolbar
+        // Toolbar
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -240,31 +264,41 @@ fun ContactSheet(
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp)
                 .clip(RoundedCornerShape(100f))
-                .background(colorScheme.surfaceDim)
-                .hazeEffect(state = hazeState, style = HazeMaterials.ultraThin(hazeThinColor)),
-            verticalAlignment = Alignment.CenterVertically
+                .background(animatedToolbarColor)
+                .hazeEffect(
+                    state = hazeState, style = HazeMaterials.ultraThin(animatedToolbarColor)
+                ), verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onDismiss, modifier = Modifier.padding(4.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    tint = animatedToolbarTextColor
+                )
             }
 
             val titleTextStyle = MaterialTheme.typography.titleLarge.merge(
                 TextStyle(
                     fontFamily = QuicksandTitleVariable,
                     textAlign = TextAlign.Center,
-                    color = colorScheme.onSurface
+                    color = animatedToolbarTextColor
                 )
             )
 
             Text(
                 text = stringResource(id = R.string.contact_card),
                 modifier = Modifier.weight(1f),
-                style = titleTextStyle
+                style = titleTextStyle,
+                color = animatedToolbarTextColor
             )
 
             Box {
                 IconButton(onClick = { showMenu = !showMenu }, modifier = Modifier.padding(4.dp)) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = "More Options")
+                    Icon(
+                        Icons.Rounded.MoreVert,
+                        contentDescription = "More Options",
+                        tint = animatedToolbarTextColor
+                    )
                 }
                 XenonDropDown(
                     expanded = showMenu,

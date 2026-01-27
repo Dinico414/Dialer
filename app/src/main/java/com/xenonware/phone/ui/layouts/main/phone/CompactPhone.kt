@@ -4,6 +4,7 @@ package com.xenonware.phone.ui.layouts.main.phone
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -56,7 +57,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
@@ -79,7 +79,6 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
-import com.xenonware.phone.data.Contact
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
 import com.xenonware.phone.ui.layouts.main.contacts.ContactSheet
@@ -102,18 +101,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun CompactPhone(
     viewModel: PhoneViewModel,
-    signInViewModel: SignInViewModel,
     isLandscape: Boolean,
     layoutType: LayoutType,
     onOpenSettings: () -> Unit,
     appSize: IntSize,
 ) {
-
-
     DeviceConfigProvider(appSize = appSize) {
         val deviceConfig = LocalDeviceConfig.current
-        val density = LocalDensity.current
         val configuration = LocalConfiguration.current
+
         val appHeight = configuration.screenHeightDp.dp
         val isAppBarExpandable = when (layoutType) {
             LayoutType.COVER -> false
@@ -127,7 +123,8 @@ fun CompactPhone(
         val lazyListState = rememberLazyListState()
 
         var currentScreen by remember { mutableStateOf<PhoneScreen>(PhoneScreen.Dialer) }
-        var selectedContactForSheet by remember { mutableStateOf<Contact?>(null) }
+        val showContactCard by viewModel.showContactCard.collectAsStateWithLifecycle()
+        val selectedContact by viewModel.selectedContact.collectAsStateWithLifecycle()
         var isSearchActive by remember { mutableStateOf(false) }
         var searchQuery by remember { mutableStateOf("") }
         var showResizeValue by remember { mutableStateOf(false) }
@@ -148,7 +145,6 @@ fun CompactPhone(
                 1 -> PhoneScreen.Contacts
                 else -> PhoneScreen.Dialer
             }
-
         }
 
         LaunchedEffect(currentScreen) {
@@ -157,8 +153,9 @@ fun CompactPhone(
                     if (pagerState.currentPage != 0) pagerState.animateScrollToPage(0)
                     isSearchActive = false
                     searchQuery = ""
-                    viewModel.updateSearchQuery("")
+                    viewModel.setSearchQuery("")
                 }
+
                 PhoneScreen.Contacts -> {
                     if (pagerState.currentPage != 1) pagerState.animateScrollToPage(1)
                 }
@@ -169,7 +166,7 @@ fun CompactPhone(
             if (searchQuery.isNotBlank() && currentScreen != PhoneScreen.Contacts) {
                 currentScreen = PhoneScreen.Contacts
             }
-            viewModel.updateSearchQuery(searchQuery)
+            viewModel.setSearchQuery(searchQuery)
         }
 
         LaunchedEffect(isSearchActive) {
@@ -208,10 +205,10 @@ fun CompactPhone(
                     currentSearchQuery = searchQuery,
                     onSearchQueryChanged = { newValue ->
                         searchQuery = newValue
-                        viewModel.updateSearchQuery(newValue)
+                        viewModel.setSearchQuery(newValue)
                     },
                     lazyListState = lazyListState,
-                    allowToolbarScrollBehavior = true,
+                    allowToolbarScrollBehavior = !isAppBarExpandable && !showContactCard,
                     selectedNoteIds = emptyList(),
                     onClearSelection = {},
                     isAddModeActive = false,
@@ -220,7 +217,7 @@ fun CompactPhone(
                         isSearchActive = newActive
                         if (!newActive) {
                             searchQuery = ""
-                            viewModel.updateSearchQuery("")
+                            viewModel.setSearchQuery("")
                         }
                     },
                     defaultContent = { iconsAlphaDuration, showActionIconsExceptSearch ->
@@ -242,7 +239,6 @@ fun CompactPhone(
                                     delayMillis = if (isSearchActive) 100 else 0
                                 ), label = "NavBoxAlpha"
                             )
-
 
                             Box(
                                 modifier = Modifier
@@ -266,7 +262,6 @@ fun CompactPhone(
                                             disabledContentColor = (if (currentScreen == PhoneScreen.Dialer) colorScheme.surfaceBright else colorScheme.onSurface).copy(
                                                 alpha = 0.38f
                                             )
-
                                         )
                                     ) {
                                         Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer")
@@ -325,10 +320,19 @@ fun CompactPhone(
                             hazeState = hazeState,
                             onClick = deviceConfig.toggleFabSide,
                             modifier = Modifier.padding(bottom = animatedBottomPadding),
-                            isSheetOpen = false
+                            isSheetOpen = showContactCard
                         )
                     })
             }) { scaffoldPadding ->
+            if (showContactCard) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {})
+            }
             val context = LocalContext.current
             val googleAuthUiClient = remember {
                 GoogleAuthUiClient(
@@ -339,8 +343,6 @@ fun CompactPhone(
             val signInViewModel: SignInViewModel = viewModel()
             val state by signInViewModel.state.collectAsStateWithLifecycle()
             val userData = googleAuthUiClient.getSignedInUser()
-            val currentContext = LocalContext.current
-
 
             ActivityScreen(
                 modifier = Modifier
@@ -359,7 +361,7 @@ fun CompactPhone(
                     if (state.isSignInSuccessful) {
                         Box(contentAlignment = Alignment.Center) {
                             GoogleProfilBorder(
-                                isSignedIn = state.isSignInSuccessful,
+                                isSignedIn = true,
                                 modifier = Modifier.size(32.dp),
                                 strokeWidth = 2.5.dp
                             )
@@ -387,8 +389,9 @@ fun CompactPhone(
                                 0 -> DialerScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     onOpenHistory = {
-                                        val intent = Intent(currentContext, CallHistoryActivity::class.java)
-                                        currentContext.startActivity(intent)
+                                        val intent =
+                                            Intent(context, CallHistoryActivity::class.java)
+                                        context.startActivity(intent)
                                     },
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
                                 )
@@ -398,7 +401,9 @@ fun CompactPhone(
                                     contactsToShow = filteredContacts.toList(),
                                     searchQuery = searchQuery,
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding),
-                                    onOpenDetail = { contact -> selectedContactForSheet = contact }
+                                    onOpenDetail = { contact ->
+                                        viewModel.showContactCard(contact)
+                                    }
                                 )
                             }
                         }
@@ -409,44 +414,29 @@ fun CompactPhone(
                             }
                         }
                     }
-                }
-            )
-
-            val isAnySheetOpen = selectedContactForSheet != null
-
-            if (isAnySheetOpen) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { }
-                )
-            }
+                })
 
             AnimatedVisibility(
-                visible = selectedContactForSheet != null,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it })
+                visible = showContactCard,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it }
             ) {
-                val context = LocalContext.current
+                BackHandler {
+                    viewModel.hideContactCard()
+                    isSearchActive = false
+                    viewModel.setSearchQuery("")
+                }
 
-                selectedContactForSheet?.let { contact ->
+                selectedContact?.let { contact ->
                     ContactSheet(
-                        initialContent = "",
                         onDismiss = {
-                            selectedContactForSheet = null
+                            viewModel.hideContactCard()
+                            isSearchActive = false
+                            viewModel.setSearchQuery("")
                         },
-                        onSave = { /* ignore in view mode */ },
-                        toolbarHeight = 56.dp,
-                        saveTrigger = false,
-                        onSaveTriggerConsumed = {},
+                        toolbarHeight = 72.dp,
                         isBlackThemeActive = false,
                         isCoverModeActive = false,
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxSize(),
-                        isContactSheetOpen = true,
                         contact = contact,
                         isViewMode = true,
                         onCallClick = { number -> safePlaceCall(context, number) },

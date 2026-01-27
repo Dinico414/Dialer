@@ -71,6 +71,12 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     private val offlineCallIds = mutableSetOf<String>()
 
+    private val _showContactCard = MutableStateFlow(false)
+    val showContactCard: StateFlow<Boolean> = _showContactCard.asStateFlow()
+
+    private val _selectedContact = MutableStateFlow<Contact?>(null)
+    val selectedContact: StateFlow<Contact?> = _selectedContact.asStateFlow()
+
     val indexedContacts = MutableStateFlow<List<IndexedContact>>(emptyList())
 
     init {
@@ -112,7 +118,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         _incomingPhoneNumber.value = number
     }
 
-    fun updateSearchQuery(query: String) {
+    fun setSearchQuery(query: String) {
         val trimmed = query.trim()
         _searchQuery.value = trimmed
 
@@ -154,6 +160,15 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             fallbackToIntent(uri)
         }
+    }
+
+    fun showContactCard(contact: Contact) {
+        _selectedContact.value = contact
+        _showContactCard.value = true
+    }
+
+    fun hideContactCard() {
+        _showContactCard.value = false
     }
 
     private fun isDefaultDialer(): Boolean {

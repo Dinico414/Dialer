@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -253,7 +254,6 @@ fun ContactItemCard(
     onInfoClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-
     var isExpanded by remember { mutableStateOf(false) }
 
     val shape = when {
@@ -439,6 +439,36 @@ fun ContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
             text = firstLetter.toString(),
             fontFamily = QuicksandTitleVariable,
             fontSize = 28.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = textColor
+        )
+    }
+}
+@Composable
+fun BigContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
+    val firstLetter = contact.name.firstOrNull()?.uppercaseChar() ?: '?'
+    val pastelBackground = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.5f, lightness = 0.80f)
+    }
+    val textColor = remember(contact.name) {
+        val hash = contact.name.hashCode()
+        val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+        Color.hsl(hue = hue, saturation = 0.6f, lightness = 0.25f)
+    }
+    Box(
+        modifier = modifier
+            .size(320.dp)
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(28.dp))
+            .background(pastelBackground),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = firstLetter.toString(),
+            fontFamily = QuicksandTitleVariable,
+            fontSize = 164.sp,
             fontWeight = FontWeight.SemiBold,
             color = textColor
         )
