@@ -4,11 +4,14 @@ package com.xenonware.phone.ui.layouts.main.phone
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.auth.api.identity.Identity
@@ -74,10 +78,13 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
+import com.xenonware.phone.data.Contact
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
+import com.xenonware.phone.ui.layouts.main.contacts.ContactSheet
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
+import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.PhoneViewModel
 import dev.chrisbanes.haze.hazeSource
@@ -119,6 +126,7 @@ fun CompactPhone(
         val lazyListState = rememberLazyListState()
 
         var currentScreen by remember { mutableStateOf<PhoneScreen>(PhoneScreen.Dialer) }
+        var selectedContactForSheet by remember { mutableStateOf<Contact?>(null) }
         var isSearchActive by remember { mutableStateOf(false) }
         var searchQuery by remember { mutableStateOf("") }
         var showResizeValue by remember { mutableStateOf(false) }
@@ -390,13 +398,46 @@ fun CompactPhone(
                                     modifier = Modifier.fillMaxSize(),
                                     contactsToShow = filteredContacts.toList(),
                                     searchQuery = searchQuery,
-                                    contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
+                                    contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding),
+                                    onOpenDetail = { contact -> selectedContactForSheet = contact }
                                 )
                             }
                         }
                         LaunchedEffect(currentScreen) {
                             if (currentScreen != PhoneScreen.Contacts) {
                                 searchQuery = ""
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = selectedContactForSheet != null,
+                            enter = slideInVertically(initialOffsetY = { it }),
+                            exit = slideOutVertically(targetOffsetY = { it })
+                        ) {
+                            selectedContactForSheet?.let { contact ->
+                                ContactSheet(
+                                    initialContent = "",
+                                    onDismiss = { selectedContactForSheet = null },
+                                    onSave = { /* not used in view mode */ },
+                                    toolbarHeight = 56.dp,
+                                    saveTrigger = false,
+                                    onSaveTriggerConsumed = {},
+                                    isBlackThemeActive = false,
+                                    isCoverModeActive = false,
+                                    viewModel = viewModel,
+                                    modifier = Modifier.fillMaxSize(),
+                                    isContactSheetOpen = true,
+                                    contact = contact,                    // ← pass contact
+                                    isViewMode = true,                    // ← view mode
+                                    onCallClick = { number ->
+                                        safePlaceCall(context, number)           // ← use captured context
+                                    },
+                                    onMessageClick = { number ->
+                                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                            data = "smsto:$number".toUri()
+                                        }
+                                        context.startActivity(intent)            // ← use captured context
+                                    }
+                                )
                             }
                         }
                     }

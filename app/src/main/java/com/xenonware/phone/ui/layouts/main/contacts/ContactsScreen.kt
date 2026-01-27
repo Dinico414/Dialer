@@ -111,7 +111,8 @@ fun ContactsScreen(
     modifier: Modifier = Modifier,
     contactsToShow: List<Contact>,
     searchQuery: String = "",
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    onOpenDetail: (Contact) -> Unit = {}
 ) {
     val hazeState = remember { HazeState() }
     if (contactsToShow.isEmpty()) {
@@ -173,7 +174,8 @@ fun ContactsScreen(
                         contact = contact,
                         isFirstInGroup = index == 0,
                         isLastInGroup = index == group.contacts.lastIndex,
-                        isSingle = group.contacts.size == 1
+                        isSingle = group.contacts.size == 1,
+                        onInfoClick = { onOpenDetail(contact) }
                     )
                 }
             }
@@ -248,6 +250,7 @@ fun ContactItemCard(
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     isSingle: Boolean,
+    onInfoClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -389,11 +392,12 @@ fun ContactItemCard(
                     FilledTonalIconButton(
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = colorScheme.primaryContainer
-                        ), shape = RoundedCornerShape(
+                        ),
+                        shape = RoundedCornerShape(
                             topStart = 4.dp, topEnd = 12.dp, bottomStart = 4.dp, bottomEnd = 12.dp
-                        ), onClick = {
-                            onOpenContactDetail?.invoke(contact)
-                        }, modifier = Modifier
+                        ),
+                        onClick = onInfoClick,
+                        modifier = Modifier
                             .weight(0.5f)
                             .widthIn(max = 56.dp)
                             .height(40.dp)
