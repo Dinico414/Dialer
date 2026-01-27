@@ -253,7 +253,6 @@ fun ContactItemCard(
     onInfoClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-
     var isExpanded by remember { mutableStateOf(false) }
 
     val shape = when {
