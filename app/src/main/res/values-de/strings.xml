@@ -167,5 +167,6 @@
     <string name="ended_call_label">Anruf beendet</string>
     <string name="unknown_call_state_label">Unbekannter Zustand</string>
     <string name="no_contacts_found">Keine passenden Kontakte</string>
+    <string name="contact_card">Contact Card</string>
 
 </resources>

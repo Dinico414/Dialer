@@ -87,8 +87,6 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Xenon" />
 
-        <!--            android:taskAffinity=".CallScreenTask"-->
-
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"
