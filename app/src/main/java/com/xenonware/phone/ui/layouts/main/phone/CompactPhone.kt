@@ -12,8 +12,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -357,7 +358,7 @@ fun CompactPhone(
                 navigationIconExtraContent = {
                     if (state.isSignInSuccessful) {
                         Box(contentAlignment = Alignment.Center) {
-                            @Suppress("KotlinConstantConditions") GoogleProfilBorder(
+                            GoogleProfilBorder(
                                 isSignedIn = state.isSignInSuccessful,
                                 modifier = Modifier.size(32.dp),
                                 strokeWidth = 2.5.dp
@@ -376,7 +377,7 @@ fun CompactPhone(
                 content = {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val filteredContacts by viewModel.filteredContacts.collectAsStateWithLifecycle()
-                        @OptIn(ExperimentalFoundationApi::class)
+
                         HorizontalPager(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize(),
@@ -386,9 +387,7 @@ fun CompactPhone(
                                 0 -> DialerScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     onOpenHistory = {
-                                        val intent = Intent(
-                                            currentContext, CallHistoryActivity::class.java
-                                        )
+                                        val intent = Intent(currentContext, CallHistoryActivity::class.java)
                                         currentContext.startActivity(intent)
                                     },
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
@@ -403,45 +402,63 @@ fun CompactPhone(
                                 )
                             }
                         }
+
                         LaunchedEffect(currentScreen) {
                             if (currentScreen != PhoneScreen.Contacts) {
                                 searchQuery = ""
                             }
                         }
-                        AnimatedVisibility(
-                            visible = selectedContactForSheet != null,
-                            enter = slideInVertically(initialOffsetY = { it }),
-                            exit = slideOutVertically(targetOffsetY = { it })
-                        ) {
-                            selectedContactForSheet?.let { contact ->
-                                ContactSheet(
-                                    initialContent = "",
-                                    onDismiss = { selectedContactForSheet = null },
-                                    onSave = { /* not used in view mode */ },
-                                    toolbarHeight = 56.dp,
-                                    saveTrigger = false,
-                                    onSaveTriggerConsumed = {},
-                                    isBlackThemeActive = false,
-                                    isCoverModeActive = false,
-                                    viewModel = viewModel,
-                                    modifier = Modifier.fillMaxSize(),
-                                    isContactSheetOpen = true,
-                                    contact = contact,                    // ← pass contact
-                                    isViewMode = true,                    // ← view mode
-                                    onCallClick = { number ->
-                                        safePlaceCall(context, number)           // ← use captured context
-                                    },
-                                    onMessageClick = { number ->
-                                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                            data = "smsto:$number".toUri()
-                                        }
-                                        context.startActivity(intent)            // ← use captured context
-                                    }
-                                )
-                            }
-                        }
                     }
-                })
+                }
+            )
+
+            val isAnySheetOpen = selectedContactForSheet != null
+
+            if (isAnySheetOpen) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = selectedContactForSheet != null,
+                enter = slideInVertically(initialOffsetY = { it }),
+                exit = slideOutVertically(targetOffsetY = { it })
+            ) {
+                val context = LocalContext.current
+
+                selectedContactForSheet?.let { contact ->
+                    ContactSheet(
+                        initialContent = "",
+                        onDismiss = {
+                            selectedContactForSheet = null
+                        },
+                        onSave = { /* ignore in view mode */ },
+                        toolbarHeight = 56.dp,
+                        saveTrigger = false,
+                        onSaveTriggerConsumed = {},
+                        isBlackThemeActive = false,
+                        isCoverModeActive = false,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxSize(),
+                        isContactSheetOpen = true,
+                        contact = contact,
+                        isViewMode = true,
+                        onCallClick = { number -> safePlaceCall(context, number) },
+                        onMessageClick = { number ->
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = "smsto:$number".toUri()
+                            }
+                            context.startActivity(intent)
+                        }
+                    )
+                }
+            }
         }
     }
 }
