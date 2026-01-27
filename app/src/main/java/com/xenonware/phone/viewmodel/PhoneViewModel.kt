@@ -112,7 +112,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         _incomingPhoneNumber.value = number
     }
 
-    fun updateSearchQuery(query: String) {
+    fun setSearchQuery(query: String) {
         val trimmed = query.trim()
         _searchQuery.value = trimmed
 

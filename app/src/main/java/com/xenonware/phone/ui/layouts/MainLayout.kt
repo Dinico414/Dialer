@@ -47,7 +47,6 @@ fun MainLayout(
             if (isLandscape) {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = true,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -56,7 +55,6 @@ fun MainLayout(
             } else {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = false,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -69,7 +67,6 @@ fun MainLayout(
             if (isLandscape) {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = true,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -78,7 +75,6 @@ fun MainLayout(
             } else {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = false,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -91,7 +87,6 @@ fun MainLayout(
             if (isLandscape) {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = true,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -100,7 +95,6 @@ fun MainLayout(
             } else {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = false,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -113,7 +107,6 @@ fun MainLayout(
             if (isLandscape) {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = true,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
@@ -122,7 +115,6 @@ fun MainLayout(
             } else {
                 CompactPhone(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     isLandscape = false,
                     layoutType = layoutType,
                     onOpenSettings = onOpenSettings,
