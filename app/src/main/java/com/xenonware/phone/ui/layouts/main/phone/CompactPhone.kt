@@ -50,7 +50,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,7 +79,6 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
-import com.xenonware.phone.data.Contact
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
 import com.xenonware.phone.ui.layouts.main.contacts.ContactSheet
@@ -125,8 +123,8 @@ fun CompactPhone(
         val lazyListState = rememberLazyListState()
 
         var currentScreen by remember { mutableStateOf<PhoneScreen>(PhoneScreen.Dialer) }
-        var showContactCard by rememberSaveable { mutableStateOf(false) }
-        var selectedContact by remember { mutableStateOf<Contact?>(null) }
+        val showContactCard by viewModel.showContactCard.collectAsStateWithLifecycle()
+        val selectedContact by viewModel.selectedContact.collectAsStateWithLifecycle()
         var isSearchActive by remember { mutableStateOf(false) }
         var searchQuery by remember { mutableStateOf("") }
         var showResizeValue by remember { mutableStateOf(false) }
@@ -404,8 +402,7 @@ fun CompactPhone(
                                     searchQuery = searchQuery,
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding),
                                     onOpenDetail = { contact ->
-                                        selectedContact = contact     // ← PATCHED HERE
-                                        showContactCard = true
+                                        viewModel.showContactCard(contact)
                                     }
                                 )
                             }
@@ -425,7 +422,7 @@ fun CompactPhone(
                 exit = slideOutVertically { it }
             ) {
                 BackHandler {
-                    showContactCard = false
+                    viewModel.hideContactCard()
                     isSearchActive = false
                     viewModel.setSearchQuery("")
                 }
@@ -433,7 +430,7 @@ fun CompactPhone(
                 selectedContact?.let { contact ->
                     ContactSheet(
                         onDismiss = {
-                            showContactCard = false
+                            viewModel.hideContactCard()
                             isSearchActive = false
                             viewModel.setSearchQuery("")
                         },
