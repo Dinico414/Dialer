@@ -1,11 +1,12 @@
+import com.android.build.api.dsl.ApplicationExtension
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
 }
 
-android {
+configure<ApplicationExtension> {
     namespace = "com.xenonware.phone"
     compileSdk = 36
 
@@ -22,7 +23,7 @@ android {
     }
 
     buildTypes {
-        debug {
+        getByName("debug") {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-d"
             proguardFiles(
@@ -33,7 +34,7 @@ android {
             buildConfigField("String", "XENON_UI_VERSION", "\"${libs.versions.xenonUi.get()}\"")
 
         }
-        release {
+        getByName("release") {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
@@ -50,17 +51,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    applicationVariants.all {
-        outputs.all {
-            val outputFileName = if (buildType.name == "debug") {
-                "Phone-${buildType.name}.apk"
-            } else {
-                "Phone.apk"
-            }
-            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                outputFileName
-        }
     }
 }
 
