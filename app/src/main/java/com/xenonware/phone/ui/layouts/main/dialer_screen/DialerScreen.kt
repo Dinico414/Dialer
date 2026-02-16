@@ -104,7 +104,8 @@ fun DialerScreen(
     modifier: Modifier = Modifier,
     onOpenHistory: () -> Unit,
     viewModel: PhoneViewModel = viewModel(),
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    isCoverMode: Boolean = false
 ) {
     val incomingNumber by viewModel.incomingPhoneNumber.collectAsState()
     val recentCalls by viewModel.recentCalls.collectAsState()
@@ -161,8 +162,8 @@ fun DialerScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp)
+                .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
+                .padding(top = if (isCoverMode) 0.dp else 16.dp)
                 .clip(RoundedCornerShape(MediumCornerRadius))
         ) {
             when {
@@ -262,7 +263,8 @@ fun DialerScreen(
                 }
             },
             onOpenHistory = onOpenHistory,
-            contentPadding = contentPadding
+            contentPadding = contentPadding,
+            isCoverMode = isCoverMode
         )
     }
 }
@@ -487,7 +489,8 @@ fun Dialpad(
     onClearAll: () -> Unit,
     onCallClick: () -> Unit,
     onOpenHistory: () -> Unit,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    isCoverMode: Boolean = false
 ) {
     val viewModel: PhoneViewModel = viewModel()
     val prefs = SharedPreferenceManager(LocalContext.current)
@@ -528,7 +531,7 @@ fun Dialpad(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
             .padding(bottom = bottomPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

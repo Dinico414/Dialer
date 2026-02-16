@@ -97,7 +97,6 @@ class MainActivity : ComponentActivity() {
             ) { layoutType, isLandscape ->
                 XenonApp(
                     viewModel = viewModel,
-                    signInViewModel = signInViewModel,
                     layoutType = layoutType,
                     isLandscape = isLandscape,
                     appSize = currentContainerSize,
@@ -192,7 +191,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun XenonApp(
     viewModel: PhoneViewModel,
-    signInViewModel: SignInViewModel,
     layoutType: LayoutType,
     isLandscape: Boolean,
     onOpenSettings: () -> Unit,
@@ -214,7 +212,6 @@ fun XenonApp(
         Column(modifier = Modifier.fillMaxSize()) {
             MainLayout(
                 viewModel = viewModel,
-                signInViewModel = signInViewModel,
                 isLandscape = isLandscape,
                 layoutType = layoutType,
                 onOpenSettings = onOpenSettings,

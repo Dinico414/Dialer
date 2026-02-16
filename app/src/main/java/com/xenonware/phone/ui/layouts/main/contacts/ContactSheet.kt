@@ -84,6 +84,7 @@ fun ContactSheet(
     isViewMode: Boolean = true,
     onCallClick: (String) -> Unit = {},
     onMessageClick: (String) -> Unit = {},
+    backProgress: Float = 0f
 ) {
     val hazeState = remember { HazeState() }
     val isDarkTheme = LocalIsDarkTheme.current
@@ -138,7 +139,7 @@ fun ContactSheet(
     val animatedToolbarTextColor = lerp(colorScheme.onSurface, textColor, scrollProgress)
 
 
-    val safeDrawingPadding = if (WindowInsets.ime.asPaddingValues()
+    val safeDrawingPaddingBottom = if (WindowInsets.ime.asPaddingValues()
             .calculateBottomPadding() > WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
             .asPaddingValues().calculateBottomPadding()
     ) {
@@ -148,7 +149,12 @@ fun ContactSheet(
             .calculateBottomPadding()
     }
 
-    val bottomPadding = safeDrawingPadding + toolbarHeight + 16.dp
+    val safeDrawingPaddingTop = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+
+    val topPadding = 4.dp + safeDrawingPaddingTop - safeDrawingPaddingTop * backProgress
+    val animatedTopPadding = if (topPadding < 16.dp) 16.dp else topPadding
+
+    val bottomPadding = safeDrawingPaddingBottom + toolbarHeight + 16.dp
     val backgroundColor =
         if (isCoverModeActive || isBlackThemeActive) Color.Black else colorScheme.surfaceContainer
 
@@ -162,8 +168,7 @@ fun ContactSheet(
 
         Column(
             modifier = Modifier
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(top = 4.dp)
+                .padding(top = animatedTopPadding)
                 .padding(horizontal = 20.dp)
                 .fillMaxSize()
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
@@ -258,11 +263,8 @@ fun ContactSheet(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
-                )
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp)
+                .padding(top = animatedTopPadding)
                 .clip(RoundedCornerShape(100f))
                 .background(animatedToolbarColor)
                 .hazeEffect(

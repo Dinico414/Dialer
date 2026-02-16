@@ -113,7 +113,8 @@ fun ContactsScreen(
     contactsToShow: List<Contact>,
     searchQuery: String = "",
     contentPadding: PaddingValues,
-    onOpenDetail: (Contact) -> Unit = {}
+    isCoverMode: Boolean = false,
+    onOpenDetail: (Contact) -> Unit = {},
 ) {
     val hazeState = remember { HazeState() }
     if (contactsToShow.isEmpty()) {
@@ -144,7 +145,7 @@ fun ContactsScreen(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(SmallSpacing),
             modifier = Modifier
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
                 .fillMaxSize()
                 .hazeSource(state = hazeState),
             contentPadding = PaddingValues(
@@ -156,7 +157,6 @@ fun ContactsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(colorScheme.surfaceContainer)
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
@@ -176,8 +176,7 @@ fun ContactsScreen(
                         isFirstInGroup = index == 0,
                         isLastInGroup = index == group.contacts.lastIndex,
                         isSingle = group.contacts.size == 1,
-                        onInfoClick = { onOpenDetail(contact) }
-                    )
+                        onInfoClick = { onOpenDetail(contact) })
                 }
             }
         }
@@ -251,7 +250,7 @@ fun ContactItemCard(
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     isSingle: Boolean,
-    onInfoClick: () -> Unit = {}
+    onInfoClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
@@ -444,6 +443,7 @@ fun ContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
         )
     }
 }
+
 @Composable
 fun BigContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
     val firstLetter = contact.name.firstOrNull()?.uppercaseChar() ?: '?'
@@ -462,8 +462,7 @@ fun BigContactAvatar(contact: Contact, modifier: Modifier = Modifier) {
             .size(320.dp)
             .aspectRatio(1f)
             .clip(RoundedCornerShape(28.dp))
-            .background(pastelBackground),
-        contentAlignment = Alignment.Center
+            .background(pastelBackground), contentAlignment = Alignment.Center
     ) {
         Text(
             text = firstLetter.toString(),

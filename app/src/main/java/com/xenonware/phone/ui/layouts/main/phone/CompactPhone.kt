@@ -4,17 +4,21 @@ package com.xenonware.phone.ui.layouts.main.phone
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import androidx.activity.compose.BackHandler
+import android.content.SharedPreferences
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +36,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.Person
@@ -44,17 +49,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -79,18 +89,21 @@ import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
 import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
+import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
 import com.xenonware.phone.ui.layouts.main.contacts.ContactSheet
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
+import com.xenonware.phone.ui.theme.LocalIsDarkTheme
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.PhoneViewModel
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
+import kotlin.coroutines.cancellation.CancellationException
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(
@@ -108,7 +121,10 @@ fun CompactPhone(
 ) {
     DeviceConfigProvider(appSize = appSize) {
         val deviceConfig = LocalDeviceConfig.current
+        var backProgress by remember { mutableFloatStateOf(0f) }
         val configuration = LocalConfiguration.current
+        val context = LocalContext.current
+        val sharedPreferenceManager = remember { SharedPreferenceManager(context) }
 
         val appHeight = configuration.screenHeightDp.dp
         val isAppBarExpandable = when (layoutType) {
@@ -129,6 +145,26 @@ fun CompactPhone(
         var searchQuery by remember { mutableStateOf("") }
         var showResizeValue by remember { mutableStateOf(false) }
         var resizeTimerKey by remember { mutableIntStateOf(0) }
+
+        val isDarkTheme = LocalIsDarkTheme.current
+
+        val isBlackedOut by produceState(
+            initialValue = sharedPreferenceManager.blackedOutModeEnabled && isDarkTheme
+        ) {
+            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key == "blacked_out_mode_enabled") {
+                    value = sharedPreferenceManager.blackedOutModeEnabled
+                }
+            }
+            sharedPreferenceManager.sharedPreferences.registerOnSharedPreferenceChangeListener(
+                listener
+            )
+            awaitDispose {
+                sharedPreferenceManager.sharedPreferences.unregisterOnSharedPreferenceChangeListener(
+                    listener
+                )
+            }
+        }
 
         LaunchedEffect(resizeTimerKey) {
             if (showResizeValue) {
@@ -403,8 +439,7 @@ fun CompactPhone(
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding),
                                     onOpenDetail = { contact ->
                                         viewModel.showContactCard(contact)
-                                    }
-                                )
+                                    })
                             }
                         }
 
@@ -416,37 +451,89 @@ fun CompactPhone(
                     }
                 })
 
-            AnimatedVisibility(
-                visible = showContactCard,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it }
-            ) {
-                BackHandler {
+            PredictiveBackHandler(enabled = showContactCard) { progressFlow ->
+                try {
+                    progressFlow.collect { event ->
+                        backProgress = event.progress
+                    }
                     viewModel.hideContactCard()
                     isSearchActive = false
                     viewModel.setSearchQuery("")
+                } catch (_: CancellationException) {
+                    backProgress = 0f
+                }
+            }
+
+            LaunchedEffect(showContactCard) {
+                if (!showContactCard) {
+                    delay(200)
+                    backProgress = 0f
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                val scrimAlpha = 0.6f * (1f - backProgress / 2)
+                AnimatedVisibility(
+                    visible = showContactCard,
+                    enter = fadeIn(tween(300)),
+                    exit = fadeOut(tween(300))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(colorScheme.scrim.copy(alpha = scrimAlpha))
+                            .combinedClickable(
+                                onClick = { viewModel.hideContactCard() },
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() })
+                    )
                 }
 
-                selectedContact?.let { contact ->
-                    ContactSheet(
-                        onDismiss = {
-                            viewModel.hideContactCard()
-                            isSearchActive = false
-                            viewModel.setSearchQuery("")
-                        },
-                        toolbarHeight = 72.dp,
-                        isBlackThemeActive = false,
-                        isCoverModeActive = false,
-                        contact = contact,
-                        isViewMode = true,
-                        onCallClick = { number -> safePlaceCall(context, number) },
-                        onMessageClick = { number ->
-                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = "smsto:$number".toUri()
-                            }
-                            context.startActivity(intent)
-                        }
+                AnimatedVisibility(
+                    visible = showContactCard,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                     )
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                translationY = backProgress * (size.height * 0.2f)
+                                val exponentialProgress =
+                                    kotlin.math.sqrt(backProgress.toDouble()).toFloat()
+                                val radius = (exponentialProgress * 40).dp
+                                shape = RoundedCornerShape((radius))
+                                clip = true
+                            },
+                        color = if (isBlackedOut) Color.Black else colorScheme.surfaceContainer,
+                    ) {
+
+                        selectedContact?.let { contact ->
+                            ContactSheet(
+                                onDismiss = {
+                                    viewModel.hideContactCard()
+                                    isSearchActive = false
+                                    viewModel.setSearchQuery("")
+                                },
+                                toolbarHeight = 72.dp,
+                                isBlackThemeActive = false,
+                                isCoverModeActive = false,
+                                contact = contact,
+                                isViewMode = true,
+                                onCallClick = { number -> safePlaceCall(context, number) },
+                                onMessageClick = { number ->
+                                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                        data = "smsto:$number".toUri()
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                backProgress = backProgress
+                            )
+                        }
+                    }
                 }
             }
         }

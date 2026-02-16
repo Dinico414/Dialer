@@ -19,8 +19,6 @@ fun CallHistoryLayout(
         LayoutType.COVER -> {
             CoverHistoryScreen(
                 onNavigateBack = onNavigateBack,
-                isLandscape = isLandscape,
-                layoutType = layoutType,
                 viewModel = viewModel
             )
         }
