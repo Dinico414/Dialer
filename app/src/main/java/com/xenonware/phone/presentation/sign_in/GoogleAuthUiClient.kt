@@ -10,6 +10,8 @@ import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.UnsupportedApiCallException
 import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
@@ -31,10 +33,15 @@ class GoogleAuthUiClient(
         GoogleSignIn.getClient(context, gso)
     }
 
-    suspend fun signIn(): BeginSignInResult {
-        return oneTapClient.beginSignIn(
-            buildSignInRequest()
-        ).await()
+    suspend fun signIn(): BeginSignInResult? {
+        return try {
+            oneTapClient.beginSignIn(buildSignInRequest()).await()
+        } catch (e: Exception) {
+            if (e is UnsupportedApiCallException || e is ApiException) {
+                return null
+            }
+            throw e
+        }
     }
 
     fun getTraditionalSignInIntent(): Intent {
@@ -49,7 +56,7 @@ class GoogleAuthUiClient(
 
     suspend fun signInWithTraditionalIntent(intent: Intent): SignInResult {
         val task = GoogleSignIn.getSignedInAccountFromIntent(intent)
-        val account = task.await() // This can throw ApiException
+        val account = task.await()
         val idToken = account.idToken
         return firebaseAuthWithGoogle(idToken)
     }
@@ -90,19 +97,28 @@ class GoogleAuthUiClient(
         }
     }
 
-    fun getSignedInUser(): UserData? = auth.currentUser?.run {
-        UserData(
-            userId = uid,
-            username = displayName,
-            profilePictureUrl = photoUrl?.toString(),
-            email = email.toString()
-        )
+    fun getSignedInUser(): UserData? = try {
+        auth.currentUser?.let { user ->
+            UserData(
+                userId = user.uid,
+                username = user.displayName,
+                profilePictureUrl = user.photoUrl?.toString(),
+                email = user.email ?: ""
+            )
+        }
+    } catch (e: Exception) {
+        if (e is UnsupportedApiCallException ||
+            e.message?.contains("auth_api_credentials_begin_sign_in") == true) {
+            null
+        } else {
+            throw e
+        }
     }
 
     private fun buildSignInRequest(): BeginSignInRequest {
         return BeginSignInRequest.Builder().setGoogleIdTokenRequestOptions(
             BeginSignInRequest.GoogleIdTokenRequestOptions.builder().setSupported(true)
-                .setFilterByAuthorizedAccounts(false)
+                .setFilterByAuthorizedAccounts(true)
                 .setServerClientId(context.getString(R.string.default_web_client_id)).build()
         ).setAutoSelectEnabled(true).build()
 
