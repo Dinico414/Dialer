@@ -146,30 +146,4 @@
     <string name="contact_card">Contact Card</string>
     <string name="waveform_view">Waveform view</string>
     <string name="transcript_view">Transcript view</string>
-
-    <!-- Potentially unused strings from other apps -->
-    <string name="no_notes_message">No notes yet</string>
-    <string name="add_new_list">Add new list</string>
-    <string name="delete_lists">Delete selected list(s)</string>
-    <string name="list_name_label">List name</string>
-    <string name="add_new_step">Add step</string>
-    <string name="steps">Steps</string>
-    <string name="no_steps">No steps</string>
-    <string name="remove_step">Remove step</string>
-    <string name="add_text_note">Add Text Note</string>
-    <string name="add_pen_note">Add Sketch</string>
-    <string name="add_mic_note">Add Recording</string>
-    <string name="add_list_note">Add List</string>
-    <string name="resize_notes">Resize notes</string>
-    <string name="all_notes">All Notes</string>
-    <string name="text_notes">Text Notes</string>
-    <string name="list_notes">List Notes</string>
-    <string name="audio_notes">Audio Notes</string>
-    <string name="sketch_notes">Sketch Notes</string>
-    <string name="add_new_item_to_list">Add new item to list</string>
-    <string name="save_note">Save Note</string>
-    <string name="save_list_note">Save List Note</string>
-    <string name="save_audio_note">Save Audio Note</string>
-    <string name="save_sketch_note">Save Sketch Note</string>
-    <string name="add_new_label">Add label</string>
 </resources>
