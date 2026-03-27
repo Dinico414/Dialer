@@ -38,12 +38,13 @@ import com.xenon.mylibrary.res.ThemeSetting
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoCornerRadius
 import com.xenon.mylibrary.values.NoSpacing
+import com.xenon.mylibrary.values.SmallerCornerRadius
 import com.xenonware.phone.BuildConfig
 import com.xenonware.phone.R
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInState
-import com.xenonware.phone.viewmodel.classes.SettingsItems
 import com.xenonware.phone.viewmodel.SettingsViewModel
+import com.xenonware.phone.viewmodel.classes.SettingsItems
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -145,7 +146,7 @@ fun CoverSettings(
                     tileBackgroundColor = coverScreenBackgroundColor,
                     tileContentColor = coverScreenContentColor,
                     tileSubtitleColor = coverScreenContentColor.copy(alpha = 0.7f),
-                    tileShapeOverride = RoundedCornerShape(NoCornerRadius),
+                    tileShapeOverride = RoundedCornerShape(SmallerCornerRadius),
                     tileHorizontalPadding = MediumPadding,
                     tileVerticalPadding = MediumPadding,
                     useGroupStyling = false,
