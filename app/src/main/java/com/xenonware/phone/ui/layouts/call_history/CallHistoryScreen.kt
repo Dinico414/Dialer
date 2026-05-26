@@ -1,7 +1,6 @@
 package com.xenonware.phone.ui.layouts.call_history
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CallLog
@@ -20,11 +19,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +30,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Close
@@ -64,23 +59,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.geocoding.PhoneNumberOfflineGeocoder
-import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
-import com.xenon.mylibrary.values.MediumPadding
-import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallSpacing
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.phone.R
@@ -88,7 +78,6 @@ import com.xenonware.phone.ui.layouts.main.contacts.isScrolledToEnd
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import com.xenonware.phone.util.PhoneNumberFormatter
 import com.xenonware.phone.viewmodel.CallHistoryViewModel
-import com.xenonware.phone.viewmodel.LayoutType
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -100,7 +89,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-
 data class CallLogEntry(
     val nameOrNumber: String, val phoneNumber: String, val type: Int, val date: Long,
 )
@@ -109,21 +97,24 @@ data class CallGroup(
     val title: String, val entries: List<CallLogEntry>,
 )
 
-
 @OptIn(ExperimentalHazeMaterialsApi::class)
-@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun CompactHistoryScreen(
-    onNavigateBack: () -> Unit,
-    layoutType: LayoutType,
-    isLandscape: Boolean,
+fun CallHistoryScreen(
+    modifier: Modifier = Modifier,
     viewModel: CallHistoryViewModel,
+    searchQuery: String = "",
+    contentPadding: PaddingValues,
+    isCoverMode: Boolean = false
 ) {
-    val callLogs by viewModel.callLogs.collectAsStateWithLifecycle()
+    val callLogs by viewModel.filteredCallLogs.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+
+    LaunchedEffect(searchQuery) {
+        viewModel.setSearchQuery(searchQuery)
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -141,186 +132,147 @@ fun CompactHistoryScreen(
         }
     }
 
-    val configuration = LocalConfiguration.current
-    val appHeight = configuration.screenHeightDp.dp
+    Column(modifier = modifier.fillMaxSize()) {
+        when {
+            isLoading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
 
-    val isAppBarExpandable = when (layoutType) {
-        LayoutType.COVER -> false
-        LayoutType.SMALL -> false
-        LayoutType.COMPACT -> !isLandscape && appHeight >= 460.dp
-        LayoutType.MEDIUM -> true
-        LayoutType.EXPANDED -> true
-    }
+            callLogs.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(
+                            R.string.permission_required
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = QuicksandTitleVariable,
+                        style = typography.titleLarge
+                    )
+                }
+            }
 
-    ActivityScreen(
-        titleText = stringResource(R.string.call_history),
-        expandable = isAppBarExpandable,
-        navigationIconStartPadding = MediumPadding,
-        navigationIconPadding = MediumPadding,
-        navigationIconSpacing = NoSpacing,
-        navigationIcon = {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.navigate_back_description),
-                modifier = Modifier.size(24.dp)
-            )
-        },
-        onNavigationIconClick = onNavigateBack,
-        hasNavigationIconExtraContent = false,
-        actions = {},
-        content = { _ ->
-            Column(modifier = Modifier.fillMaxSize()) {
-                when {
-                    isLoading -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
+            else -> {
+                val groupedCalls = groupCallLogsByDate(
+                    entries = callLogs,
+                    todayStr = stringResource(R.string.today),
+                    yesterdayStr = stringResource(R.string.yesterday),
+                )
+                val listState = rememberLazyListState()
+                val coroutineScope = rememberCoroutineScope()
+
+                val hazeState = remember { HazeState() }
+
+                val showScrollToTop by remember {
+                    derivedStateOf {
+                        listState.firstVisibleItemIndex > 0 ||
+                                listState.firstVisibleItemScrollOffset > 200
                     }
+                }
 
-                    callLogs.isEmpty() -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(
-                                    R.string.permission_required
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = QuicksandTitleVariable,
-                                style = typography.titleLarge
-                            )
-                        }
+                val showScrollToBottom by remember {
+                    derivedStateOf {
+                        !listState.isScrolledToEnd()
                     }
+                }
 
-                    else -> {
-                        val groupedCalls = groupCallLogsByDate(
-                            entries = callLogs,
-                            todayStr = stringResource(R.string.today),
-                            yesterdayStr = stringResource(R.string.yesterday),
-                        )
-                        val listState = rememberLazyListState()
-                        val coroutineScope = rememberCoroutineScope()
+                val showButton by remember {
+                    derivedStateOf { showScrollToTop && showScrollToBottom }
+                }
 
-                        val hazeState = remember { HazeState() }
+                val buttonAlpha by animateFloatAsState(
+                    targetValue = if (showButton) 1f else 0f,
+                    animationSpec = tween(300),
+                    label = "scroll button alpha"
+                )
 
-                        val showScrollToTop by remember {
-                            derivedStateOf {
-                                listState.firstVisibleItemIndex > 0 ||
-                                        listState.firstVisibleItemScrollOffset > 200
-                            }
-                        }
+                val buttonScale by animateFloatAsState(
+                    targetValue = if (showButton) 1f else 0.8f, animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ), label = "scroll button scale"
+                )
 
-                        val showScrollToBottom by remember {
-                            derivedStateOf {
-                                !listState.isScrolledToEnd()
-                            }
-                        }
+                val hazeThinColor = MaterialTheme.colorScheme.primary
 
-                        val showButton by remember {
-                            derivedStateOf { showScrollToTop && showScrollToBottom }
-                        }
-
-
-                        val buttonAlpha by animateFloatAsState(
-                            targetValue = if (showButton) 1f else 0f,
-                            animationSpec = tween(300),
-                            label = "scroll button alpha"
-                        )
-
-                        val buttonScale by animateFloatAsState(
-                            targetValue = if (showButton) 1f else 0.8f, animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ), label = "scroll button scale"
-                        )
-
-                        val hazeThinColor = MaterialTheme.colorScheme.primary
-
-                        Box(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-
-                            LazyColumn(
-                                state = listState,
-                                verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp)
-                                    .fillMaxSize()
-                                    .hazeSource(state = hazeState),
-                                contentPadding = PaddingValues(
-                                    bottom = with(LocalDensity.current) {
-                                        WindowInsets.navigationBars.asPaddingValues()
-                                            .calculateBottomPadding()
-                                    })) {
-                                groupedCalls.forEach { group ->
-                                    item(key = "header_${group.title}") {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(MaterialTheme.colorScheme.surfaceContainer)
-                                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        ) {
-                                            Text(
-                                                text = group.title,
-                                                fontSize = 20.sp,
-                                                fontFamily = QuicksandTitleVariable,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    items(
-                                        items = group.entries, key = { it.date }) { entry ->
-                                        val index = group.entries.indexOf(entry)
-                                        CallHistoryItemCard(
-                                            entry = entry,
-                                            isFirstInGroup = index == 0,
-                                            isLastInGroup = index == group.entries.lastIndex,
-                                            isSingle = group.entries.size == 1
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (buttonAlpha > 0.02f) {
-                                IconButton(
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                        modifier = Modifier
+                            .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
+                            .fillMaxSize()
+                            .hazeSource(state = hazeState),
+                    ) {
+                        groupedCalls.forEach { group ->
+                            item(key = "header_${group.title}") {
+                                Box(
                                     modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(
-                                            bottom = with(LocalDensity.current) {
-                                                WindowInsets.navigationBars.asPaddingValues()
-                                                    .calculateBottomPadding() + 16.dp
-                                            })
-                                        .scale(buttonScale)
-                                        .clip(CircleShape)
-                                        .alpha(buttonAlpha)
-                                        .hazeEffect(
-                                            state = hazeState,
-                                            style = HazeMaterials.ultraThin(hazeThinColor)
-                                        ), colors = IconButtonDefaults.iconButtonColors(
-                                        containerColor = Color.Transparent,
-                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                    ), onClick = {
-                                        coroutineScope.launch {
-                                            listState.animateScrollToItem(0)
-                                        }
-                                    }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.KeyboardArrowUp,
-                                        contentDescription = "Scroll to top",
-                                        modifier = Modifier.size(28.dp)
+                                        .fillMaxWidth()
+                                        .background(if (isCoverMode) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer)
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        text = group.title,
+                                        fontSize = 20.sp,
+                                        fontFamily = QuicksandTitleVariable,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
+
+                            items(
+                                items = group.entries, key = { it.date }) { entry ->
+                                val index = group.entries.indexOf(entry)
+                                CallHistoryItemCard(
+                                    entry = entry,
+                                    isFirstInGroup = index == 0,
+                                    isLastInGroup = index == group.entries.lastIndex,
+                                    isSingle = group.entries.size == 1
+                                )
+                            }
+                        }
+                    }
+
+                    if (buttonAlpha > 0.02f) {
+                        IconButton(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = contentPadding.calculateBottomPadding() + 16.dp)
+                                .scale(buttonScale)
+                                .clip(CircleShape)
+                                .alpha(buttonAlpha)
+                                .hazeEffect(
+                                    state = hazeState,
+                                    style = HazeMaterials.ultraThin(hazeThinColor)
+                                ), colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ), onClick = {
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(0)
+                                }
+                            }) {
+                            Icon(
+                                imageVector = Icons.Rounded.KeyboardArrowUp,
+                                contentDescription = "Scroll to top",
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
                     }
                 }
             }
-        })
+        }
+    }
 }
 
 @Composable
@@ -331,9 +283,7 @@ fun CallHistoryItemCard(
     isSingle: Boolean,
 ) {
     val context = LocalContext.current
-
     val callDate = Date(entry.date)
-
     val isVoicemail = isVoicemailNumber(context, entry.phoneNumber)
 
     val (icon, backgroundColor) = when {
@@ -396,7 +346,6 @@ fun CallHistoryItemCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-
                 val displayText = when {
                     isVoicemail && (entry.nameOrNumber == entry.phoneNumber || entry.nameOrNumber.isBlank()) -> {
                         stringResource(R.string.voicemail)
@@ -431,7 +380,7 @@ fun CallHistoryItemCard(
                     else -> stringResource(R.string.unknown)
                 }
 
-                val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(callDate)
+                val time = SimpleDateFormat("HH:mm", LocalLocale.current.platformLocale).format(callDate)
 
                 val extraLabel = getNumberTypeOrOrigin(
                     context = context,
@@ -482,13 +431,9 @@ fun CallHistoryItemCard(
 @Composable
 private fun isVoicemailNumber(context: Context, phoneNumber: String): Boolean {
     if (phoneNumber.isBlank()) return false
-
     val normalized = phoneNumber.trim().replace(Regex("[^+0-9*#-]"), "")
-
     val commonVoicemailCodes = listOf("*86", "123", "5500", "333", "888", "500")
-
     if (normalized in commonVoicemailCodes) return true
-
     if (ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_PHONE_STATE
@@ -498,7 +443,6 @@ private fun isVoicemailNumber(context: Context, phoneNumber: String): Boolean {
         val vmNumber = tm?.voiceMailNumber?.trim()?.replace(Regex("[^+0-9]"), "")
         if (!vmNumber.isNullOrBlank() && normalized.contains(vmNumber)) return true
     }
-
     return false
 }
 
@@ -510,26 +454,20 @@ private fun getNumberOriginLabel(
     context: Context, rawNumber: String
 ): String {
     if (rawNumber.isBlank()) return ""
-
     val userCountry = context.resources.configuration.locales.get(0).country ?: "DE"
-
     return try {
         val number = phoneUtil.parse(rawNumber, userCountry)
         if (!phoneUtil.isValidNumber(number)) return ""
-
         val regionCode = phoneUtil.getRegionCodeForNumber(number) ?: return ""
-
         val description = geocoder.getDescriptionForNumber(
-            number, Locale.getDefault()  // uses device language → "Berlin", "Rom", "Paris"...
+            number, Locale.getDefault()
         )?.trim() ?: ""
-
         if (description.isBlank()) return ""
-
         if (regionCode == userCountry) {
-            "$description • "  // e.g. "Berlin • ", "München • ", "Rom • "
+            "$description • "
         } else {
             val countryName = Locale("", regionCode).displayCountry
-            "$countryName • "  // e.g. "Italien • ", "Frankreich • "
+            "$countryName • "
         }
     } catch (_: Exception) {
         ""
@@ -541,20 +479,17 @@ private fun getNumberTypeOrOrigin(
     context: Context, phoneNumber: String, hasContactName: Boolean
 ): String {
     if (phoneNumber.isBlank()) return ""
-
     if (hasContactName) {
         val labelFromContact = getContactPhoneLabel(context, phoneNumber)
         if (labelFromContact.isNotBlank()) {
             return "$labelFromContact • "
         }
     }
-
     return getNumberOriginLabel(context, phoneNumber)
 }
 
 private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
     if (rawNumber.isBlank()) return ""
-
     try {
         val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
         val projection = arrayOf(
@@ -563,7 +498,6 @@ private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
         )
         val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} = ?"
         val selectionArgs = arrayOf(rawNumber)
-
         context.contentResolver.query(
             uri, projection, selection, selectionArgs, null
         )?.use { cursor ->
@@ -572,13 +506,11 @@ private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
                     cursor.getInt(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
                 val customLabel =
                     cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL))
-
                 return when (type) {
                     ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE -> "Mobil"
                     ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Geschäftlich"
                     ContactsContract.CommonDataKinds.Phone.TYPE_HOME -> "Privat"
                     ContactsContract.CommonDataKinds.Phone.TYPE_FAX_HOME, ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK -> "Fax"
-
                     ContactsContract.CommonDataKinds.Phone.TYPE_OTHER -> "Sonstige"
                     else -> customLabel?.takeIf { it.isNotBlank() } ?: ""
                 }
@@ -587,7 +519,6 @@ private fun getContactPhoneLabel(context: Context, rawNumber: String): String {
     } catch (_: SecurityException) {
     } catch (_: Exception) {
     }
-
     return ""
 }
 
@@ -597,90 +528,70 @@ fun groupCallLogsByDate(
     yesterdayStr: String,
 ): List<CallGroup> {
     if (entries.isEmpty()) return emptyList()
-
     val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }
-
     val yesterdayStart = todayStart.clone() as Calendar
     yesterdayStart.add(Calendar.DAY_OF_MONTH, -1)
-
     val dateFormatWithDay = SimpleDateFormat("EE dd.MM.yyyy", Locale.getDefault())
-
-
     val groups = mutableListOf<CallGroup>()
     val currentGroupEntries = mutableListOf<CallLogEntry>()
     var currentTitle: String? = null
-
     for (entry in entries.sortedByDescending { it.date }) {
         val cal = Calendar.getInstance().apply { timeInMillis = entry.date }
-
         val title = when {
             cal.timeInMillis >= todayStart.timeInMillis -> todayStr
             cal.timeInMillis >= yesterdayStart.timeInMillis -> yesterdayStr
             else -> dateFormatWithDay.format(cal.time)
         }
-
         if (title != currentTitle && currentGroupEntries.isNotEmpty()) {
             groups.add(CallGroup(currentTitle!!, currentGroupEntries.toList()))
             currentGroupEntries.clear()
         }
-
         currentTitle = title
         currentGroupEntries.add(entry)
     }
-
     if (currentGroupEntries.isNotEmpty()) {
         groups.add(CallGroup(currentTitle!!, currentGroupEntries.toList()))
     }
-
     return groups
 }
 
 fun loadCallLogEntries(context: Context): List<CallLogEntry> {
     val logs = mutableListOf<CallLogEntry>()
-
     val cursor = context.contentResolver.query(
         CallLog.Calls.CONTENT_URI, null, null, null, "${CallLog.Calls.DATE} DESC"
     )
-
     cursor?.use {
         val numberIndex = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
         val typeIndex = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
         val dateIndex = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
         val nameIndex = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
-
         val presentationIndex = it.getColumnIndex(CallLog.Calls.NUMBER_PRESENTATION)
-
         while (it.moveToNext()) {
             val rawNumber = it.getString(numberIndex) ?: ""
             val name = if (nameIndex >= 0) it.getString(nameIndex) else null
             val type = it.getInt(typeIndex)
             val date = it.getLong(dateIndex)
-
             val privateStr = context.getString(R.string.private_label)
             val unknownStr = context.getString(R.string.unknown)
             val restrictedStr = context.getString(R.string.restricted)
             val payphoneStr = context.getString(R.string.payphone)
-
             val displayName = when {
                 !name.isNullOrBlank() -> name.trim()
-
                 presentationIndex >= 0 -> {
                     when (it.getInt(presentationIndex)) {
                         CallLog.Calls.PRESENTATION_ALLOWED -> rawNumber.trim()
                             .ifBlank { unknownStr }
-
                         CallLog.Calls.PRESENTATION_RESTRICTED -> privateStr
                         CallLog.Calls.PRESENTATION_UNKNOWN -> unknownStr
                         CallLog.Calls.PRESENTATION_PAYPHONE -> payphoneStr
                         else -> privateStr
                     }
                 }
-
                 else -> when {
                     rawNumber.isBlank() || rawNumber == "-1" || rawNumber == "-2" || rawNumber == "-3" || rawNumber.equals(
                         unknownStr,
@@ -689,18 +600,14 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
                         "Restricted",
                         ignoreCase = true
                     ) || rawNumber.equals("Withheld", ignoreCase = true) -> unknownStr
-
                     rawNumber.equals(privateStr, ignoreCase = true) || rawNumber.equals(
                         restrictedStr,
                         ignoreCase = true
                     ) -> privateStr
-
                     rawNumber.equals(payphoneStr, ignoreCase = true) -> payphoneStr
-
                     else -> PhoneNumberFormatter.formatForDisplay(rawNumber, context)
                 }
             }
-
             val canDial = when {
                 displayName == privateStr -> false
                 displayName == unknownStr -> false
@@ -709,9 +616,7 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
                 rawNumber.startsWith("-") -> false
                 else -> true
             }
-
             val phoneNumberToDial = if (canDial) rawNumber.trim() else ""
-
             logs.add(
                 CallLogEntry(
                     nameOrNumber = displayName,
@@ -722,6 +627,5 @@ fun loadCallLogEntries(context: Context): List<CallLogEntry> {
             )
         }
     }
-
     return logs
 }

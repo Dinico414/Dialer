@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,11 +41,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -52,12 +54,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +79,7 @@ import androidx.compose.ui.unit.max
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.google.android.gms.auth.api.identity.Identity
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.FloatingToolbarContent
@@ -87,16 +92,17 @@ import com.xenon.mylibrary.values.LargePadding
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
 import com.xenon.mylibrary.values.SmallPadding
-import com.xenonware.phone.CallHistoryActivity
 import com.xenonware.phone.R
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
+import com.xenonware.phone.ui.layouts.call_history.CallHistoryScreen
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall
 import com.xenonware.phone.ui.res.ContactSheet
 import com.xenonware.phone.ui.theme.LocalIsDarkTheme
+import com.xenonware.phone.viewmodel.CallHistoryViewModel
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.PhoneViewModel
 import dev.chrisbanes.haze.hazeSource
@@ -138,7 +144,6 @@ fun CompactPhone(
         val hazeState = rememberHazeState()
         val lazyListState = rememberLazyListState()
 
-        var currentScreen by remember { mutableStateOf<PhoneScreen>(PhoneScreen.Dialer) }
         val showContactCard by viewModel.showContactCard.collectAsStateWithLifecycle()
         val selectedContact by viewModel.selectedContact.collectAsStateWithLifecycle()
         var isSearchActive by remember { mutableStateOf(false) }
@@ -173,46 +178,30 @@ fun CompactPhone(
             }
         }
 
-        val pagerState = rememberPagerState(pageCount = { 2 })
+        val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+        val coroutineScope = rememberCoroutineScope()
 
-        LaunchedEffect(pagerState.currentPage) {
-            currentScreen = when (pagerState.currentPage) {
-                0 -> PhoneScreen.Dialer
-                1 -> PhoneScreen.Contacts
-                else -> PhoneScreen.Dialer
-            }
-        }
-
-        LaunchedEffect(currentScreen) {
-            when (currentScreen) {
-                PhoneScreen.Dialer -> {
-                    if (pagerState.currentPage != 0) pagerState.animateScrollToPage(0)
-                    isSearchActive = false
-                    searchQuery = ""
-                    viewModel.setSearchQuery("")
-                }
-
-                PhoneScreen.Contacts -> {
-                    if (pagerState.currentPage != 1) pagerState.animateScrollToPage(1)
+        val currentScreen by remember {
+            derivedStateOf {
+                when (pagerState.currentPage) {
+                    0 -> PhoneScreen.History
+                    1 -> PhoneScreen.Dialer
+                    2 -> PhoneScreen.Contacts
+                    else -> PhoneScreen.Dialer
                 }
             }
-        }
-
-        LaunchedEffect(searchQuery) {
-            if (searchQuery.isNotBlank() && currentScreen != PhoneScreen.Contacts) {
-                currentScreen = PhoneScreen.Contacts
-            }
-            viewModel.setSearchQuery(searchQuery)
         }
 
         LaunchedEffect(isSearchActive) {
-            if (isSearchActive && currentScreen != PhoneScreen.Contacts) {
-                pagerState.animateScrollToPage(1)
-                currentScreen = PhoneScreen.Contacts
+            if (isSearchActive && pagerState.currentPage != 2) {
+                pagerState.animateScrollToPage(
+                    page = 2,
+                    animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+                )
             }
         }
 
-        val areNavButtonsEnabled = !isSearchActive
+        val areNavButtonsEnabled = true
 
         Scaffold(
             bottomBar = {
@@ -282,45 +271,61 @@ fun CompactPhone(
                                     .clip(CircleShape)
                                     .background(colorScheme.surfaceBright)
                             ) {
-                                Row {
-                                    FilledTonalIconButton(
-                                        onClick = { currentScreen = PhoneScreen.Dialer },
-                                        enabled = areNavButtonsEnabled,
-                                        modifier = Modifier.alpha(navIconAlpha),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.tertiary
-                                            else colorScheme.surfaceBright,
-                                            contentColor = if (currentScreen == PhoneScreen.Dialer) colorScheme.onTertiary
-                                            else colorScheme.onSurface,
-                                            disabledContainerColor = (if (currentScreen == PhoneScreen.Dialer) colorScheme.onSurface else colorScheme.surfaceBright).copy(
-                                                alpha = 0.6f
-                                            ),
-                                            disabledContentColor = (if (currentScreen == PhoneScreen.Dialer) colorScheme.surfaceBright else colorScheme.onSurface).copy(
-                                                alpha = 0.38f
-                                            )
-                                        )
-                                    ) {
-                                        Icon(Icons.Rounded.Dialpad, contentDescription = "Dialer")
-                                    }
+                                val itemWidth = 48.dp
+                                val navIcons = listOf(
+                                    Icons.Rounded.History to "History",
+                                    Icons.Rounded.Dialpad to "Dialer",
+                                    Icons.Rounded.Person to "Contacts"
+                                )
 
-                                    FilledTonalIconButton(
-                                        onClick = { currentScreen = PhoneScreen.Contacts },
-                                        enabled = areNavButtonsEnabled,
-                                        modifier = Modifier.alpha(navIconAlpha),
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.tertiary
-                                            else colorScheme.surfaceBright,
-                                            contentColor = if (currentScreen == PhoneScreen.Contacts) colorScheme.onTertiary
-                                            else colorScheme.onSurface,
-                                            disabledContainerColor = (if (currentScreen == PhoneScreen.Contacts) colorScheme.onSurface else colorScheme.surfaceBright).copy(
-                                                alpha = 0.6f
-                                            ),
-                                            disabledContentColor = (if (currentScreen == PhoneScreen.Contacts) colorScheme.surfaceBright else colorScheme.onSurface).copy(
-                                                alpha = 0.38f
+                                val indicatorPosition by remember {
+                                    derivedStateOf {
+                                        pagerState.currentPage + pagerState.currentPageOffsetFraction
+                                    }
+                                }
+
+                                // Indicator
+                                Box(
+                                    modifier = Modifier
+                                        .offset {
+                                            androidx.compose.ui.unit.IntOffset(
+                                                x = (indicatorPosition * itemWidth.toPx()).toInt(),
+                                                y = 0
                                             )
-                                        )
-                                    ) {
-                                        Icon(Icons.Rounded.Person, contentDescription = "Contacts")
+                                        }
+                                        .size(itemWidth)
+                                        .padding(4.dp)
+                                        .clip(CircleShape)
+                                        .background(colorScheme.tertiary)
+                                )
+
+                                // Icons Row
+                                Row(modifier = Modifier.alpha(navIconAlpha)) {
+                                    navIcons.forEachIndexed { index, (icon, desc) ->
+                                        IconButton(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    pagerState.animateScrollToPage(index)
+                                                }
+                                            },
+                                            enabled = areNavButtonsEnabled,
+                                            modifier = Modifier.size(itemWidth)
+                                        ) {
+                                            // Calculate color based on indicator proximity for a smooth "reveal" effect
+                                            val distance = Math.abs(indicatorPosition - index)
+                                            val colorFraction = (1f - (distance * 2f)).coerceIn(0f, 1f)
+                                            val iconColor = androidx.compose.ui.graphics.lerp(
+                                                colorScheme.onSurface,
+                                                colorScheme.onTertiary,
+                                                colorFraction
+                                            )
+
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = desc,
+                                                tint = iconColor
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -376,8 +381,9 @@ fun CompactPhone(
                     oneTapClient = Identity.getSignInClient(context.applicationContext)
                 )
             }
-            val signInViewModel: SignInViewModel = viewModel()
-            val state by signInViewModel.state.collectAsStateWithLifecycle()
+        val signInViewModel: SignInViewModel = viewModel()
+        val callHistoryViewModel: CallHistoryViewModel = viewModel()
+        val state by signInViewModel.state.collectAsStateWithLifecycle()
             val userData = googleAuthUiClient.getSignedInUser()
 
             ActivityScreen(
@@ -385,6 +391,7 @@ fun CompactPhone(
                     .fillMaxSize()
                     .hazeSource(hazeState),
                 titleText = when (currentScreen) {
+                    PhoneScreen.History -> stringResource(R.string.call_history)
                     PhoneScreen.Dialer -> stringResource(R.string.phone)
                     PhoneScreen.Contacts -> stringResource(R.string.contacts)
                 },
@@ -422,17 +429,18 @@ fun CompactPhone(
                             beyondViewportPageCount = 1,
                         ) { page ->
                             when (page) {
-                                0 -> DialerScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    onOpenHistory = {
-                                        val intent =
-                                            Intent(context, CallHistoryActivity::class.java)
-                                        context.startActivity(intent)
-                                    },
+                                0 -> CallHistoryScreen(
+                                    viewModel = callHistoryViewModel,
+                                    searchQuery = searchQuery,
                                     contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
                                 )
 
-                                1 -> ContactsScreen(
+                                1 -> DialerScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
+                                )
+
+                                2 -> ContactsScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     contactsToShow = filteredContacts.toList(),
                                     searchQuery = searchQuery,
@@ -542,6 +550,7 @@ fun CompactPhone(
 }
 
 sealed class PhoneScreen {
+    object History : PhoneScreen()
     object Dialer : PhoneScreen()
     object Contacts : PhoneScreen()
 }

@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -48,7 +49,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -103,7 +103,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun DialerScreen(
     modifier: Modifier = Modifier,
-    onOpenHistory: () -> Unit,
     viewModel: PhoneViewModel = viewModel(),
     contentPadding: PaddingValues,
     isCoverMode: Boolean = false
@@ -267,7 +266,6 @@ fun DialerScreen(
                     safePlaceCall(context, phoneNumber)
                 }
             },
-            onOpenHistory = onOpenHistory,
             contentPadding = contentPadding,
             isCoverMode = isCoverMode
         )
@@ -424,13 +422,14 @@ private fun buildSuggestions(
     }
 
     val cleanQuery = trimmed.replace(Regex("[^+0-9*#-]"), "")
+    val normalizedQuery = PhoneViewModel.normalizePhone(cleanQuery)
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
     val multiTapQuery = if (isDigitInput) PhoneViewModel.multiTapToT9(cleanQuery) else ""
 
     val matching = indexedContacts.asSequence()
         .filter { indexed ->
-            indexed.normalizedPhone.startsWith(cleanQuery) ||
-                    indexed.normalizedPhone.contains(cleanQuery) ||
+            indexed.normalizedPhone.startsWith(normalizedQuery) ||
+                    indexed.normalizedPhone.contains(normalizedQuery) ||
                     (isDigitInput && (
                             PhoneViewModel.matchesT9(indexed.t9Keys, cleanQuery) ||
                                     (multiTapQuery.isNotEmpty() && PhoneViewModel.matchesT9(
@@ -482,7 +481,6 @@ fun Dialpad(
     onDeleteClick: () -> Unit,
     onClearAll: () -> Unit,
     onCallClick: () -> Unit,
-    onOpenHistory: () -> Unit,
     contentPadding: PaddingValues,
     isCoverMode: Boolean = false
 ) {
@@ -640,28 +638,15 @@ fun Dialpad(
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
         ) {
-            FilledTonalIconButton(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape), onClick = onOpenHistory,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = colorScheme.primary,
-                    contentColor = colorScheme.onPrimary)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.History,
-                    contentDescription = "Call log",
-                    modifier = Modifier.size(28.sp.value.dp)
-                )
-            }
-
             FilledTonalIconButton(
                 onClick = onCallClick, colors = IconButtonDefaults.iconButtonColors(
                     containerColor = Color(0xFF4CAF50), contentColor = colorScheme.onSurface
                 ), modifier = Modifier
-                    .weight(1f)
+                    .weight(2f)
                     .height(82.dp)
                     .clip(RoundedCornerShape(50.dp))
             ) {
@@ -676,8 +661,10 @@ fun Dialpad(
 
             FilledTonalIconButton(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape), onClick = {
+                    .weight(1f)
+                    .height(82.dp)
+                    .clip(RoundedCornerShape(50.dp)),
+                onClick = {
                     onDeleteClick()
                     vibrateFeedback(context)
                 }, interactionSource = interactionSource

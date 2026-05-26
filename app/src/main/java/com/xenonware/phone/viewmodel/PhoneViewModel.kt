@@ -354,11 +354,6 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    private fun nameToT9Keys(name: String): String = buildString {
-        name.forEach { c ->
-            t9Map.entries.find { it.value.contains(c) }?.key?.let { append(it) }
-        }
-    }
 
     companion object {
         private val t9Map = mapOf(
@@ -374,6 +369,12 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
         fun normalizeName(name: String): String {
             return name.lowercase().replace(Regex("[^a-z]"), "")
+        }
+
+        fun nameToT9Keys(name: String): String = buildString {
+            name.forEach { c ->
+                t9Map.entries.find { it.value.contains(c) }?.key?.let { append(it) }
+            }
         }
 
         fun normalizePhone(number: String): String {
