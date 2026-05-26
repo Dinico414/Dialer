@@ -81,7 +81,7 @@ import com.xenonware.phone.R
 import com.xenonware.phone.data.SharedPreferenceManager
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInViewModel
-import com.xenonware.phone.ui.layouts.main.contacts.ContactSheet
+import com.xenonware.phone.ui.res.ContactSheet
 import com.xenonware.phone.ui.layouts.main.contacts.ContactsScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.DialerScreen
 import com.xenonware.phone.ui.layouts.main.dialer_screen.safePlaceCall

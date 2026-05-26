@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.xenonware.phone.ui.layouts.main.contacts
+package com.xenonware.phone.ui.res
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -63,8 +63,7 @@ import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.phone.R
 import com.xenonware.phone.data.Contact
-import com.xenonware.phone.ui.res.MenuItem
-import com.xenonware.phone.ui.res.XenonDropDown
+import com.xenonware.phone.ui.layouts.main.contacts.BigContactAvatar
 import com.xenonware.phone.ui.theme.LocalIsDarkTheme
 import com.xenonware.phone.util.PhoneNumberFormatter
 import dev.chrisbanes.haze.HazeState
@@ -187,8 +186,8 @@ fun ContactSheet(
                 BigContactAvatar(
                     contact = contact,
                     modifier = Modifier.onGloballyPositioned { coords ->
-                            avatarHeightPx = coords.size.height.toFloat()
-                        },
+                        avatarHeightPx = coords.size.height.toFloat()
+                    },
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))

@@ -144,8 +144,8 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startCall(number: String) {
         if (number.isBlank()) return
-
-        val uri = "tel:${Uri.encode(number)}".toUri()
+        val cleanNumber = number.replace(" ", "")
+        val uri = "tel:${Uri.encode(cleanNumber)}".toUri()
 
         if (isDefaultDialer()) {
             val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager

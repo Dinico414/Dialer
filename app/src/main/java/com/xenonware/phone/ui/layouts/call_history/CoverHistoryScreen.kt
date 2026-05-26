@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -140,10 +141,9 @@ fun CoverHistoryScreen(
                                 text = if (hasPermission) stringResource(R.string.no_calls_yet) else stringResource(
                                     R.string.permission_required
                                 ),
-                                fontSize = 18.sp,
-                                lineHeight = 28.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
+                                fontFamily = QuicksandTitleVariable,
+                                style = typography.titleLarge
                             )
                         }
                     }

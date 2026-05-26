@@ -52,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -123,7 +124,8 @@ fun ContactsScreen(
                 text = if (contactsToShow.isEmpty() && searchQuery.isNotBlank()) stringResource(R.string.no_contacts_found)
                 else stringResource(R.string.no_contacts_found),
                 color = colorScheme.onSurfaceVariant,
-                fontSize = 18.sp
+                fontFamily = QuicksandTitleVariable,
+                style = typography.titleLarge
             )
         }
         return

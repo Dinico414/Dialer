@@ -55,6 +55,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -150,7 +151,7 @@ fun DialerScreen(
 
     LaunchedEffect(incomingNumber) {
         if (incomingNumber != null && phoneNumber.isEmpty()) {
-            phoneNumber = incomingNumber ?: ""
+            phoneNumber = (incomingNumber ?: "").replace(" ", "")
         }
     }
 
@@ -172,7 +173,8 @@ fun DialerScreen(
                         text = stringResource(id = R.string.no_suggestions),
                         modifier = Modifier.align(Alignment.Center),
                         color = colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyLarge
+                        fontFamily = QuicksandTitleVariable,
+                        style = typography.titleLarge
                     )
                 }
 
@@ -180,7 +182,9 @@ fun DialerScreen(
                     Text(
                         text = stringResource(id = R.string.no_match),
                         modifier = Modifier.align(Alignment.Center),
-                        color = colorScheme.onSurfaceVariant
+                        color = colorScheme.onSurfaceVariant,
+                        fontFamily = QuicksandTitleVariable,
+                        style = typography.titleLarge
                     )
                 }
 
@@ -205,7 +209,7 @@ fun DialerScreen(
 
                             SuggestionRow(
                                 item = item,
-                                onClick = { phoneNumber = item.number },
+                                onClick = { phoneNumber = item.number.replace(" ", "") },
                                 isFirstInGroup = isFirst,
                                 isLastInGroup = isLast,
                                 isSingle = isSingle,
@@ -231,8 +235,9 @@ fun DialerScreen(
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             if (phoneNumber.isEmpty()) {
                                 val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
-                                if (clipText.isNotBlank() && clipText.all { it.isDigit() || it in "+*#-" }) {
-                                    phoneNumber = clipText
+                                val cleanClipText = clipText.replace(" ", "")
+                                if (cleanClipText.isNotBlank() && cleanClipText.all { it.isDigit() || it in "+*#-" }) {
+                                    phoneNumber = cleanClipText
                                 }
                             } else {
                                 val clip = ClipData.newPlainText("Phone number", phoneNumber)
@@ -741,7 +746,8 @@ fun Dialpad(
 @SuppressLint("ObsoleteSdkInt")
 fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-    val uri = "tel:$phoneNumber".toUri()
+    val cleanNumber = phoneNumber.replace(" ", "")
+    val uri = "tel:$cleanNumber".toUri()
     val permissionDeniedString = context.getString(R.string.permission_denied)
 
     val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
