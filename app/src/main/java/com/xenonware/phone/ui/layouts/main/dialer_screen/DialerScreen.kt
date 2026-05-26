@@ -425,24 +425,33 @@ private fun buildSuggestions(
 
     val cleanQuery = trimmed.replace(Regex("[^+0-9*#-]"), "")
     val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
+    val multiTapQuery = if (isDigitInput) PhoneViewModel.multiTapToT9(cleanQuery) else ""
 
     val matching = indexedContacts.asSequence()
         .filter { indexed ->
             indexed.normalizedPhone.startsWith(cleanQuery) ||
                     indexed.normalizedPhone.contains(cleanQuery) ||
-                    (isDigitInput && matchesT9Fast(indexed.t9Keys, cleanQuery))
+                    (isDigitInput && (
+                            PhoneViewModel.matchesT9(indexed.t9Keys, cleanQuery) ||
+                                    (multiTapQuery.isNotEmpty() && PhoneViewModel.matchesT9(
+                                        indexed.t9Keys,
+                                        multiTapQuery
+                                    ))
+                            ))
         }
         .map { it.contact }
         .take(20)
         .toList()
 
     val sorted = matching.sortedWith(compareByDescending<Contact> { c ->
+        val t9Keys = indexedContacts.first { it.contact.id == c.id }.t9Keys
         val score = when {
             c.name.startsWith(trimmed, ignoreCase = true) -> 5
-            matchesT9Fast(
-                indexedContacts.first { it.contact.id == c.id }.t9Keys,
-                cleanQuery
-            ) -> 4
+            PhoneViewModel.matchesT9(t9Keys, cleanQuery) ||
+                    (multiTapQuery.isNotEmpty() && PhoneViewModel.matchesT9(
+                        t9Keys,
+                        multiTapQuery
+                    )) -> 4
             c.phone.startsWith(trimmed) -> 3
             c.phone.contains(trimmed) -> 2
             else -> 1
@@ -463,26 +472,6 @@ private fun buildSuggestions(
             )
         )
     }
-}
-
-private fun matchesT9Fast(t9Keys: String, query: String): Boolean {
-    if (query.isEmpty()) return true
-    if (t9Keys.length < query.length) return false
-
-    var i = 0
-    for (digit in query) {
-        var found = false
-        while (i < t9Keys.length) {
-            if (t9Keys[i] == digit) {
-                found = true
-                i++
-                break
-            }
-            i++
-        }
-        if (!found) return false
-    }
-    return true
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")

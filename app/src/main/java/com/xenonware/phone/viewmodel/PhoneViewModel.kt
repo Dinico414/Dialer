@@ -128,16 +128,25 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val queryNorm = trimmed.lowercase()
+        val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
+        val cleanQuery = trimmed.replace(Regex("[^+0-9*#-]"), "")
+        val multiTapQuery = if (isDigitInput) multiTapToT9(cleanQuery) else ""
 
-        val filtered = _contacts.value.filter { contact ->
+        val filtered = indexedContacts.value.filter { indexed ->
+            val contact = indexed.contact
             val name = contact.name.trim().lowercase()
 
             val matchesName =
                 name.contains(queryNorm) || name.startsWith(queryNorm) || name.split(Regex("\\s+"))
                     .any { it.startsWith(queryNorm) }
 
-            matchesName || matchesNumber(contact.phone, trimmed)
-        }
+            val matchesT9 = isDigitInput && (
+                matchesT9(indexed.t9Keys, cleanQuery) ||
+                        (multiTapQuery.isNotEmpty() && matchesT9(indexed.t9Keys, multiTapQuery))
+            )
+
+            matchesName || matchesNumber(contact.phone, trimmed) || matchesT9
+        }.map { it.contact }
 
         _filteredContacts.value = filtered
     }
@@ -370,6 +379,53 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         fun normalizePhone(number: String): String {
             if (number.isBlank()) return ""
             return number.replace(Regex("[^+0-9]"), "").removePrefix("00").removePrefix("+")
+        }
+
+        fun multiTapToT9(query: String): String {
+            if (query.isEmpty()) return ""
+            val sb = StringBuilder()
+            var i = 0
+            while (i < query.length) {
+                val digit = query[i]
+                if (!digit.isDigit()) {
+                    sb.append(digit)
+                    i++
+                    continue
+                }
+                val maxChars = when (digit) {
+                    '7', '9' -> 4
+                    '2', '3', '4', '5', '6', '8' -> 3
+                    '0' -> 2
+                    else -> 1
+                }
+                var count = 0
+                while (i < query.length && query[i] == digit && count < maxChars) {
+                    count++
+                    i++
+                }
+                sb.append(digit)
+            }
+            return sb.toString()
+        }
+
+        fun matchesT9(t9Keys: String, query: String): Boolean {
+            if (query.isEmpty()) return true
+            if (t9Keys.length < query.length) return false
+
+            var i = 0
+            for (digit in query) {
+                var found = false
+                while (i < t9Keys.length) {
+                    if (t9Keys[i] == digit) {
+                        found = true
+                        i++
+                        break
+                    }
+                    i++
+                }
+                if (!found) return false
+            }
+            return true
         }
     }
 }
