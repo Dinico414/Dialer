@@ -8,12 +8,12 @@ plugins {
 
 configure<ApplicationExtension> {
     namespace = "com.xenonware.phone"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.xenonware.phone"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.2.2"
 

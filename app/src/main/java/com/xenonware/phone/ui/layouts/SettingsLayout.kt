@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntSize
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInState
 import com.xenonware.phone.ui.layouts.settings.CoverSettings
@@ -24,7 +25,8 @@ fun SettingsLayout(
     onSignInClick: () -> Unit,
     onSignOutClick: () -> Unit,
     onConfirmSignOut: () -> Unit,
-) {
+    appSize: IntSize,
+    ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (layoutType) {
             LayoutType.COVER -> {
@@ -51,7 +53,8 @@ fun SettingsLayout(
                     googleAuthUiClient = googleAuthUiClient,
                     onSignInClick = onSignInClick,
                     onSignOutClick = onSignOutClick,
-                    onConfirmSignOut = onConfirmSignOut
+                    onConfirmSignOut = onConfirmSignOut,
+                    appSize = appSize
                 )
             }
         }

@@ -40,6 +40,7 @@ class DevSettingsActivity : ComponentActivity() {
 
         setContent {
             val activeNightMode by mainSettingsViewModel.activeNightModeFlag.collectAsState()
+            val currentContainerSize = LocalWindowInfo.current.containerSize
             LaunchedEffect(activeNightMode) {
                 AppCompatDelegate.setDefaultNightMode(activeNightMode)
             }
@@ -58,7 +59,8 @@ class DevSettingsActivity : ComponentActivity() {
                     onNavigateBack = { finish() },
                     viewModel = devSettingsViewModel,
                     isLandscape = isLandscape,
-                    layoutType = layoutType
+                    layoutType = layoutType,
+                    appSize = currentContainerSize
                 )
             }
         }

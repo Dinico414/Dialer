@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntSize
 import com.xenonware.phone.ui.layouts.dev_settings.DevCoverSettings
 import com.xenonware.phone.ui.layouts.dev_settings.DevDefaultSettings
 import com.xenonware.phone.viewmodel.DevSettingsViewModel
@@ -16,7 +17,8 @@ fun DevSettingsLayout(
     isLandscape: Boolean,
     layoutType: LayoutType,
     modifier: Modifier = Modifier,
-) {
+    appSize: IntSize,
+    ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (layoutType) {
             LayoutType.COVER -> {
@@ -32,7 +34,8 @@ fun DevSettingsLayout(
                     onNavigateBack = onNavigateBack,
                     viewModel = viewModel,
                     layoutType = layoutType,
-                    isLandscape = isLandscape
+                    isLandscape = isLandscape,
+                    appSize = appSize
                 )
             }
         }

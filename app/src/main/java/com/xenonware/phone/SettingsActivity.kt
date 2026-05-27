@@ -71,7 +71,7 @@ class SettingsActivity : ComponentActivity() {
 
         setContent {
             val navController = rememberNavController()
-
+            val currentContainerSize = LocalWindowInfo.current.containerSize
             val activeNightMode by settingsViewModel.activeNightModeFlag.collectAsState()
             LaunchedEffect(activeNightMode) {
                 AppCompatDelegate.setDefaultNightMode(activeNightMode)
@@ -120,6 +120,7 @@ class SettingsActivity : ComponentActivity() {
                     }
                 )
 
+
                 NavHost(
                     navController = navController,
                     startDestination = SettingsDestinations.MAIN_SETTINGS_ROUTE
@@ -156,7 +157,8 @@ class SettingsActivity : ComponentActivity() {
                                     settingsViewModel.dismissSignOutDialog()
                                     signInViewModel.resetState()
                                 }
-                            }
+                            },
+                            appSize = currentContainerSize
                         )
                     }
                 }
