@@ -8,6 +8,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -22,6 +23,7 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,6 +57,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
@@ -155,122 +159,218 @@ fun DialerScreen(
         }
     }
 
-    Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
-                .padding(top = if (isCoverMode) 0.dp else 16.dp)
-                .clip(RoundedCornerShape(MediumCornerRadius))
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    if (isAppBarExpandable && !isLandscape) {
+        // --- 1. DEFAULT VERTICAL LAYOUT ---
+        Column(
+            modifier = modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            when {
-                suggestionsToShow.isEmpty() && debouncedQuery.isEmpty() -> {
-                    Text(
-                        text = stringResource(id = R.string.no_suggestions),
-                        modifier = Modifier.align(Alignment.Center),
-                        color = colorScheme.onSurfaceVariant,
-                        fontFamily = QuicksandTitleVariable,
-                        style = typography.titleLarge
-                    )
-                }
-
-                suggestionsToShow.isEmpty() -> {
-                    Text(
-                        text = stringResource(id = R.string.no_match),
-                        modifier = Modifier.align(Alignment.Center),
-                        color = colorScheme.onSurfaceVariant,
-                        fontFamily = QuicksandTitleVariable,
-                        style = typography.titleLarge
-                    )
-                }
-
-                else -> {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(SmallSpacing),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        itemsIndexed(
-                            items = suggestionsToShow,
-                            key = { _, item -> item.id }
-                        ) { index, item ->
-                            val isFirst = index == 0
-                            val isLast = index == suggestionsToShow.lastIndex
-                            val isSingle = suggestionsToShow.size == 1
-
-                            val matchingContact = remember(item.number) {
-                                allContacts.find {
-                                    PhoneViewModel.normalizePhone(it.phone) == PhoneViewModel.normalizePhone(item.number)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
+                    .padding(top = if (isCoverMode) 0.dp else 16.dp)
+                    .clip(RoundedCornerShape(MediumCornerRadius))
+            ) {
+                when {
+                    suggestionsToShow.isEmpty() && debouncedQuery.isEmpty() -> {
+                        Text(
+                            text = stringResource(id = R.string.no_suggestions),
+                            modifier = Modifier.align(Alignment.Center),
+                            color = colorScheme.onSurfaceVariant,
+                            fontFamily = QuicksandTitleVariable,
+                            style = typography.titleLarge
+                        )
+                    }
+                    suggestionsToShow.isEmpty() -> {
+                        Text(
+                            text = stringResource(id = R.string.no_match),
+                            modifier = Modifier.align(Alignment.Center),
+                            color = colorScheme.onSurfaceVariant,
+                            fontFamily = QuicksandTitleVariable,
+                            style = typography.titleLarge
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(SmallSpacing),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            itemsIndexed(
+                                items = suggestionsToShow,
+                                key = { _, item -> item.id }
+                            ) { index, item ->
+                                val matchingContact = remember(item.number) {
+                                    allContacts.find {
+                                        PhoneViewModel.normalizePhone(it.phone) == PhoneViewModel.normalizePhone(item.number)
+                                    }
                                 }
+                                SuggestionRow(
+                                    item = item,
+                                    onClick = { phoneNumber = item.number.replace(" ", "") },
+                                    isFirstInGroup = index == 0,
+                                    isLastInGroup = index == suggestionsToShow.lastIndex,
+                                    isSingle = suggestionsToShow.size == 1,
+                                    matchingContact = matchingContact
+                                )
                             }
-
-                            SuggestionRow(
-                                item = item,
-                                onClick = { phoneNumber = item.number.replace(" ", "") },
-                                isFirstInGroup = isFirst,
-                                isLastInGroup = isLast,
-                                isSingle = isSingle,
-                                matchingContact = matchingContact
-                            )
                         }
                     }
                 }
             }
-        }
 
-        Text(
-            text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
-            modifier = Modifier
-                .padding(16.dp)
-                .height(50.dp)
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = {
-                            vibrateFeedback(context)
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            if (phoneNumber.isEmpty()) {
-                                val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
-                                val cleanClipText = clipText.replace(" ", "")
-                                if (cleanClipText.isNotBlank() && cleanClipText.all { it.isDigit() || it in "+*#-" }) {
-                                    phoneNumber = cleanClipText
+            Text(
+                text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
+                modifier = Modifier
+                    .padding(16.dp)
+                    .height(50.dp)
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = {
+                                vibrateFeedback(context)
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                if (phoneNumber.isEmpty()) {
+                                    val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+                                    val cleanClipText = clipText.replace(" ", "")
+                                    if (cleanClipText.isNotBlank() && cleanClipText.all { it.isDigit() || it in "+*#-" }) {
+                                        phoneNumber = cleanClipText
+                                    }
+                                } else {
+                                    val clip = ClipData.newPlainText("Phone number", phoneNumber)
+                                    clipboard.setPrimaryClip(clip)
                                 }
-                            } else {
-                                val clip = ClipData.newPlainText("Phone number", phoneNumber)
-                                clipboard.setPrimaryClip(clip)
+                            }
+                        )
+                    },
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.headlineLarge,
+                color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
+                else colorScheme.onBackground,
+                fontFamily = QuicksandTitleVariable,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
+
+            DialpadVertical(
+                phoneNumber = phoneNumber,
+                onNumberClick = { digit -> phoneNumber += digit },
+                onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
+                onClearAll = { phoneNumber = "" },
+                onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) },
+                contentPadding = contentPadding,
+                isCoverMode = isCoverMode
+            )
+        }
+    } else {
+        // --- 2. COMPACT & WIDE COMPACT LAYOUTS (BoxWithConstraints Root) ---
+        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+            val isWide = maxWidth > maxHeight * 1.5f
+            val constraintsMaxHeight = maxHeight
+
+            if (isWide) {
+                // Wide Landscape Split
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(horizontal = if (isCoverMode) 0.dp else 16.dp)
+                            .padding(top = 16.dp)
+                            .clip(RoundedCornerShape(topStart = MediumCornerRadius, topEnd = MediumCornerRadius, bottomStart = 0.dp, bottomEnd = 0.dp))
+                    ) {
+                        if (suggestionsToShow.isEmpty() && debouncedQuery.isEmpty()) {
+                            Text(text = stringResource(id = R.string.no_suggestions), modifier = Modifier.align(Alignment.Center), color = colorScheme.onSurfaceVariant, fontFamily = QuicksandTitleVariable, style = typography.titleLarge)
+                        } else if (suggestionsToShow.isEmpty()) {
+                            Text(text = stringResource(id = R.string.no_match), modifier = Modifier.align(Alignment.Center), color = colorScheme.onSurfaceVariant, fontFamily = QuicksandTitleVariable, style = typography.titleLarge)
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(SmallSpacing), modifier = Modifier.fillMaxSize()) {
+                                itemsIndexed(items = suggestionsToShow, key = { _, item -> item.id }) { index, item ->
+                                    val matchingContact = remember(item.number) { allContacts.find { PhoneViewModel.normalizePhone(it.phone) == PhoneViewModel.normalizePhone(item.number) } }
+                                    SuggestionRow(item = item, onClick = { phoneNumber = item.number.replace(" ", "") }, isFirstInGroup = index == 0, isLastInGroup = index == suggestionsToShow.lastIndex, isSingle = suggestionsToShow.size == 1, matchingContact = matchingContact)
+                                }
+                                item { Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding())) }
                             }
                         }
-                    )
-                },
-            textAlign = TextAlign.Center,
-            style = typography.headlineLarge,
-            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f)
-            else colorScheme.onBackground,
-            fontFamily = QuicksandTitleVariable,
-            maxLines = 1,
-            overflow = TextOverflow.Clip
-        )
+                    }
 
-        Dialpad(
-            phoneNumber = phoneNumber,
-            onNumberClick = { digit -> phoneNumber += digit },
-            onDeleteClick = {
-                if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1)
-            },
-            onClearAll = { phoneNumber = "" },
-            onCallClick = {
-                if (phoneNumber.isNotEmpty()) {
-                    safePlaceCall(context, phoneNumber)
+                    Column(modifier = Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
+                            modifier = Modifier.padding(16.dp).height(50.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
+                                detectTapGestures(onLongPress = {
+                                    vibrateFeedback(context)
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    if (phoneNumber.isEmpty()) {
+                                        val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+                                        val cleanClipText = clipText.replace(" ", "")
+                                        if (cleanClipText.isNotBlank() && cleanClipText.all { it.isDigit() || it in "+*#-" }) phoneNumber = cleanClipText
+                                    } else clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", phoneNumber))
+                                })
+                            },
+                            textAlign = TextAlign.Center,
+                            style = typography.headlineLarge,
+                            color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f) else colorScheme.onBackground,
+                            fontFamily = QuicksandTitleVariable,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip
+                        )
+                        DialpadCompact(phoneNumber = phoneNumber, onNumberClick = { phoneNumber += it }, onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) }, onClearAll = { phoneNumber = "" }, onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) }, contentPadding = contentPadding, isCoverMode = isCoverMode, maxAvailableHeight = constraintsMaxHeight)
+                    }
                 }
-            },
-            contentPadding = contentPadding,
-            isCoverMode = isCoverMode,
-            isAppBarExpandable = isAppBarExpandable
-        )
+            } else {
+                // Portrait Compact
+                Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = if (isCoverMode) 0.dp else 16.dp).padding(top = if (isCoverMode) 0.dp else 16.dp).clip(RoundedCornerShape(MediumCornerRadius))) {
+                        if (suggestionsToShow.isEmpty() && debouncedQuery.isEmpty()) {
+                            Text(text = stringResource(id = R.string.no_suggestions), modifier = Modifier.align(Alignment.Center), color = colorScheme.onSurfaceVariant, fontFamily = QuicksandTitleVariable, style = typography.titleLarge)
+                        } else if (suggestionsToShow.isEmpty()) {
+                            Text(text = stringResource(id = R.string.no_match), modifier = Modifier.align(Alignment.Center), color = colorScheme.onSurfaceVariant, fontFamily = QuicksandTitleVariable, style = typography.titleLarge)
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(SmallSpacing), modifier = Modifier.fillMaxSize()) {
+                                itemsIndexed(items = suggestionsToShow, key = { _, item -> item.id }) { index, item ->
+                                    val matchingContact = remember(item.number) { allContacts.find { PhoneViewModel.normalizePhone(it.phone) == PhoneViewModel.normalizePhone(item.number) } }
+                                    SuggestionRow(item = item, onClick = { phoneNumber = item.number.replace(" ", "") }, isFirstInGroup = index == 0, isLastInGroup = index == suggestionsToShow.lastIndex, isSingle = suggestionsToShow.size == 1, matchingContact = matchingContact)
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
+                        modifier = Modifier.padding(16.dp).height(50.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
+                            detectTapGestures(onLongPress = {
+                                vibrateFeedback(context)
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                if (phoneNumber.isEmpty()) {
+                                    val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+                                    val cleanClipText = clipText.replace(" ", "")
+                                    if (cleanClipText.isNotBlank() && cleanClipText.all { it.isDigit() || it in "+*#-" }) phoneNumber = cleanClipText
+                                } else clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", phoneNumber))
+                            })
+                        },
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f) else colorScheme.onBackground,
+                        fontFamily = QuicksandTitleVariable,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip
+                    )
+                    DialpadCompactPortrait(
+                        phoneNumber = phoneNumber,
+                        onNumberClick = { phoneNumber += it },
+                        onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
+                        onClearAll = { phoneNumber = "" },
+                        onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) },
+                        contentPadding = contentPadding
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -284,200 +384,102 @@ private fun SuggestionRow(
     matchingContact: Contact?
 ) {
     val shape = when {
-        isSingle -> RoundedCornerShape(
-            topStart = SmallestCornerRadius,
-            topEnd = SmallestCornerRadius,
-            bottomStart = MediumCornerRadius,
-            bottomEnd = MediumCornerRadius
-        )
-        isFirstInGroup -> RoundedCornerShape(
-            topStart = SmallestCornerRadius,
-            topEnd = SmallestCornerRadius,
-            bottomStart = SmallestCornerRadius,
-            bottomEnd = SmallestCornerRadius
-        )
-        isLastInGroup -> RoundedCornerShape(
-            topStart = SmallestCornerRadius,
-            topEnd = SmallestCornerRadius,
-            bottomStart = MediumCornerRadius,
-            bottomEnd = MediumCornerRadius
-        )
+        isSingle -> RoundedCornerShape(topStart = SmallestCornerRadius, topEnd = SmallestCornerRadius, bottomStart = MediumCornerRadius, bottomEnd = MediumCornerRadius)
+        isFirstInGroup -> RoundedCornerShape(topStart = SmallestCornerRadius, topEnd = SmallestCornerRadius, bottomStart = SmallestCornerRadius, bottomEnd = SmallestCornerRadius)
+        isLastInGroup -> RoundedCornerShape(topStart = SmallestCornerRadius, topEnd = SmallestCornerRadius, bottomStart = MediumCornerRadius, bottomEnd = MediumCornerRadius)
         else -> RoundedCornerShape(SmallestCornerRadius)
     }
-
     val context = LocalContext.current
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape),
-        shape = shape,
-        color = colorScheme.surfaceBright,
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (matchingContact != null) {
-                ContactAvatar(
-                    contact = matchingContact, modifier = Modifier.size(48.dp)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colorScheme.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "#",
-                        fontSize = 22.sp,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
+    Surface(modifier = Modifier.fillMaxWidth().clip(shape), shape = shape, color = colorScheme.surfaceBright, onClick = onClick) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (matchingContact != null) ContactAvatar(contact = matchingContact, modifier = Modifier.size(48.dp))
+            else Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) { Text(text = "#", fontSize = 22.sp, fontFamily = QuicksandTitleVariable, fontWeight = FontWeight.Bold, color = colorScheme.onSurfaceVariant) }
             Spacer(modifier = Modifier.width(16.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title,
-                    style = typography.titleMedium,
-                    fontFamily = QuicksandTitleVariable,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = PhoneNumberFormatter.formatForDisplay(item.subtitle, context),
-                    style = typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text(text = item.title, style = MaterialTheme.typography.titleMedium, fontFamily = QuicksandTitleVariable, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = PhoneNumberFormatter.formatForDisplay(item.subtitle, context), style = MaterialTheme.typography.bodySmall, color = colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
 }
 
-data class SuggestionItem(
-    val id: String,
-    val title: String,
-    val subtitle: String,
-    val number: String,
-    val type: SuggestionType = SuggestionType.RECENT_CONTACT,
-)
-
+data class SuggestionItem(val id: String, val title: String, val subtitle: String, val number: String, val type: SuggestionType = SuggestionType.RECENT_CONTACT)
 enum class SuggestionType { RECENT_CONTACT, FAVORITE }
 
-private fun buildSuggestions(
-    query: String,
-    recent: List<CallLogEntry>,
-    favorites: List<Contact>,
-    indexedContacts: List<IndexedContact>
-): List<SuggestionItem> = buildList {
-
+private fun buildSuggestions(query: String, recent: List<CallLogEntry>, favorites: List<Contact>, indexedContacts: List<IndexedContact>): List<SuggestionItem> = buildList {
     val trimmed = query.trim()
     if (trimmed.isEmpty()) {
         val frequencyMap = mutableMapOf<String, Int>()
-
         recent.forEach { call ->
-            val matchingContact = indexedContacts.find {
-                it.normalizedPhone == PhoneViewModel.normalizePhone(call.number)
-            }
-            if (matchingContact != null) {
-                frequencyMap[matchingContact.contact.id] = (frequencyMap[matchingContact.contact.id] ?: 0) + 1
-            }
+            val matchingContact = indexedContacts.find { it.normalizedPhone == PhoneViewModel.normalizePhone(call.number) }
+            if (matchingContact != null) frequencyMap[matchingContact.contact.id] = (frequencyMap[matchingContact.contact.id] ?: 0) + 1
         }
-
-        val recentCalledContacts = indexedContacts
-            .filter { it.contact.id in frequencyMap }
-            .sortedWith(
-                compareByDescending { indexed ->
-                    val callCount = frequencyMap[indexed.contact.id] ?: 0
-                    val isFavorite = favorites.any { it.id == indexed.contact.id }
-                    callCount + if (isFavorite) 2.5 else 0.0
-                }
-            )
-            .take(12)
-
-        recentCalledContacts.forEach { indexed ->
-            val contact = indexed.contact
-            val isFav = favorites.any { it.id == contact.id }
-            add(
-                SuggestionItem(
-                    id = if (isFav) "fav_${contact.id}" else "recent_contact_${contact.id}",
-                    title = contact.name.ifBlank { contact.phone },
-                    subtitle = contact.phone,
-                    number = contact.phone,
-                    type = if (isFav) SuggestionType.FAVORITE else SuggestionType.RECENT_CONTACT
-                )
-            )
-        }
+        val sorted = indexedContacts.filter { it.contact.id in frequencyMap }.sortedWith(compareByDescending { indexed -> (frequencyMap[indexed.contact.id] ?: 0) + if (favorites.any { it.id == indexed.contact.id }) 2.5 else 0.0 }).take(12)
+        sorted.forEach { indexed -> add(SuggestionItem(id = if (favorites.any { it.id == indexed.contact.id }) "fav_${indexed.contact.id}" else "recent_${indexed.contact.id}", title = indexed.contact.name.ifBlank { indexed.contact.phone }, subtitle = indexed.contact.phone, number = indexed.contact.phone)) }
         return@buildList
     }
-
-    val cleanQuery = trimmed.replace(Regex("[^+0-9*#-]"), "")
-    val normalizedQuery = PhoneViewModel.normalizePhone(cleanQuery)
-    val isDigitInput = trimmed.all { it.isDigit() || it in "+*#-" }
-    val multiTapQuery = if (isDigitInput) PhoneViewModel.multiTapToT9(cleanQuery) else ""
-
-    val matching = indexedContacts.asSequence()
-        .filter { indexed ->
-            indexed.normalizedPhone.startsWith(normalizedQuery) ||
-                    indexed.normalizedPhone.contains(normalizedQuery) ||
-                    (isDigitInput && (
-                            PhoneViewModel.matchesT9(indexed.t9Keys, cleanQuery) ||
-                                    (multiTapQuery.isNotEmpty() && PhoneViewModel.matchesT9(
-                                        indexed.t9Keys,
-                                        multiTapQuery
-                                    ))
-                            ))
-        }
-        .map { it.contact }
-        .take(20)
-        .toList()
-
-    val sorted = matching.sortedWith(compareByDescending<Contact> { c ->
-        val t9Keys = indexedContacts.first { it.contact.id == c.id }.t9Keys
-        val score = when {
-            c.name.startsWith(trimmed, ignoreCase = true) -> 5
-            PhoneViewModel.matchesT9(t9Keys, cleanQuery) ||
-                    (multiTapQuery.isNotEmpty() && PhoneViewModel.matchesT9(
-                        t9Keys,
-                        multiTapQuery
-                    )) -> 4
-            c.phone.startsWith(trimmed) -> 3
-            c.phone.contains(trimmed) -> 2
-            else -> 1
-        }
-        score
-    }.thenBy { it.name.lowercase() })
-        .take(12)
-
-    sorted.forEach { contact ->
-        val isFav = favorites.any { it.id == contact.id }
-        add(
-            SuggestionItem(
-                id = if (isFav) "fav_${contact.id}" else "contact_${contact.id}",
-                title = contact.name.ifBlank { contact.phone },
-                subtitle = contact.phone,
-                number = contact.phone,
-                type = if (isFav) SuggestionType.FAVORITE else SuggestionType.RECENT_CONTACT
-            )
-        )
-    }
+    val normalizedQuery = PhoneViewModel.normalizePhone(trimmed.replace(Regex("[^+0-9*#-]"), ""))
+    val isDigit = trimmed.all { it.isDigit() || it in "+*#-" }
+    val multiTap = if (isDigit) PhoneViewModel.multiTapToT9(trimmed) else ""
+    val matching = indexedContacts.asSequence().filter { indexed -> indexed.normalizedPhone.contains(normalizedQuery) || (isDigit && (PhoneViewModel.matchesT9(indexed.t9Keys, trimmed) || (multiTap.isNotEmpty() && PhoneViewModel.matchesT9(indexed.t9Keys, multiTap)))) }.map { it.contact }.take(20).toList()
+    matching.sortedWith(compareByDescending<Contact> { c -> if (c.name.startsWith(trimmed, ignoreCase = true)) 5 else 1 }.thenBy { it.name.lowercase() }).take(12).forEach { contact -> add(SuggestionItem(id = "contact_${contact.id}", title = contact.name.ifBlank { contact.phone }, subtitle = contact.phone, number = contact.phone)) }
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun Dialpad(
+fun DialpadVertical(
+    phoneNumber: String,
+    onNumberClick: (String) -> Unit,
+    onDeleteClick: () -> Unit,
+    onClearAll: () -> Unit,
+    onCallClick: () -> Unit,
+    contentPadding: PaddingValues,
+    isCoverMode: Boolean = false
+) {
+    val viewModel: PhoneViewModel = viewModel()
+    val prefs = SharedPreferenceManager(LocalContext.current)
+    val configuration = LocalConfiguration.current; val density = LocalDensity.current; val context = LocalContext.current
+    val screenHeightDp = configuration.screenHeightDp.dp
+    val bottomPadding = contentPadding.calculateBottomPadding()
+    val safeTopPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+    val callButtonHeight = 82.dp + LargestPadding; val textFieldHeight = 50.dp + LargestPadding * 2
+    val targetTotalHeight = screenHeightDp * 0.70f - safeTopPadding - bottomPadding - callButtonHeight - textFieldHeight
+    val spacing = 8.dp; val totalSpacing = spacing * 3
+    var buttonHeight = (targetTotalHeight - totalSpacing) / 4
+    if (buttonHeight < 48.dp) buttonHeight = 48.dp
+    val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).coerceAtLeast(16f).toSp() }
+    val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp() }
+    val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp() }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = if (isCoverMode) 0.dp else 16.dp).padding(bottom = bottomPadding), horizontalAlignment = Alignment.CenterHorizontally) {
+        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+        val letters = listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
+        LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            items(12) { index ->
+                val key = keys[index]; val letter = letters[index]; val interactionSource = remember { MutableInteractionSource() }; val isPressed by interactionSource.collectIsPressedAsState(); var longPressTriggered by remember { mutableStateOf(false) }
+                LaunchedEffect(isPressed) {
+                    if (isPressed) { delay(480L); if (isPressed) { longPressTriggered = true; when (key) { "1" -> viewModel.startVoicemailCall(); in "2".."9" -> { val entered = phoneNumber.trim(); if (entered.isNotBlank()) { prefs.saveQuickDial(key.toInt(), entered); Toast.makeText(context, "Saved to Quick Dial ${key}", Toast.LENGTH_SHORT).show() } else { if (prefs.hasQuickDial(key.toInt())) viewModel.startCall(prefs.getQuickDialNumber(key.toInt())!!) else Toast.makeText(context, "No Quickdial set yet", Toast.LENGTH_LONG).show() } }; "0" -> onNumberClick("+") } } } else longPressTriggered = false
+                }
+                Box(modifier = Modifier.height(buttonHeight).clip(CircleShape).background(colorScheme.surfaceBright).clickable(interactionSource = interactionSource, onClick = { if (!longPressTriggered) onNumberClick(key) }), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text(text = key, fontSize = digitTextSize, fontFamily = QuicksandTitleVariable, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
+                        Text(text = letter, fontSize = if (key == "1" || key == "0") iconSize else letterTextSize, style = LocalTextStyle.current.copy(lineHeight = if (key == "1" || key == "0") iconSize else letterTextSize), fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable, fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight, color = colorScheme.onSurfaceVariant, modifier = Modifier.offset(y = (-2).dp))
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(LargestPadding))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
+            FilledTonalIconButton(onClick = onCallClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF4CAF50), contentColor = colorScheme.onSurface), modifier = Modifier.weight(2f).height(82.dp).clip(RoundedCornerShape(50.dp))) { Icon(imageVector = Icons.Rounded.Call, contentDescription = "Call", modifier = Modifier.size(36.sp.value.dp)) }
+            val interactionSource = remember { MutableInteractionSource() }
+            FilledTonalIconButton(modifier = Modifier.weight(1f).height(82.dp).clip(RoundedCornerShape(50.dp)), onClick = { onDeleteClick(); vibrateFeedback(context) }, interactionSource = interactionSource) { Icon(imageVector = Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Delete", modifier = Modifier.size(28.sp.value.dp)) }
+            LaunchedEffect(interactionSource) { var pressStart: Long? = null; interactionSource.interactions.collect { interaction -> when (interaction) { is PressInteraction.Press -> { pressStart = System.currentTimeMillis(); launch { delay(420L); if (pressStart != null) { vibrateFeedback(context, 45L, 110); onClearAll(); pressStart = null } } }; is PressInteraction.Release -> { if (pressStart != null) vibrateFeedback(context, 5L, 5); pressStart = null }; is PressInteraction.Cancel -> pressStart = null } } }
+        }
+    }
+}
+
+@Composable
+fun DialpadCompact(
     phoneNumber: String,
     onNumberClick: (String) -> Unit,
     onDeleteClick: () -> Unit,
@@ -485,411 +487,259 @@ fun Dialpad(
     onCallClick: () -> Unit,
     contentPadding: PaddingValues,
     isCoverMode: Boolean = false,
-    isAppBarExpandable: Boolean = true
+    maxAvailableHeight: androidx.compose.ui.unit.Dp
+) {
+    val density = LocalDensity.current; val context = LocalContext.current
+    val bottomPadding = contentPadding.calculateBottomPadding(); val spacing = 8.dp
+    val textFieldTotalHeight = 50.dp + 32.dp
+    val baseAvailableHeight = (maxAvailableHeight - bottomPadding - textFieldTotalHeight - 2.dp).coerceAtLeast(0.dp)
+    val buttonHeight = (baseAvailableHeight - (spacing * 3)).coerceAtLeast(0.dp) / 4
+    val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).coerceAtLeast(16f).toSp() }
+    val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp() }
+    val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp() }
+
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = bottomPadding), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+        val letters = listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
+        LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.weight(1f).height(buttonHeight * 4 + spacing * 3), userScrollEnabled = false) {
+            items(12) { index ->
+                val key = keys[index]; val letter = letters[index]; val interactionSource = remember { MutableInteractionSource() }
+                Box(modifier = Modifier.height(buttonHeight).clip(CircleShape).background(colorScheme.surfaceBright).clickable(interactionSource = interactionSource, onClick = { onNumberClick(key) }), contentAlignment = Alignment.Center) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { Text(text = key, fontSize = digitTextSize, fontFamily = QuicksandTitleVariable, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface) }
+                        Box(modifier = Modifier.weight(3f), contentAlignment = Alignment.Center) {
+                            if (letter.isNotBlank()) {
+                                val currentSize = if (key == "1" || key == "0") iconSize else letterTextSize
+                                Text(text = letter, fontSize = (currentSize.value + 2).sp, style = LocalTextStyle.current.copy(lineHeight = (currentSize.value + 2).sp), fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable, fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight, color = colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Column(modifier = Modifier.width(48.dp).height(buttonHeight * 4 + spacing * 3), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalIconButton(onClick = onCallClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF4CAF50), contentColor = colorScheme.onSurface), modifier = Modifier.weight(2f).fillMaxWidth().clip(RoundedCornerShape(50.dp))) { Icon(imageVector = Icons.Rounded.Call, contentDescription = "Call", modifier = Modifier.size(27.dp)) }
+            val backInteraction = remember { MutableInteractionSource() }
+            FilledTonalIconButton(modifier = Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(50.dp)), onClick = { onDeleteClick(); vibrateFeedback(context) }, interactionSource = backInteraction) { Icon(imageVector = Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Delete", modifier = Modifier.size(21.dp)) }
+            LaunchedEffect(backInteraction) { var pressStart: Long? = null; backInteraction.interactions.collect { interaction -> when (interaction) { is PressInteraction.Press -> { pressStart = System.currentTimeMillis(); launch { delay(420L); if (pressStart != null) { vibrateFeedback(context, 45L, 110); onClearAll(); pressStart = null } } }; is PressInteraction.Release -> { if (pressStart != null) vibrateFeedback(context, 5L, 5); pressStart = null }; is PressInteraction.Cancel -> pressStart = null } } }
+        }
+    }
+}
+
+@SuppressLint("ConfigurationScreenWidthHeight")
+@Composable
+fun DialpadCompactPortrait(
+    phoneNumber: String,
+    onNumberClick: (String) -> Unit,
+    onDeleteClick: () -> Unit,
+    onClearAll: () -> Unit,
+    onCallClick: () -> Unit,
+    contentPadding: PaddingValues
 ) {
     val viewModel: PhoneViewModel = viewModel()
     val prefs = SharedPreferenceManager(LocalContext.current)
-
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val context = LocalContext.current
 
     val screenHeightDp = configuration.screenHeightDp.dp
-
     val bottomPadding = contentPadding.calculateBottomPadding()
-
-    val safeTopPadding =
-        WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+    val safeTopPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+        .asPaddingValues().calculateTopPadding()
 
     val textFieldHeight = 50.dp + LargestPadding * 2
-    val baseAvailableHeight = screenHeightDp * 0.70f - safeTopPadding - bottomPadding - textFieldHeight
     val spacing = 8.dp
-
-    val buttonHeightExpanded = (baseAvailableHeight - (spacing * 3) - LargestPadding).coerceAtLeast(0.dp) / 5
-    val buttonHeightCompact = (baseAvailableHeight - (spacing * 3)).coerceAtLeast(0.dp) / 4
-
-    val effectivelyExpandable = if (isCoverMode) false else isAppBarExpandable
-    val buttonHeight = if (effectivelyExpandable) buttonHeightExpanded else buttonHeightCompact
+    val baseAvailableHeight =
+        screenHeightDp * 0.70f - safeTopPadding - bottomPadding - textFieldHeight
+    val buttonHeight = (baseAvailableHeight - (spacing * 3)).coerceAtLeast(0.dp) / 4
 
     val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).coerceAtLeast(16f).toSp() }
-    val letterTextSize = with(density) {
-        (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp()
-    }
-    val iconSize = with(density) {
-        (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp()
-    }
+    val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp() }
+    val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp() }
 
     val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
     val letters = listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
 
-    val interactionSourceBackspace = remember { MutableInteractionSource() }
-
-    LaunchedEffect(interactionSourceBackspace) {
-        var hasVibratedForThisPress = false
-        var pressStart: Long? = null
-
-        interactionSourceBackspace.interactions.collect { interaction ->
-            when (interaction) {
-                is PressInteraction.Press -> {
-                    pressStart = System.currentTimeMillis()
-                    hasVibratedForThisPress = false
-
-                    launch {
-                        delay(420L)
-
-                        if (pressStart != null && !hasVibratedForThisPress) {
-                            vibrateFeedback(context, 45L, 110)
-                            onClearAll()
-                            hasVibratedForThisPress = true
-                        }
-                    }
-                }
-
-                is PressInteraction.Release -> {
-                    if (pressStart != null && !hasVibratedForThisPress) {
-                        val held = System.currentTimeMillis() - pressStart!!
-                        if (held < 420L) {
-                            vibrateFeedback(context, 5L, 5)
-                        }
-                    }
-                    pressStart = null
-                    hasVibratedForThisPress = false
-                }
-
-                is PressInteraction.Cancel -> {
-                    pressStart = null
-                    hasVibratedForThisPress = false
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun CallButton(modifier: Modifier) {
-        FilledTonalIconButton(
-            onClick = onCallClick, colors = IconButtonDefaults.iconButtonColors(
-                containerColor = Color(0xFF4CAF50), contentColor = colorScheme.onSurface
-            ), modifier = modifier
-                .clip(RoundedCornerShape(50.dp))
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Call,
-                contentDescription = "Call",
-                modifier = Modifier.size(if (effectivelyExpandable) 36.dp else 27.dp)
-            )
-        }
-    }
-
-    @Composable
-    fun BackspaceButton(modifier: Modifier) {
-        FilledTonalIconButton(
-            modifier = modifier
-                .clip(RoundedCornerShape(50.dp)),
-            onClick = {
-                onDeleteClick()
-                vibrateFeedback(context)
-            }, interactionSource = interactionSourceBackspace
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Backspace,
-                contentDescription = "Delete",
-                modifier = Modifier.size(if (effectivelyExpandable) 28.dp else 21.dp)
-            )
-        }
-    }
-
-    if (effectivelyExpandable) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = bottomPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(12) { index ->
-                    DialKey(
-                        index = index,
-                        keys = keys,
-                        letters = letters,
-                        buttonHeight = buttonHeight,
-                        digitTextSize = digitTextSize,
-                        letterTextSize = letterTextSize,
-                        iconSize = iconSize,
-                        viewModel = viewModel,
-                        prefs = prefs,
-                        phoneNumber = phoneNumber,
-                        onNumberClick = onNumberClick,
-                        context = context,
-                        isAppBarExpandable = effectivelyExpandable
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(LargestPadding))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .widthIn(max = 520.dp)
-                    .fillMaxWidth()
-            ) {
-                CallButton(Modifier.weight(2f).height(buttonHeight))
-                BackspaceButton(Modifier.weight(1f).height(buttonHeight))
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = bottomPadding),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = bottomPadding),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.weight(1f)
         ) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(12) { index ->
-                    DialKey(
-                        index = index,
-                        keys = keys,
-                        letters = letters,
-                        buttonHeight = buttonHeight,
-                        digitTextSize = digitTextSize,
-                        letterTextSize = letterTextSize,
-                        iconSize = iconSize,
-                        viewModel = viewModel,
-                        prefs = prefs,
-                        phoneNumber = phoneNumber,
-                        onNumberClick = onNumberClick,
-                        context = context,
-                        isAppBarExpandable = effectivelyExpandable
-                    )
+            items(12) { index ->
+                val key = keys[index]
+                val letter = letters[index]
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                var longPressTriggered by remember { mutableStateOf(false) }
+
+                LaunchedEffect(isPressed) {
+                    if (isPressed) {
+                        delay(480L)
+                        if (isPressed) {
+                            longPressTriggered = true
+                            when (key) {
+                                "1" -> viewModel.startVoicemailCall()
+                                in "2".."9" -> {
+                                    val entered = phoneNumber.trim()
+                                    if (entered.isNotBlank()) {
+                                        prefs.saveQuickDial(key.toInt(), entered)
+                                        Toast.makeText(
+                                            context,
+                                            "Saved to Quick Dial $key",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        if (prefs.hasQuickDial(key.toInt())) {
+                                            viewModel.startCall(prefs.getQuickDialNumber(key.toInt())!!)
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "No Quickdial set yet",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                }
+                                "0" -> onNumberClick("+")
+                            }
+                        }
+                    } else longPressTriggered = false
                 }
-            }
 
-            Column(
-                modifier = Modifier
-                    .width(48.dp)
-                    .height(buttonHeight * 4 + spacing * 3)
-                    .heightIn(max = 520.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CallButton(
-                    Modifier
-                        .weight(2f)
-                        .fillMaxWidth()
-                )
-                BackspaceButton(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DialKey(
-    index: Int,
-    keys: List<String>,
-    letters: List<String>,
-    buttonHeight: androidx.compose.ui.unit.Dp,
-    digitTextSize: androidx.compose.ui.unit.TextUnit,
-    letterTextSize: androidx.compose.ui.unit.TextUnit,
-    iconSize: androidx.compose.ui.unit.TextUnit,
-    viewModel: PhoneViewModel,
-    prefs: SharedPreferenceManager,
-    phoneNumber: String,
-    onNumberClick: (String) -> Unit,
-    context: Context,
-    isAppBarExpandable: Boolean
-) {
-    val key = keys[index]
-    val letter = letters[index]
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    var longPressTriggered by remember { mutableStateOf(false) }
-
-    val longPressDelay = 480L
-
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            longPressTriggered = false
-            delay(longPressDelay)
-            if (!longPressTriggered) {
-                longPressTriggered = true
-                when (key) {
-                    "1" -> viewModel.startVoicemailCall()
-                    in "2".."9" -> {
-                        val slot = key.toInt()
-                        val enteredNumber = phoneNumber.trim()
-                        if (enteredNumber.isNotBlank()) {
-                            prefs.saveQuickDial(slot, enteredNumber)
-                            Toast.makeText(context, "Saved to Quick Dial $slot", Toast.LENGTH_SHORT).show()
-                        } else {
-                            if (prefs.hasQuickDial(slot)) {
-                                val number = prefs.getQuickDialNumber(slot) ?: return@LaunchedEffect
-                                viewModel.startCall(number)
-                            } else {
-                                Toast.makeText(context, "No Quickdial set yet — enter a number and long-press to save", Toast.LENGTH_LONG).show()
+                Box(
+                    modifier = Modifier
+                        .height(buttonHeight)
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceBright)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            onClick = { if (!longPressTriggered) onNumberClick(key) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = key,
+                                fontSize = digitTextSize,
+                                fontFamily = QuicksandTitleVariable,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colorScheme.onSurface
+                            )
+                        }
+                        Box(modifier = Modifier.weight(3f), contentAlignment = Alignment.Center) {
+                            if (letter.isNotBlank()) {
+                                val currentSize =
+                                    if (key == "1" || key == "0") iconSize else letterTextSize
+                                val enlargedSize = (currentSize.value + 2).sp
+                                Text(
+                                    text = letter,
+                                    fontSize = enlargedSize,
+                                    style = LocalTextStyle.current.copy(lineHeight = enlargedSize),
+                                    fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable,
+                                    fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight,
+                                    color = colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
-                    else -> { if (key == "0") onNumberClick("+") }
                 }
             }
-        } else {
-            longPressTriggered = false
         }
-    }
 
-    Box(
-        modifier = Modifier
-            .height(buttonHeight)
-            .clip(CircleShape)
-            .background(colorScheme.surfaceBright)
-            .clickable(
-                interactionSource = interactionSource,
-                onClick = {
-                    if (!longPressTriggered) {
-                        onNumberClick(key)
-                    }
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isAppBarExpandable) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+        Column(
+            modifier = Modifier
+                .width(48.dp)
+                .height(buttonHeight * 4 + spacing * 3)
+                .heightIn(max = 520.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilledTonalIconButton(
+                onClick = onCallClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color(0xFF4CAF50),
+                    contentColor = colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .weight(2f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(50.dp))
             ) {
-                Text(
-                    text = key,
-                    fontSize = digitTextSize,
-                    fontFamily = QuicksandTitleVariable,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = letter,
-                    fontSize = if (key == "1" || key == "0") iconSize else letterTextSize,
-                    style = LocalTextStyle.current.copy(
-                        lineHeight = if (key == "1" || key == "0") iconSize else letterTextSize
-                    ),
-                    fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable,
-                    fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight,
-                    color = colorScheme.onSurfaceVariant,
-                    modifier = Modifier.offset(y = (-2).dp)
+                Icon(
+                    imageVector = Icons.Rounded.Call,
+                    contentDescription = "Call",
+                    modifier = Modifier.size(27.dp)
                 )
             }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+
+            val backInteraction = remember { MutableInteractionSource() }
+            FilledTonalIconButton(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(50.dp)),
+                onClick = { onDeleteClick(); vibrateFeedback(context) },
+                interactionSource = backInteraction
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = key,
-                        fontSize = digitTextSize,
-                        fontFamily = QuicksandTitleVariable,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface
-                    )
-                }
-                Box(
-                    modifier = Modifier.weight(3f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (letter.isNotBlank()) {
-                        val currentLetterSize = if (key == "1" || key == "0") iconSize else letterTextSize
-                        val enlargedSize = (currentLetterSize.value + 2).sp
-                        Text(
-                            text = letter,
-                            fontSize = enlargedSize,
-                            style = LocalTextStyle.current.copy(
-                                lineHeight = enlargedSize
-                            ),
-                            fontFamily = if (key == "1") FontFamily(Font(R.font.voicemailfont)) else QuicksandTitleVariable,
-                            fontWeight = if (key == "1") FontWeight.Bold else FontWeight.ExtraLight,
-                            color = colorScheme.onSurfaceVariant
-                        )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Backspace,
+                    contentDescription = "Delete",
+                    modifier = Modifier.size(21.dp)
+                )
+            }
+            LaunchedEffect(backInteraction) {
+                var pressStart: Long? = null
+                backInteraction.interactions.collect { interaction ->
+                    when (interaction) {
+                        is PressInteraction.Press -> {
+                            pressStart = System.currentTimeMillis()
+                            launch {
+                                delay(420L)
+                                if (pressStart != null) {
+                                    vibrateFeedback(context, 45L, 110)
+                                    onClearAll()
+                                    pressStart = null
+                                }
+                            }
+                        }
+                        is PressInteraction.Release -> {
+                            if (pressStart != null) vibrateFeedback(context, 5L, 5)
+                            pressStart = null
+                        }
+                        is PressInteraction.Cancel -> pressStart = null
                     }
                 }
             }
         }
     }
 }
-
 
 @SuppressLint("ObsoleteSdkInt")
 fun safePlaceCall(context: Context, phoneNumber: String) {
     val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-    val cleanNumber = phoneNumber.replace(" ", "")
-    val uri = "tel:$cleanNumber".toUri()
-    val permissionDeniedString = context.getString(R.string.permission_denied)
-
-    val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
-        roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
-    } else {
-        telecomManager.defaultDialerPackage == context.packageName
-    }
-
-    if (isDefaultDialer) {
-        val extras = Bundle().apply {
-            putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
-        }
-        try {
-            telecomManager.placeCall(uri, extras)
-        } catch (_: SecurityException) {
-            Toast.makeText(context, permissionDeniedString, Toast.LENGTH_SHORT).show()
-            fallbackCallIntent(context, uri)
-        }
-    } else {
-        fallbackCallIntent(context, uri)
-    }
+    val uri = "tel:${phoneNumber.replace(" ", "")}".toUri()
+    val isDefault = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) (context.getSystemService(Context.ROLE_SERVICE) as RoleManager).isRoleHeld(RoleManager.ROLE_DIALER) else telecomManager.defaultDialerPackage == context.packageName
+    if (isDefault) { try { telecomManager.placeCall(uri, Bundle().apply { putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false) }) } catch (_: SecurityException) { Toast.makeText(context, context.getString(R.string.permission_denied), Toast.LENGTH_SHORT).show(); fallbackCallIntent(context, uri) } }
+    else fallbackCallIntent(context, uri)
 }
 
-private fun fallbackCallIntent(context: Context, uri: Uri) {
-    val intent = Intent(Intent.ACTION_CALL, uri)
-    val callFailedString = context.getString(R.string.call_failed)
-    try {
-        context.startActivity(intent)
-    } catch (_: Exception) {
-        Toast.makeText(context, callFailedString, Toast.LENGTH_SHORT).show()
-    }
-}
+private fun fallbackCallIntent(context: Context, uri: Uri) { try { context.startActivity(Intent(Intent.ACTION_CALL, uri)) } catch (_: Exception) { Toast.makeText(context, context.getString(R.string.call_failed), Toast.LENGTH_SHORT).show() } }
 
-private fun vibrateFeedback(
-    context: Context,
-    durationMs: Long = 35L,
-    amplitude: Int = 90,
-    pattern: LongArray? = null
-) {
+private fun vibrateFeedback(context: Context, durationMs: Long = 35L, amplitude: Int = 90, pattern: LongArray? = null) {
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator ?: return
-
-    if (pattern != null) {
-        val effect = android.os.VibrationEffect.createWaveform(pattern, -1)
-        vibrator.vibrate(effect)
-    } else {
-        vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
-    }
+    if (pattern != null) vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1)) else vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, amplitude))
 }
