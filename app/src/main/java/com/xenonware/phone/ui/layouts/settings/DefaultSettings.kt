@@ -34,6 +34,7 @@ import com.xenon.mylibrary.res.DialogSignOut
 import com.xenon.mylibrary.res.DialogThemeSelection
 import com.xenon.mylibrary.res.DialogVersionNumber
 import com.xenon.mylibrary.res.ThemeSetting
+import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.values.LargestPadding
 import com.xenon.mylibrary.values.MediumPadding
 import com.xenon.mylibrary.values.NoSpacing
@@ -41,9 +42,9 @@ import com.xenonware.phone.BuildConfig
 import com.xenonware.phone.R
 import com.xenonware.phone.presentation.sign_in.GoogleAuthUiClient
 import com.xenonware.phone.presentation.sign_in.SignInState
-import com.xenonware.phone.viewmodel.classes.SettingsItems
 import com.xenonware.phone.viewmodel.LayoutType
 import com.xenonware.phone.viewmodel.SettingsViewModel
+import com.xenonware.phone.viewmodel.classes.SettingsItems
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -101,11 +102,13 @@ fun DefaultSettings(
     }
 
     val configuration = LocalConfiguration.current
+    val isCompact = LocalDeviceConfig.current.isCommunicator || LocalDeviceConfig.current.isMindOne
     val appHeight = configuration.screenHeightDp.dp
+
     val isAppBarExpandable = when (layoutType) {
         LayoutType.COVER -> false
         LayoutType.SMALL -> false
-        LayoutType.COMPACT -> !isLandscape && appHeight >= 460.dp
+        LayoutType.COMPACT -> !isLandscape && !isCompact && appHeight >= 460.dp
         LayoutType.MEDIUM -> true
         LayoutType.EXPANDED -> true
     }

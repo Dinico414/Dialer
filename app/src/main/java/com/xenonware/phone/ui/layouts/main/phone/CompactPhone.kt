@@ -128,15 +128,17 @@ fun CompactPhone(
     DeviceConfigProvider(appSize = appSize) {
         val deviceConfig = LocalDeviceConfig.current
         var backProgress by remember { mutableFloatStateOf(0f) }
-        val configuration = LocalConfiguration.current
         val context = LocalContext.current
         val sharedPreferenceManager = remember { SharedPreferenceManager(context) }
 
+        val configuration = LocalConfiguration.current
+        val isCompact = LocalDeviceConfig.current.isCommunicator || LocalDeviceConfig.current.isMindOne
         val appHeight = configuration.screenHeightDp.dp
+
         val isAppBarExpandable = when (layoutType) {
             LayoutType.COVER -> false
             LayoutType.SMALL -> false
-            LayoutType.COMPACT -> !isLandscape && appHeight >= 460.dp
+            LayoutType.COMPACT -> !isLandscape && !isCompact && appHeight >= 460.dp
             LayoutType.MEDIUM -> true
             LayoutType.EXPANDED -> true
         }

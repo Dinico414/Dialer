@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xenon.mylibrary.ActivityScreen
+import com.xenon.mylibrary.theme.LocalDeviceConfig
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.NoCornerRadius
 import com.xenonware.phone.data.SharedPreferenceManager
@@ -53,13 +54,15 @@ class CallHistoryActivity : ComponentActivity() {
                 coverTheme = applyCoverTheme,
                 blackedOutModeEnabled = blackedOutModeEnabled
             ) { layoutType, isLandscape ->
+
                 val configuration = LocalConfiguration.current
+                val isCompact = LocalDeviceConfig.current.isCommunicator || LocalDeviceConfig.current.isMindOne
                 val appHeight = configuration.screenHeightDp.dp
 
                 val isAppBarExpandable = when (layoutType) {
                     LayoutType.COVER -> false
                     LayoutType.SMALL -> false
-                    LayoutType.COMPACT -> !isLandscape && appHeight >= 460.dp
+                    LayoutType.COMPACT -> !isLandscape && !isCompact && appHeight >= 460.dp
                     LayoutType.MEDIUM -> true
                     LayoutType.EXPANDED -> true
                 }
