@@ -48,7 +48,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -79,7 +78,6 @@ import androidx.compose.ui.unit.max
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
 import com.google.android.gms.auth.api.identity.Identity
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.FloatingToolbarContent
@@ -109,7 +107,9 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(
@@ -302,17 +302,23 @@ fun CompactPhone(
                                 // Icons Row
                                 Row(modifier = Modifier.alpha(navIconAlpha)) {
                                     navIcons.forEachIndexed { index, (icon, desc) ->
-                                        IconButton(
-                                            onClick = {
-                                                coroutineScope.launch {
-                                                    pagerState.animateScrollToPage(index)
-                                                }
-                                            },
-                                            enabled = areNavButtonsEnabled,
-                                            modifier = Modifier.size(itemWidth)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(itemWidth)
+                                                .padding(4.dp)
+                                                .clip(CircleShape)
+                                                .clickable(
+                                                    enabled = areNavButtonsEnabled,
+                                                    onClick = {
+                                                        coroutineScope.launch {
+                                                            pagerState.animateScrollToPage(index)
+                                                        }
+                                                    }
+                                                ),
+                                            contentAlignment = Alignment.Center
                                         ) {
                                             // Calculate color based on indicator proximity for a smooth "reveal" effect
-                                            val distance = Math.abs(indicatorPosition - index)
+                                            val distance = abs(indicatorPosition - index)
                                             val colorFraction = (1f - (distance * 2f)).coerceIn(0f, 1f)
                                             val iconColor = androidx.compose.ui.graphics.lerp(
                                                 colorScheme.onSurface,
