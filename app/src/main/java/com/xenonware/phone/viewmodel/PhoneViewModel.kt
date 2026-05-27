@@ -114,7 +114,7 @@ class PhoneViewModel(application: Application) : AndroidViewModel(application) {
         checkDefaultDialerStatus()
     }
 
-    fun setIncomingPhoneNumber(number: String) {
+    fun setIncomingPhoneNumber(number: String?) {
         _incomingPhoneNumber.value = number
     }
 

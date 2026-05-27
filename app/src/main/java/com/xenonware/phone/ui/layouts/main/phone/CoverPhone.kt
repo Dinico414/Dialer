@@ -405,9 +405,11 @@ fun CoverPhone(
                             }
                         }
 
-                        LaunchedEffect(currentScreen) {
-                            if (currentScreen != PhoneScreen.Contacts) {
+                        LaunchedEffect(currentScreen, pagerState.isScrollInProgress) {
+                            if (currentScreen != PhoneScreen.Contacts && !pagerState.isScrollInProgress) {
+                                isSearchActive = false
                                 searchQuery = ""
+                                viewModel.setSearchQuery("")
                             }
                         }
                     }

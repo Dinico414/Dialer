@@ -156,6 +156,7 @@ fun DialerScreen(
     LaunchedEffect(incomingNumber) {
         if (incomingNumber != null && phoneNumber.isEmpty()) {
             phoneNumber = (incomingNumber ?: "").replace(" ", "")
+            viewModel.setIncomingPhoneNumber(null)
         }
     }
 
@@ -272,6 +273,13 @@ fun DialerScreen(
         BoxWithConstraints(modifier = modifier.fillMaxSize()) {
             val isWide = maxWidth > maxHeight * 1.5f
             val constraintsMaxHeight = maxHeight
+            val density = LocalDensity.current
+            val phoneFieldHeight = (constraintsMaxHeight * (if (isWide) 0.12f else 0.09f)).coerceAtMost(50.dp)
+            val phoneFieldPadding = (phoneFieldHeight * 0.32f).coerceAtLeast(4.dp)
+            val phoneFieldTextSize = with(density) {
+                (phoneFieldHeight.toPx() * 0.64f).coerceAtLeast(12f).toSp()
+            }
+
 
             if (isWide) {
                 // Wide Landscape Split
@@ -302,7 +310,7 @@ fun DialerScreen(
                     Column(modifier = Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
-                            modifier = Modifier.padding(16.dp).height(50.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
+                            modifier = Modifier.padding(phoneFieldPadding).height(phoneFieldHeight).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
                                 detectTapGestures(onLongPress = {
                                     vibrateFeedback(context)
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -315,12 +323,13 @@ fun DialerScreen(
                             },
                             textAlign = TextAlign.Center,
                             style = typography.headlineLarge,
+                            fontSize = phoneFieldTextSize,
                             color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f) else colorScheme.onBackground,
                             fontFamily = QuicksandTitleVariable,
                             maxLines = 1,
                             overflow = TextOverflow.Clip
                         )
-                        DialpadCompact(phoneNumber = phoneNumber, onNumberClick = { phoneNumber += it }, onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) }, onClearAll = { phoneNumber = "" }, onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) }, contentPadding = contentPadding, isCoverMode = isCoverMode, maxAvailableHeight = constraintsMaxHeight)
+                        DialpadCompact(phoneNumber = phoneNumber, onNumberClick = { phoneNumber += it }, onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) }, onClearAll = { phoneNumber = "" }, onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) }, contentPadding = contentPadding, isCoverMode = isCoverMode, maxAvailableHeight = constraintsMaxHeight, phoneFieldHeight = phoneFieldHeight, phoneFieldPadding = phoneFieldPadding)
                     }
                 }
             } else {
@@ -342,7 +351,7 @@ fun DialerScreen(
                     }
                     Text(
                         text = phoneNumber.ifEmpty { stringResource(R.string.enter_phone_number) },
-                        modifier = Modifier.padding(16.dp).height(50.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
+                        modifier = Modifier.padding(phoneFieldPadding).height(phoneFieldHeight).fillMaxWidth().horizontalScroll(rememberScrollState()).pointerInput(Unit) {
                             detectTapGestures(onLongPress = {
                                 vibrateFeedback(context)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -355,6 +364,7 @@ fun DialerScreen(
                         },
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.headlineLarge,
+                        fontSize = phoneFieldTextSize,
                         color = if (phoneNumber.isEmpty()) colorScheme.onBackground.copy(alpha = 0.6f) else colorScheme.onBackground,
                         fontFamily = QuicksandTitleVariable,
                         maxLines = 1,
@@ -366,7 +376,9 @@ fun DialerScreen(
                         onDeleteClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
                         onClearAll = { phoneNumber = "" },
                         onCallClick = { if (phoneNumber.isNotEmpty()) safePlaceCall(context, phoneNumber) },
-                        contentPadding = contentPadding
+                        contentPadding = contentPadding,
+                        phoneFieldHeight = phoneFieldHeight,
+                        phoneFieldPadding = phoneFieldPadding
                     )
                 }
             }
@@ -487,21 +499,23 @@ fun DialpadCompact(
     onCallClick: () -> Unit,
     contentPadding: PaddingValues,
     isCoverMode: Boolean = false,
-    maxAvailableHeight: androidx.compose.ui.unit.Dp
+    maxAvailableHeight: androidx.compose.ui.unit.Dp,
+    phoneFieldHeight: androidx.compose.ui.unit.Dp = 50.dp,
+    phoneFieldPadding: androidx.compose.ui.unit.Dp = 16.dp
 ) {
     val density = LocalDensity.current; val context = LocalContext.current
-    val bottomPadding = contentPadding.calculateBottomPadding(); val spacing = 8.dp
-    val textFieldTotalHeight = 50.dp + 32.dp
+    val bottomPadding = contentPadding.calculateBottomPadding(); val spacing = 4.dp
+    val textFieldTotalHeight = phoneFieldHeight + phoneFieldPadding * 2
     val baseAvailableHeight = (maxAvailableHeight - bottomPadding - textFieldTotalHeight - 2.dp).coerceAtLeast(0.dp)
     val buttonHeight = (baseAvailableHeight - (spacing * 3)).coerceAtLeast(0.dp) / 4
     val digitTextSize = with(density) { (buttonHeight.toPx() * 0.48f).coerceAtLeast(16f).toSp() }
     val letterTextSize = with(density) { (buttonHeight.toPx() * 0.185f).coerceAtLeast(8f).toSp() }
     val iconSize = with(density) { (buttonHeight.toPx() * 0.20f).coerceAtLeast(12f).toSp() }
 
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = bottomPadding), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = bottomPadding), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
         val letters = listOf("ↈ", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "")
-        LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.weight(1f).height(buttonHeight * 4 + spacing * 3), userScrollEnabled = false) {
+        LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f).height(buttonHeight * 4 + spacing * 3), userScrollEnabled = false) {
             items(12) { index ->
                 val key = keys[index]; val letter = letters[index]; val interactionSource = remember { MutableInteractionSource() }
                 Box(modifier = Modifier.height(buttonHeight).clip(CircleShape).background(colorScheme.surfaceBright).clickable(interactionSource = interactionSource, onClick = { onNumberClick(key) }), contentAlignment = Alignment.Center) {
@@ -535,7 +549,9 @@ fun DialpadCompactPortrait(
     onDeleteClick: () -> Unit,
     onClearAll: () -> Unit,
     onCallClick: () -> Unit,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    phoneFieldHeight: androidx.compose.ui.unit.Dp = 50.dp,
+    phoneFieldPadding: androidx.compose.ui.unit.Dp = 16.dp
 ) {
     val viewModel: PhoneViewModel = viewModel()
     val prefs = SharedPreferenceManager(LocalContext.current)
@@ -548,7 +564,7 @@ fun DialpadCompactPortrait(
     val safeTopPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
         .asPaddingValues().calculateTopPadding()
 
-    val textFieldHeight = 50.dp + LargestPadding * 2
+    val textFieldHeight = phoneFieldHeight + phoneFieldPadding * 2
     val spacing = 8.dp
     val baseAvailableHeight =
         screenHeightDp * 0.70f - safeTopPadding - bottomPadding - textFieldHeight
@@ -566,13 +582,13 @@ fun DialpadCompactPortrait(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(bottom = bottomPadding),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f)
         ) {
             items(12) { index ->
@@ -666,7 +682,7 @@ fun DialpadCompactPortrait(
                 .width(48.dp)
                 .height(buttonHeight * 4 + spacing * 3)
                 .heightIn(max = 520.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             FilledTonalIconButton(
                 onClick = onCallClick,
