@@ -445,7 +445,8 @@ fun CompactPhone(
 
                                 1 -> DialerScreen(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding)
+                                    contentPadding = PaddingValues(scaffoldPadding.calculateBottomPadding() + MediumPadding),
+                                    isAppBarExpandable = isAppBarExpandable
                                 )
 
                                 2 -> ContactsScreen(
